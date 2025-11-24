@@ -1,4 +1,5 @@
 Idea
+
 Realizzazione di un sistema informatico per la gestione di un parcheggio multipiano a pagamento, con l’obiettivo di ottimizzare l’uso degli spazi, automatizzare i processi di accesso/uscita e semplificare la gestione economica del servizio.
 Il sistema deve integrare una componente Desktop destinata agli operatori di cassa e una componente Web dedicata agli utenti, che potranno verificare la disponibilità dei posti e prenotare in anticipo.
 
