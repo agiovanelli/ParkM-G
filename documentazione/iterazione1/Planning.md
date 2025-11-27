@@ -2,9 +2,9 @@
 
 ## Scelta casi d'uso da realizzare
 ### Utente:
+* Registrazione
 * Login
 * Selezione preferenze
-* Registrazione
 
 ### Operatore
 * Accesso alla piattaforma
