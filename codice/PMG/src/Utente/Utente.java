@@ -82,4 +82,10 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		// TODO azione di logout
 		
 	}
+	
+	@Override
+	public void setSelezione() {
+		// TODO Azione di salvataggio delle preferenze
+		
+	}
 }
