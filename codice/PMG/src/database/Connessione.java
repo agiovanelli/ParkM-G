@@ -15,7 +15,7 @@ public class Connessione {
 	
 	private static String loadMongoUri() throws IOException {
         Properties props = new Properties();
-        try (FileInputStream fis = new FileInputStream("config.properties")) {
+        try (FileInputStream fis = new FileInputStream("conf.properties")) {
             props.load(fis);
         }
         String uri = props.getProperty("mongo.uri");
