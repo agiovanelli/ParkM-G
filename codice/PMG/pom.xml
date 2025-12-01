@@ -9,32 +9,70 @@
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
+    <javafx.version>21.0.1</javafx.version>
   </properties>
 
   <dependencies>
+
+    <!-- Mongo -->
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-sync</artifactId>
       <version>5.5.0</version>
     </dependency>
 
+    <!-- Logger -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>
       <version>2.0.16</version>
     </dependency>
+
+    <!-- JavaFX -->
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-controls</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-graphics</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-base</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+
   </dependencies>
 
   <build>
     <sourceDirectory>src</sourceDirectory>
     <plugins>
+
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
           <release>21</release>
         </configuration>
       </plugin>
+
+      <plugin>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-maven-plugin</artifactId>
+        <version>0.0.8</version>
+        <configuration>
+          <release>25</release>
+          <mainClass>Grafica.Home</mainClass>
+        </configuration>
+      </plugin>
+
     </plugins>
   </build>
+
 </project>
