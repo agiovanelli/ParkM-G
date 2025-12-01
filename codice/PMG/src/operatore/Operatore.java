@@ -11,18 +11,12 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
 	
 	@Override
 	public Operatore login(String nomeStruttura, Long id) {
-		// TODO Auto-generated method stub
-		return null;
+		Operatore operatore = new Operatore(nomeStruttura, id);
+		return operatore;
 	}
 	
 	@Override
-	public Operatore login(Operatore Operatore) {
-		Operatore = new Operatore(nomeStruttura, id);
-		return Operatore;
-	}
-	
-	@Override
-	public void logout(Operatore Operatore) {
+	public void logout() {
 		
 	}
 	

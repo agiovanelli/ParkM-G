@@ -20,22 +20,24 @@ public class Connessione {
         }
         String uri = props.getProperty("mongo.uri");
         if (uri == null || uri.isBlank()) {
-            throw new IllegalStateException("Chiave mongo.uri mancante in config.properties");
+            throw new IllegalStateException("Chiave mongo.uri mancante in conf.properties");
         }
         return uri;
     }
-
-	public static void main( String[] args ) throws IOException {
+	
+	public MongoCollection<Document> connessioneUtenti() throws IOException{
 		String uri = loadMongoUri();
-        try (MongoClient mongoClient = MongoClients.create(uri)) {
-            MongoDatabase database = mongoClient.getDatabase("PMG");
-            MongoCollection<Document> collection = database.getCollection("operatori");
-            Document doc = collection.find().first();
-            if (doc != null) {
-                System.out.println(doc.toJson());
-            } else {
-                System.out.println("No matching documents found.");
-            }
-        }
-    }
+		MongoClient mongoClient = MongoClients.create(uri);
+        MongoDatabase database = mongoClient.getDatabase("PMG");
+        MongoCollection<Document> collection = database.getCollection("utenti");
+        return collection;
+	}
+	
+	public MongoCollection<Document> connessioneOperatori() throws IOException{
+		String uri = loadMongoUri();
+		MongoClient mongoClient = MongoClients.create(uri);
+        MongoDatabase database = mongoClient.getDatabase("PMG");
+        MongoCollection<Document> collection = database.getCollection("operatori");
+        return collection;
+	}
 }
