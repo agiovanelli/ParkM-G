@@ -2,6 +2,7 @@ package Utente;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.UUID;
 
 public class Utente implements DatiUtenti, GestioneUtenti{
 	String nome;
@@ -19,6 +20,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		email = e;
 		
 		username = n + "." + c;
+		id = UUID.randomUUID().toString();
 	}
 	
 	public Utente(String p, String e) {
@@ -27,26 +29,19 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	}
 
 	@Override
-	public Utente registrazione(Utente u) {
-		u = new Utente(u.nome, u.cognome, u.password, u.email);
+	public Utente registrazioneDB(Utente u) {
+		//TODO aggiornamento database creando nuovo record
 		return u;
 	}
 
 	@Override
-	public Utente login(Utente u) {
-		u = new Utente(u.password, u.email);
-		return u;
+	public void deleteDB(Utente u) {
+		// TODO aggiornamento database eliminando record
 	}
 
 	@Override
-	public void logout(Utente u) {
-		// TODO azione di logout
-		
-	}
-
-	@Override
-	public void selezione() {
-		// TODO Azione di salvataggio delle preferenze
+	public void selezioneDB(Utente u, Map<ArrayList<String>, String> p) {
+		// TODO Azione di salvataggio delle preferenze nel db
 		
 	}
 
@@ -68,6 +63,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public Utente registrazione(String nome, String cognome, String password, String email) {
 		Utente newUser = new Utente(nome, cognome, password, email);
+		registrazioneDB(newUser);
 		return newUser;
 	}
 
@@ -79,13 +75,14 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 
 	@Override
 	public void logout() {
-		// TODO azione di logout
+		// TODO azione di logout su app
 		
 	}
 	
 	@Override
 	public void setSelezione() {
 		// TODO Azione di salvataggio delle preferenze
+		selezioneDB(this, this.preferenze);
 		
 	}
 }
