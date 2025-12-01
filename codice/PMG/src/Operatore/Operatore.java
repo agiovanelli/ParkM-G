@@ -1,39 +1,48 @@
 package Operatore;
 
+import java.io.IOException;
+
+import database.QueryOperatori;
+
 public class Operatore implements DatiOperatori, GestioneOperatori{
 	String nomeStruttura;
-	Long id;
+	String username;
 	
-	public Operatore(String n, Long i) {
+	public Operatore(String n, String u) {
 		nomeStruttura = n;
-		id = i;
+		username = u;
 	}
 	
 	@Override
-	public Operatore login(String nomeStruttura, Long id) {
-		// TODO Auto-generated method stub
-		return null;
-	}
+	public void login() {
+        try {
+            QueryOperatori qo = new QueryOperatori();
+            boolean esiste = qo.esisteOperatore(this);
+
+            if (esiste) {
+                System.out.println("Login effettuato");
+            } else {
+                System.out.println("Utente non registrato");
+            }
+        } catch (IOException e) {
+            System.out.println("Errore di connessione al database: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 	
 	@Override
-	public Operatore login(Operatore Operatore) {
-		Operatore = new Operatore(nomeStruttura, id);
-		return Operatore;
-	}
-	
-	@Override
-	public void logout(Operatore Operatore) {
+	public void logout() {
 		
 	}
 	
 	@Override
-	public String getNomeStruttura(Operatore Operatore) {
-		return Operatore.nomeStruttura;
+	public String getNomeStruttura() {
+		return nomeStruttura;
 	}
 	
 	@Override
-	public Long getId(Operatore Operatore) {
-		return Operatore.id;
+	public String getUsername() {
+		return username;
 	}
 
 }

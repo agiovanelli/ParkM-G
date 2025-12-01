@@ -1,74 +1,155 @@
 package Utente;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import org.bson.conversions.Bson;
+import org.bson.Document;
+import org.bson.types.ObjectId;
+
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
+
+import database.Connessione;
 
 public class Utente implements DatiUtenti, GestioneUtenti{
 	String nome;
 	String cognome;
 	String username;
-	String id;
 	String password;
 	String email;
-	Map<ArrayList<String>, String> preferenze;
+	ObjectId id;
+	Map<String, String> preferenze;
+
+	private final MongoCollection<Document> utenti;
 	
-	public Utente(String n, String c, String p, String e){
+	public Utente(String n, String c, String p, String e) throws Exception{
 		nome = n;
 		cognome = c;
 		password = p;
 		email = e;
 		
 		username = n + "." + c;
-		id = UUID.randomUUID().toString();
+		
+		Connessione connection = new Connessione();
+        this.utenti = connection.connessioneUtenti();
+		
+		registrazioneDB();
 	}
 	
-	public Utente(String p, String e) {
+	public Utente(String p, String e) throws Exception{
 		password = p;
 		email = e;
+		
+		Connessione connection = new Connessione();
+        this.utenti = connection.connessioneUtenti();
+        
+        loginDB();
 	}
 
 	@Override
-	public Utente registrazioneDB(Utente u) {
-		//TODO aggiornamento database creando nuovo record
-		return u;
+	public boolean registrazioneDB() {
+		// Controlla se il database ha già questo record
+		Document esistente = utenti.find(Filters.and(
+				Filters.eq("email", this.email),
+				Filters.eq("password", this.password)
+				)).first();
+		if(esistente != null) {
+			System.out.println("Utente già registrato");
+			return false;
+		}
+		
+		// Altrimenti lo salva nel db
+        Document nuovo = new Document("nome", this.nome)
+        		.append("cognome", this.cognome)
+        		.append("password", this.password)
+                .append("email", this.email)
+                .append("username", this.username)
+                .append("preferenze", "");
+
+        utenti.insertOne(nuovo);
+        
+        // Recupero l'id del documento dal database
+        this.id = nuovo.getObjectId("_id");
+        
+        return true;
 	}
 
 	@Override
-	public void deleteDB(Utente u) {
-		// TODO aggiornamento database eliminando record
+	public boolean loginDB() {
+		// Controlla se il database ha già questo record
+		Document esistente = utenti.find(Filters.and(
+				Filters.eq("email", this.email),
+				Filters.eq("password", this.password)
+				)).first();
+		
+		if(esistente == null) {
+			System.out.println("Utente non registrato");
+			return false;
+		}
+		
+		// Recupero l'id del documento dal database
+		this.id = esistente.getObjectId("_id");
+		this.username = esistente.getString("username");
+		
+		return true;
+	}
+	
+	@Override
+	public boolean deleteDB() {
+		// Trova il record con stesso id e aggiorna il database eliminandolo
+		Document eliminazione = utenti.findOneAndDelete(Filters.and(
+				Filters.eq("email", this.email),
+				Filters.eq("password", this.password)));
+		
+		return eliminazione != null;
 	}
 
 	@Override
-	public void selezioneDB(Utente u, Map<ArrayList<String>, String> p) {
+	public boolean selezioneDB(Utente u, Map<String, String> p) {
 		// TODO Azione di salvataggio delle preferenze nel db
 		
+		List<Bson> updates = new ArrayList<>();
+		p.forEach((k, v) -> updates.add(Updates.set("preferenze." + k, v)));
+		
+		UpdateResult update = utenti.updateOne(
+			    Filters.eq("_id", u.id),
+			    Updates.combine(updates)
+			);
+				
+		return true;
 	}
 
 	@Override
-	public String getUsername(Utente u) {
-		return u.username;
+	public String getUsername() {
+		return this.username;
 	}
 
 	@Override
-	public String getId(Utente u) {
-		return u.id;
+	public ObjectId getId() {
+		return this.id;
 	}
 
 	@Override
-	public Map<ArrayList<String>, String> getPreferenze(Utente u) {
-		return u.preferenze;
+	public Object getPreferenze() {
+		Document esistente = utenti.find(Filters.eq("_id", this.id)).first();
+		
+		return esistente.get("preferenze");
 	}
 
 	@Override
-	public Utente registrazione(String nome, String cognome, String password, String email) {
+	public Utente registrazione(String nome, String cognome, String password, String email) throws Exception{
 		Utente newUser = new Utente(nome, cognome, password, email);
-		registrazioneDB(newUser);
+		registrazioneDB();
 		return newUser;
 	}
 
 	@Override
-	public Utente login(String password, String email) {
+	public Utente login(String password, String email) throws Exception{
 		Utente user = new Utente(password, email);
 		return user;
 	}
@@ -80,9 +161,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	}
 	
 	@Override
-	public void setSelezione() {
-		// TODO Azione di salvataggio delle preferenze
-		selezioneDB(this, this.preferenze);
-		
+	public void setSelezione(Map<String, String> p) {
+		selezioneDB(this, p);
 	}
 }

@@ -2,5 +2,6 @@ package Operatore;
 
 public interface GestioneOperatori {
 
-	public Operatore login(String nomeStruttura, Long id);
+	public void login ();
+	public void logout ();
 }
