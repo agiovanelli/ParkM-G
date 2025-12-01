@@ -13,6 +13,10 @@ import com.mongodb.client.MongoDatabase;
 
 public class Connessione {
 	
+	public Connessione() {
+		
+	}
+	
 	private static String loadMongoUri() throws IOException {
         Properties props = new Properties();
         try (FileInputStream fis = new FileInputStream("conf.properties")) {
@@ -25,7 +29,7 @@ public class Connessione {
         return uri;
     }
 	
-	public MongoCollection<Document> connessioneUtenti() throws IOException{
+	public static MongoCollection<Document> connessioneUtenti() throws IOException{
 		String uri = loadMongoUri();
 		MongoClient mongoClient = MongoClients.create(uri);
         MongoDatabase database = mongoClient.getDatabase("PMG");
@@ -33,7 +37,7 @@ public class Connessione {
         return collection;
 	}
 	
-	public MongoCollection<Document> connessioneOperatori() throws IOException{
+	public static MongoCollection<Document> connessioneOperatori() throws IOException{
 		String uri = loadMongoUri();
 		MongoClient mongoClient = MongoClients.create(uri);
         MongoDatabase database = mongoClient.getDatabase("PMG");
