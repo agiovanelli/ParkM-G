@@ -2,7 +2,7 @@ package Operatore;
 
 import java.io.IOException;
 
-import database.QueryOperatori;
+import Database.QueryOperatori;
 
 public class Operatore implements DatiOperatori, GestioneOperatori{
 	String nomeStruttura;

@@ -13,7 +13,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
 
-import database.Connessione;
+import Database.Connessione;
 
 public class Utente implements DatiUtenti, GestioneUtenti{
 	String nome;
