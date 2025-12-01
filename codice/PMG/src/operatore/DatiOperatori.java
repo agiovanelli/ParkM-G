@@ -1,4 +1,4 @@
-package operatore;
+package Operatore;
 
 public interface DatiOperatori {
 

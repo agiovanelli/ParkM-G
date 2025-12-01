@@ -1,4 +1,4 @@
-package operatore;
+package Operatore;
 
 public class Operatore implements DatiOperatori, GestioneOperatori{
 	String nomeStruttura;
