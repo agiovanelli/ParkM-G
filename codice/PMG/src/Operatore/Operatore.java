@@ -1,4 +1,4 @@
-package operatore;
+package Operatore;
 
 import java.io.IOException;
 

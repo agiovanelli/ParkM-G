@@ -6,7 +6,7 @@ import org.bson.Document;
 
 import com.mongodb.client.MongoCollection;
 
-import operatore.Operatore;
+import Operatore.Operatore;
 
 public class QueryOperatori {
 	

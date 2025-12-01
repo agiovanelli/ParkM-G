@@ -6,7 +6,6 @@ import java.util.Map;
 import org.bson.types.ObjectId;
 
 public interface DatiUtenti {
-	
 	public boolean registrazioneDB();
 	public boolean loginDB();
 	public boolean deleteDB();

@@ -3,6 +3,7 @@ package Utente;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.bson.conversions.Bson;
 import org.bson.Document;
@@ -143,6 +144,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public Utente registrazione(String nome, String cognome, String password, String email) throws Exception{
 		Utente newUser = new Utente(nome, cognome, password, email);
+		registrazioneDB();
 		return newUser;
 	}
 
