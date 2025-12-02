@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="Grafica.HomeController"
+      spacing="20"
+      style="-fx-padding: 30; -fx-alignment: center;">
+
+    <children>
+        <Label text="Benvenuto in ParkingM&amp;G"
+       		   style="-fx-font-size: 20px; -fx-font-weight: bold;" />
+
+        <Button text="Sono un utente"
+                fx:id="utenteButton"
+                prefWidth="200"
+                onAction="#onUtente"/>
+
+        <Button text="Sono un operatore"
+                fx:id="operatoreButton"
+                prefWidth="200"
+                onAction="#onOperatore"/>
+    </children>
+</VBox>
