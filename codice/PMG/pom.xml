@@ -47,6 +47,14 @@
       <version>${javafx.version}</version>
     </dependency>
 
+	<!-- https://mvnrepository.com/artifact/com.gluonhq.scenebuilder/parent -->
+	<dependency>
+	    <groupId>com.gluonhq.scenebuilder</groupId>
+	    <artifactId>parent</artifactId>
+	    <version>25.0.0</version>
+	    <type>pom</type>
+	</dependency>
+
 	<!-- https://mvnrepository.com/artifact/com.gluonhq.scenebuilder/kit -->
 	<dependency>
 	    <groupId>com.gluonhq.scenebuilder</groupId>
