@@ -11,18 +11,41 @@ public class Home extends Application {
 
     @Override
     public void start(Stage stage) {
-        Label label = new Label("Benvenuto in JavaFX!");
-        Button button = new Button("Cliccami");
+    	// Titolo principale
+        Label titolo = new Label("Benvenuto in ParkingM&G");
+        titolo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+        
+        // Pulsanti
+        Button utente = new Button("Sono un utente");
+        Button operatore = new Button("Sono un operatore");
 
-        button.setOnAction(e -> label.setText("Hai cliccato il pulsante!"));
+        utente.setPrefWidth(200);
+        operatore.setPrefWidth(200);
 
-        VBox root = new VBox(15, label, button);
-        root.setStyle("-fx-padding: 20; -fx-alignment: center;");
+        VBox root = new VBox(20, titolo, utente, operatore);
+        root.setStyle("-fx-padding: 30; -fx-alignment: center;");
 
-        Scene scene = new Scene(root, 300, 200);
+        Scene hScene = new Scene(root, 300, 250);
+        
+        // Scena utente
+        Label uLabel = new Label("Pagina Utente");
+        uLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        stage.setTitle("JavaFX Demo");
-        stage.setScene(scene);
+        Button back = new Button("Torna Indietro");
+        back.setOnAction(e -> stage.setScene(hScene));
+
+        VBox uRoot = new VBox(20, uLabel, back);
+        uRoot.setStyle("-fx-padding: 30; -fx-alignment: center;");
+
+        Scene uScene = new Scene(uRoot, 350, 250);
+
+        stage.setTitle("ParkingM&G");
+        
+        // Eventi bottoni
+        utente.setOnAction(e -> stage.setScene(uScene));
+        operatore.setOnAction(e -> System.out.println("Hai scelto: Operatore"));
+        
+        stage.setScene(hScene);
         stage.show();
     }
 
