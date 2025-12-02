@@ -14,6 +14,7 @@ import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
 
 import Database.Connessione;
+import Grafica.HomeController;
 
 public class Utente implements DatiUtenti, GestioneUtenti{
 	String nome;
@@ -53,11 +54,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public boolean registrazioneDB() {
 		// Controlla se il database ha già questo record
-		Document esistente = utenti.find(Filters.and(
-				Filters.eq("email", this.email),
-				Filters.eq("password", this.password)
-				)).first();
-		if(esistente != null) {
+		if(controlloCredenziali() != null) {
 			System.out.println("Utente già registrato");
 			return false;
 		}
@@ -81,19 +78,14 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public boolean loginDB() {
 		// Controlla se il database ha già questo record
-		Document esistente = utenti.find(Filters.and(
-				Filters.eq("email", this.email),
-				Filters.eq("password", this.password)
-				)).first();
-		
-		if(esistente == null) {
+		if(controlloCredenziali() == null) {
 			System.out.println("Utente non registrato");
 			return false;
 		}
 		
 		// Recupero l'id del documento dal database
-		this.id = esistente.getObjectId("_id");
-		this.username = esistente.getString("username");
+		this.id = controlloCredenziali().getObjectId("_id");
+		this.username = controlloCredenziali().getString("username");
 		
 		return true;
 	}
@@ -162,5 +154,15 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public void setSelezione(Map<String, String> p) {
 		selezioneDB(this, p);
+	}
+
+	@Override
+	public Document controlloCredenziali() {
+		Document esistente = utenti.find(Filters.and(
+				Filters.eq("email", this.email),
+				Filters.eq("password", this.password)
+				)).first();
+		
+		return esistente;
 	}
 }

@@ -81,10 +81,10 @@
                                         <VBox fx:id="userRegisterPane" alignment="TOP_CENTER" managed="false" spacing="10" visible="false">
                                             <children>
                                                 <Label styleClass="card-title" text="Crea un nuovo account" />
-                                                <TextField fx:id="userRegisterName" promptText="Nome completo" />
+                                                <TextField fx:id="userRegisterName" promptText="Nome" />
+                                                <TextField fx:id="userRegisterSurname" promptText="Cognome" />
                                                 <TextField fx:id="userRegisterEmail" promptText="Email" />
                                                 <PasswordField fx:id="userRegisterPassword" promptText="Password" />
-                                                <PasswordField fx:id="userRegisterConfirmPassword" promptText="Conferma password" />
                                                 <Button fx:id="btnUserRegisterSubmit" maxWidth="Infinity" onAction="#handleUserRegister" styleClass="primary-button" text="Registrati" />
                                             </children>
                                         </VBox>
@@ -100,8 +100,8 @@
                                 <VBox alignment="TOP_CENTER" spacing="16" styleClass="card">
                                     <children>
                                         <Label styleClass="card-title" text="Login operatore" />
-                                        <TextField fx:id="operatorCode" promptText="Codice operatore" />
-                                        <PasswordField fx:id="operatorPassword" promptText="Password" />
+                                        <TextField fx:id="operatorCode" promptText="Nome Struttura" />
+                                        <PasswordField fx:id="operatorPassword" promptText="Username" />
                                         <Button fx:id="btnOperatorLogin" maxWidth="Infinity" onAction="#handleOperatorLogin" styleClass="primary-button" text="Accedi" />
                                         <Label styleClass="hint-label" text="Accesso riservato al personale autorizzato." wrapText="true" />
                                     </children>

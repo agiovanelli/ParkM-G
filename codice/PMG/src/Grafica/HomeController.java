@@ -2,6 +2,9 @@ package Grafica;
 
 import java.io.IOException;
 
+import Database.QueryOperatori;
+import Operatore.Operatore;
+import Utente.Utente;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -18,6 +21,9 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 public class HomeController {
+	
+	private Utente u;
+	private Operatore o;
 
     // --- Toggle Accedi / Registrati ---
     @FXML private ToggleGroup userModeGroup;
@@ -34,9 +40,9 @@ public class HomeController {
 
     // --- Campi registrazione utente ---
     @FXML private TextField userRegisterName;
+    @FXML private TextField userRegisterSurname;
     @FXML private TextField userRegisterEmail;
     @FXML private PasswordField userRegisterPassword;
-    @FXML private PasswordField userRegisterConfirmPassword;
 
     // --- Campi login operatore ---
     @FXML private TextField operatorCode;
@@ -59,21 +65,34 @@ public class HomeController {
         });
     }
 
-    // ------------------------------------------------
-    //  CLIENTI
-    // ------------------------------------------------
-
+    // Utenti
     @FXML
-    private void handleUserLogin(ActionEvent event) {
+    private void handleUserLogin(ActionEvent event){
         String email = userLoginEmail.getText();
         String password = userLoginPassword.getText();
 
-        // TODO: qui metti la tua logica di verifica credenziali (DB, ecc.)
-        System.out.println("Login utente: " + email + " / " + password);
+        // Controllo campi vuoti
+        if (email.isEmpty() || password.isEmpty()) {
+            showError("Inserisci email e password.");
+            return;
+        }
 
+        // Controllo formato email
+        if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            showError("Formato email non valido.");
+            return;
+        }
+        
         // Se login ok -> vai alla schermata utente
         try {
-            Parent root = FXMLLoader.load(getClass().getResource("SchermataUtente.fxml"));
+        	u = new Utente(password, email);
+        	
+        	if(!u.loginDB()){
+        		showError("Questo utente non esiste");
+        		return;
+        	}
+        	
+        	Parent root = FXMLLoader.load(getClass().getResource("SchermataUtente.fxml"));
             Stage stage = Main.getPrimaryStage();
             stage.setScene(new Scene(root));
             stage.setResizable(true); 
@@ -85,22 +104,52 @@ public class HomeController {
             stage.setMaximized(true); 
         } catch (IOException e) {
             e.printStackTrace();
-        }
+        } catch (Exception e2) {
+        	e2.printStackTrace();
+        }        
     }
 
     @FXML
     private void handleUserRegister(ActionEvent event) {
         String nome = userRegisterName.getText();
+        String cognome = userRegisterSurname.getText();
         String email = userRegisterEmail.getText();
         String pwd = userRegisterPassword.getText();
-        String pwd2 = userRegisterConfirmPassword.getText();
 
-        // TODO: controlli base (password uguali, email non vuota, ecc.)
-        System.out.println("Registrazione utente: " + nome + " / " + email);
+        if (nome.isEmpty() || cognome.isEmpty() || email.isEmpty() || pwd.isEmpty()) {
+            showError("Compila tutti i campi.");
+            return;
+        }
 
-        // TODO: salva sul DB, poi eventualmente:
-        // - mostra un messaggio di successo
-        // - passa automaticamente al tab login
+        if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            showError("Email non valida.");
+            return;
+        }
+
+        // Controllo password
+        if (!passwordValida(pwd)) {
+            showError("La password deve contenere almeno:\n- 6 caratteri\n- 1 lettera maiuscola\n- 1 numero\n- 1 carattere speciale");
+            return;
+        }
+
+        try {
+        	u = new Utente(nome, cognome, pwd, email);
+        	
+        	if(u.controlloCredenziali() != null){
+        		showError("Le credenziali sono già in uso");
+        		return;
+        	}
+        	
+        	userLoginPane.setVisible(true);
+            userLoginPane.setManaged(true);
+
+            userRegisterPane.setVisible(false);
+            userRegisterPane.setManaged(false);
+            
+            userModeGroup.selectToggle(btnUserLogin);
+        }catch(Exception e) {
+        	e.printStackTrace();
+        }
     }
 
     @FXML
@@ -109,20 +158,28 @@ public class HomeController {
         System.out.println("Richiesto recupero password utente");
     }
 
-    // ------------------------------------------------
-    //  OPERATORI
-    // ------------------------------------------------
-
+    // Operatori
     @FXML
     private void handleOperatorLogin(ActionEvent event) {
-        String code = operatorCode.getText();
-        String pwd = operatorPassword.getText();
+        String nomeStruttura = operatorCode.getText();
+        String username = operatorPassword.getText();
 
-        // TODO: logica di verifica codice operatore + password
-        System.out.println("Login operatore: " + code);
+     // Controllo campi vuoti
+        if (nomeStruttura.isEmpty() || username.isEmpty()) {
+            showError("Inserisci il nome della struttura e l'username.");
+            return;
+        }
 
         // Se login ok -> vai alla schermata operatore
         try {
+        	o = new Operatore(nomeStruttura, username);
+        	QueryOperatori qo = new QueryOperatori();
+        	
+        	if(!qo.esisteOperatore(o)){
+        		showError("Questo operatore non esiste");
+        		return;
+        	}
+        	
             Parent root = FXMLLoader.load(getClass().getResource("SchermataOperatore.fxml"));
             Stage stage = Main.getPrimaryStage();
             stage.setScene(new Scene(root));
@@ -136,5 +193,40 @@ public class HomeController {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    
+    private boolean passwordValida(String pwd) {
+        if (pwd == null) return false;
+
+        // Lunghezza minima
+        if (pwd.length() < 6) {
+            return false;
+        }
+
+        // Almeno una maiuscola
+        if (!pwd.matches(".*[A-Z].*")) {
+            return false;
+        }
+
+        // Almeno un numero
+        if (!pwd.matches(".*\\d.*")) {
+            return false;
+        }
+
+        // Almeno un carattere speciale
+        if (!pwd.matches(".*[!@#$%^&*()_+\\-={}|\\[\\]:\";'<>?,./].*")) {
+            return false;
+        }
+
+        return true;
+    }
+    
+    private void showError(String msg) {
+        javafx.scene.control.Alert alert = 
+                new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+        alert.setTitle("Errore");
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
     }
 }
