@@ -1,5 +1,9 @@
 package Grafica;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import Utente.Utente;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.CheckBox;
@@ -10,6 +14,8 @@ import javafx.scene.control.ToggleGroup;
 import javafx.stage.Stage;
 
 public class PreferenzeController {
+	private Map<String, String> pref = new HashMap<>();
+	private Utente u;
 
     // Età
     @FXML private RadioButton rbUnder30;
@@ -82,18 +88,19 @@ public class PreferenzeController {
             piano = "nessuna";
         }
 
-        double distanza = sliderDistanza.getValue();
-        boolean disabile = cbDisabile.isSelected();
-        boolean donnaIncinta = cbDonnaIncinta.isSelected();
+        String distanza = String.format("%.2f", sliderDistanza.getValue());
+        String disabile = cbDisabile.isSelected()? "Sì" : "No";
+        String donnaIncinta = cbDonnaIncinta.isSelected()? "Sì" : "No";
         String occupazione = choiceOccupazione.getValue();
-
-        System.out.println("Preferenze salvate:");
-        System.out.println("  Età: " + eta);
-        System.out.println("  Piano: " + piano);
-        System.out.println("  Distanza: " + distanza);
-        System.out.println("  Disabile: " + disabile);
-        System.out.println("  Donna incinta: " + donnaIncinta);
-        System.out.println("  Occupazione: " + occupazione);
+        
+        pref.put("età", eta);
+        pref.put("piano", piano);
+        pref.put("distanza", distanza);
+        pref.put("disabile", disabile);
+        pref.put("donnaIncinta", donnaIncinta);
+        pref.put("occupazione", occupazione);
+        
+        u.setSelezione(pref);
 
         close(event);
     }
@@ -102,5 +109,9 @@ public class PreferenzeController {
         Node source = (Node) event.getSource();
         Stage stage = (Stage) source.getScene().getWindow();
         stage.close();
+    }
+    
+    public void setUtente(Utente u) {
+        this.u = u;
     }
 }

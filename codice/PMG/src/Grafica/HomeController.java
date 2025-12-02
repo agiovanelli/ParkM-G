@@ -92,8 +92,15 @@ public class HomeController {
         		return;
         	}
         	
-        	Parent root = FXMLLoader.load(getClass().getResource("SchermataUtente.fxml"));
+        	FXMLLoader loader = new FXMLLoader(getClass().getResource("SchermataUtente.fxml"));
+        	Parent root = loader.load();
+            
+            SchermataUtenteController suc = loader.getController();
+            
+            suc.setUtente(u);
+            
             Stage stage = Main.getPrimaryStage();
+            
             stage.setScene(new Scene(root));
             stage.setResizable(true); 
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();

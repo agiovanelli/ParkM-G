@@ -65,7 +65,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
         		.append("password", this.password)
                 .append("email", this.email)
                 .append("username", this.username)
-                .append("preferenze", "");
+                .append("preferenze", new Document());
 
         utenti.insertOne(nuovo);
         
@@ -101,14 +101,14 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	}
 
 	@Override
-	public boolean selezioneDB(Utente u, Map<String, String> p) {
+	public boolean selezioneDB(Map<String, String> p) {
 		// TODO Azione di salvataggio delle preferenze nel db
 		
 		List<Bson> updates = new ArrayList<>();
 		p.forEach((k, v) -> updates.add(Updates.set("preferenze." + k, v)));
 		
 		UpdateResult update = utenti.updateOne(
-			    Filters.eq("_id", u.id),
+			    Filters.eq("_id", this.id),
 			    Updates.combine(updates)
 			);
 				
@@ -153,7 +153,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	
 	@Override
 	public void setSelezione(Map<String, String> p) {
-		selezioneDB(this, p);
+		selezioneDB(p);
 	}
 
 	@Override

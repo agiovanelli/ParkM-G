@@ -10,7 +10,7 @@ public interface DatiUtenti {
 	public boolean registrazioneDB();
 	public boolean loginDB();
 	public boolean deleteDB();
-	public boolean selezioneDB(Utente u, Map<String, String> p);
+	public boolean selezioneDB(Map<String, String> p);
 	public Document controlloCredenziali();
 	public String getUsername();
 	public ObjectId getId();
