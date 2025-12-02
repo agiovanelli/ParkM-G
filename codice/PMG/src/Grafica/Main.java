@@ -19,6 +19,7 @@ public class Main extends Application {
 
         stage.setTitle("ParkingM&G");
         stage.setScene(scene);
+        stage.setMaximized(true);
         stage.show();
     }
 

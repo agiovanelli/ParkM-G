@@ -15,6 +15,7 @@ public class SchermataOperatoreController {
             Parent root = FXMLLoader.load(getClass().getResource("Home.fxml"));
             Stage stage = Main.getPrimaryStage();
             stage.setScene(new Scene(root, 300, 250));
+            stage.setMaximized(true);
         } catch (IOException e) {
             e.printStackTrace();
         }

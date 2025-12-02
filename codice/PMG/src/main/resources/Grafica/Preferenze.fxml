@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ButtonBar?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="Grafica.PreferenzeController"
+      alignment="CENTER"
+      spacing="24"
+      styleClass="root-center"
+      stylesheets="@home.css">
+
+    <children>
+        <!-- CARD preferenze -->
+        <VBox spacing="16" styleClass="card">
+            <children>
+
+                <Label text="Preferenze"
+                       styleClass="card-title" />
+
+                <!-- Età -->
+                <VBox spacing="4">
+                    <children>
+                        <Label text="Età (preferenza)"
+                               styleClass="hint-label" />
+                        <HBox spacing="10">
+                            <children>
+                                <RadioButton text="Under 30"
+                                             fx:id="rbUnder30" />
+                                <RadioButton text="Over 60"
+                                             fx:id="rbOver60" />
+                            </children>
+                        </HBox>
+                    </children>
+                </VBox>
+
+                <!-- Piano -->
+                <VBox spacing="4">
+                    <children>
+                        <Label text="Piano preferito"
+                               styleClass="hint-label" />
+                        <HBox spacing="10">
+                            <children>
+                                <RadioButton text="Piano terra"
+                                             fx:id="rbPianoTerra" />
+                                <RadioButton text="Altri piani"
+                                             fx:id="rbAltriPiani" />
+                            </children>
+                        </HBox>
+                    </children>
+                </VBox>
+
+                <!-- Distanza dall'uscita -->
+                <VBox spacing="4">
+                    <children>
+                        <Label text="Distanza massima dall'uscita (metri)"
+                               styleClass="hint-label" />
+                        <Slider fx:id="sliderDistanza"
+                                min="0" max="100" value="30"
+                                blockIncrement="5"
+                                showTickMarks="true"
+                                showTickLabels="true"
+                                majorTickUnit="25"
+                                minorTickCount="4" />
+                    </children>
+                </VBox>
+
+                <!-- Disabile / Donna incinta -->
+                <VBox spacing="4">
+                    <children>
+                        <Label text="Condizioni speciali"
+                               styleClass="hint-label" />
+                        <HBox spacing="16">
+                            <children>
+                                <CheckBox text="Posto per disabile"
+                                          fx:id="cbDisabile" />
+                                <CheckBox text="Donna incinta"
+                                          fx:id="cbDonnaIncinta" />
+                            </children>
+                        </HBox>
+                    </children>
+                </VBox>
+
+                <!-- Tipologia di occupazione -->
+                <VBox spacing="4">
+                    <children>
+                        <Label text="Tipologia di occupazione"
+                               styleClass="hint-label" />
+                        <ChoiceBox fx:id="choiceOccupazione" />
+                    </children>
+                </VBox>
+
+                <!-- Pulsanti azione -->
+                <ButtonBar buttonMinWidth="90">
+                    <buttons>
+                        <Button text="Annulla"
+                                onAction="#onAnnulla"
+                                ButtonBar.buttonData="CANCEL_CLOSE"
+                                styleClass="secondary-button" />
+                        <Button text="Salva"
+                                onAction="#onSalva"
+                                ButtonBar.buttonData="OK_DONE"
+                                styleClass="primary-button" />
+                    </buttons>
+                </ButtonBar>
+
+            </children>
+        </VBox>
+    </children>
+
+</VBox>
