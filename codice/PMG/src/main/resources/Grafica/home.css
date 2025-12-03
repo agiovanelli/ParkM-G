@@ -8,6 +8,9 @@
         #020617 40%,
         #0b1120 100%
     );
+    
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
 }
 
 /* ---------- PANNELLO BRANDING SINISTRO ---------- */
@@ -87,6 +90,7 @@
 /* Bordo arrotondato sx/dx per Clienti / Operatori */
 .main-tabs > .tab-header-area > .headers-region > .tab.segment-tab-left {
     -fx-background-radius: 999 0 0 999;
+    -fx-text-fill: white;
 }
 
 .main-tabs > .tab-header-area > .headers-region > .tab.segment-tab-right {
@@ -234,5 +238,13 @@
 
 .secondary-button:hover {
     -fx-background-color: #111827;
+}
+
+.main-tabs > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill: #9ca3af;   /* grigio */
+}
+
+.main-tabs > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: #ffffff;   /* bianco */
 }
 

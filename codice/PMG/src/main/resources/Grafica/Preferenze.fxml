@@ -10,33 +10,23 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx"
-      xmlns:fx="http://javafx.com/fxml"
-      fx:controller="Grafica.PreferenzeController"
-      alignment="CENTER"
-      spacing="24"
-      styleClass="root-center"
-      stylesheets="@home.css">
+<VBox alignment="CENTER" spacing="24" styleClass="root-center" stylesheets="@home.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Grafica.PreferenzeController">
 
     <children>
         <!-- CARD preferenze -->
         <VBox spacing="16" styleClass="card">
             <children>
 
-                <Label text="Preferenze"
-                       styleClass="card-title" />
+                <Label styleClass="card-title" text="Preferenze" />
 
                 <!-- Età -->
                 <VBox spacing="4">
                     <children>
-                        <Label text="Età (preferenza)"
-                               styleClass="hint-label" />
+                        <Label styleClass="hint-label" text="Età (preferenza)" />
                         <HBox spacing="10">
                             <children>
-                                <RadioButton text="Under 30"
-                                             fx:id="rbUnder30" />
-                                <RadioButton text="Over 60"
-                                             fx:id="rbOver60" />
+                                <RadioButton fx:id="rbUnder30" text="Under 30" />
+                                <RadioButton fx:id="rbOver60" text="Over 60" />
                             </children>
                         </HBox>
                     </children>
@@ -45,14 +35,11 @@
                 <!-- Piano -->
                 <VBox spacing="4">
                     <children>
-                        <Label text="Piano preferito"
-                               styleClass="hint-label" />
+                        <Label styleClass="hint-label" text="Piano preferito" />
                         <HBox spacing="10">
                             <children>
-                                <RadioButton text="Piano terra"
-                                             fx:id="rbPianoTerra" />
-                                <RadioButton text="Altri piani"
-                                             fx:id="rbAltriPiani" />
+                                <RadioButton fx:id="rbPianoTerra" text="Piano terra" />
+                                <RadioButton fx:id="rbAltriPiani" text="Altri piani" />
                             </children>
                         </HBox>
                     </children>
@@ -61,29 +48,19 @@
                 <!-- Distanza dall'uscita -->
                 <VBox spacing="4">
                     <children>
-                        <Label text="Distanza massima dall'uscita (metri)"
-                               styleClass="hint-label" />
-                        <Slider fx:id="sliderDistanza"
-                                min="0" max="100" value="30"
-                                blockIncrement="5"
-                                showTickMarks="true"
-                                showTickLabels="true"
-                                majorTickUnit="25"
-                                minorTickCount="4" />
+                        <Label styleClass="hint-label" text="Distanza massima dall'uscita (metri)" />
+                        <Slider fx:id="sliderDistanza" blockIncrement="5" majorTickUnit="25" max="100" min="0" minorTickCount="4" showTickLabels="true" showTickMarks="true" snapToTicks="true" value="30" />
                     </children>
                 </VBox>
 
                 <!-- Disabile / Donna incinta -->
                 <VBox spacing="4">
                     <children>
-                        <Label text="Condizioni speciali"
-                               styleClass="hint-label" />
+                        <Label styleClass="hint-label" text="Condizioni speciali" />
                         <HBox spacing="16">
                             <children>
-                                <CheckBox text="Posto per disabile"
-                                          fx:id="cbDisabile" />
-                                <CheckBox text="Donna incinta"
-                                          fx:id="cbDonnaIncinta" />
+                                <CheckBox fx:id="cbDisabile" text="Posto per disabile" />
+                                <CheckBox fx:id="cbDonnaIncinta" text="Donna incinta" />
                             </children>
                         </HBox>
                     </children>
@@ -92,8 +69,7 @@
                 <!-- Tipologia di occupazione -->
                 <VBox spacing="4">
                     <children>
-                        <Label text="Tipologia di occupazione"
-                               styleClass="hint-label" />
+                        <Label styleClass="hint-label" text="Tipologia di occupazione" />
                         <ChoiceBox fx:id="choiceOccupazione" />
                     </children>
                 </VBox>
@@ -101,14 +77,8 @@
                 <!-- Pulsanti azione -->
                 <ButtonBar buttonMinWidth="90">
                     <buttons>
-                        <Button text="Annulla"
-                                onAction="#onAnnulla"
-                                ButtonBar.buttonData="CANCEL_CLOSE"
-                                styleClass="secondary-button" />
-                        <Button text="Salva"
-                                onAction="#onSalva"
-                                ButtonBar.buttonData="OK_DONE"
-                                styleClass="primary-button" />
+                        <Button onAction="#onAnnulla" styleClass="secondary-button" text="Annulla" ButtonBar.buttonData="CANCEL_CLOSE" />
+                        <Button onAction="#onSalva" styleClass="primary-button" text="Salva" ButtonBar.buttonData="OK_DONE" />
                     </buttons>
                 </ButtonBar>
 

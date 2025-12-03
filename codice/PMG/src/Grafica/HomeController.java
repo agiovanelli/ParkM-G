@@ -12,7 +12,9 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -50,9 +52,31 @@ public class HomeController {
 
     // (eventuale link "Password dimenticata?")
     @FXML private Hyperlink forgotPasswordLink;
+    
+    @FXML private Label brandingDescription;
+
+    @FXML private TabPane mainTabs;
 
     @FXML
     private void initialize() {
+    	
+    	brandingDescription.setText("Accedi o registra un nuovo account utente");
+
+        mainTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab == null) return;
+
+            switch (newTab.getText()) {
+                case "Clienti":
+                    brandingDescription.setText("Accedi o registra un nuovo account Utente");
+                    break;
+                case "Operatori":
+                    brandingDescription.setText("Area dedicata agli Operatori");
+                    break;
+                default:
+                    brandingDescription.setText("");
+            }
+        });
+        
         // Listener per mostrare/nascondere i due pannelli quando cambio toggle
         userModeGroup.selectedToggleProperty().addListener((obs, oldT, newT) -> {
             boolean loginSelected = newT == btnUserLogin;
@@ -72,8 +96,18 @@ public class HomeController {
         String password = userLoginPassword.getText();
 
         // Controllo campi vuoti
-        if (email.isEmpty() || password.isEmpty()) {
+        if (email.isEmpty() && password.isEmpty()) {
             showError("Inserisci email e password.");
+            return;
+        }
+        
+        if (email.isEmpty()) {
+            showError("Inserisci email.");
+            return;
+        }
+        
+        if (password.isEmpty()) {
+            showError("Inserisci password.");
             return;
         }
 
@@ -172,9 +206,19 @@ public class HomeController {
         String nomeStruttura = operatorCode.getText();
         String username = operatorPassword.getText();
 
-     // Controllo campi vuoti
-        if (nomeStruttura.isEmpty() || username.isEmpty()) {
+        // Controllo campi vuoti
+        if (nomeStruttura.isEmpty() && username.isEmpty()) {
             showError("Inserisci il nome della struttura e l'username.");
+            return;
+        }
+        
+        if (nomeStruttura.isEmpty()) {
+            showError("Inserisci il nome della struttura.");
+            return;
+        }
+        
+        if (username.isEmpty()) {
+            showError("Inserisci l'username.");
             return;
         }
 

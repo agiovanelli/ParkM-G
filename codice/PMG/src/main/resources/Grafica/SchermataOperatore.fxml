@@ -2,19 +2,32 @@
 
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx"
-      xmlns:fx="http://javafx.com/fxml"
-      fx:controller="Grafica.SchermataOperatoreController"
-      spacing="20"
-      style="-fx-padding: 30; -fx-alignment: center;">
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="Grafica.SchermataOperatoreController"
+            stylesheets="@home.css">
 
-    <children>
-        <Label text="Pagina Operatore"
-               style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+    <center>
+        <VBox alignment="CENTER" spacing="24" styleClass="root-center">
+            <children>
+                <!-- CARD centrale in stile Home -->
+                <VBox alignment="CENTER" spacing="20" styleClass="card">
+                    <children>
+                        <Label text="Area Operatore"
+                               styleClass="card-title" />
 
-        <Button text="Torna indietro"
-                onAction="#onBack"/>
-    </children>
-</VBox>
+                        <!-- Qui potrai aggiungere altri controlli utente -->
+
+                        <Button text="Torna alla home"
+                                onAction="#onBack"
+                                styleClass="primary-button" />
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </center>
+
+</BorderPane>
