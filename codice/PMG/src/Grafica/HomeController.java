@@ -139,13 +139,14 @@ public class HomeController {
             return;
         }
 
-        try {
+        try {        	
         	u = new Utente(nome, cognome, pwd, email);
-        	
-        	if(u.controlloCredenziali() != null){
+
+        	if(!u.nuovoUser){
         		showError("Le credenziali sono già in uso");
         		return;
         	}
+
         	
         	userLoginPane.setVisible(true);
             userLoginPane.setManaged(true);

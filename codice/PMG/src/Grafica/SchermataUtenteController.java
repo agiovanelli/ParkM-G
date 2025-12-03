@@ -23,7 +23,10 @@ public class SchermataUtenteController {
     // Mostra il popup "Preferenze" all'apertura della schermata
     public void setUtente(Utente u) {
         this.u = u;
-        showPreferenzeDialog();
+
+        if(u.getPreferenze() == null) {
+        	showPreferenzeDialog();
+        }
     }
 
     private void showPreferenzeDialog() {

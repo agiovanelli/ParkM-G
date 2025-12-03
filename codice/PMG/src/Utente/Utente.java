@@ -24,6 +24,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	String email;
 	ObjectId id;
 	Map<String, String> preferenze;
+	public boolean nuovoUser = false;
 
 	private final MongoCollection<Document> utenti;
 	
@@ -54,9 +55,9 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	@Override
 	public boolean registrazioneDB() {
 		// Controlla se il database ha già questo record
-		if(controlloCredenziali() != null) {
+		if(controlloCredenziali(this.email, this.password) != null) {
 			System.out.println("Utente già registrato");
-			return false;
+			return this.nuovoUser = false;
 		}
 		
 		// Altrimenti lo salva nel db
@@ -64,28 +65,27 @@ public class Utente implements DatiUtenti, GestioneUtenti{
         		.append("cognome", this.cognome)
         		.append("password", this.password)
                 .append("email", this.email)
-                .append("username", this.username)
-                .append("preferenze", new Document());
+                .append("username", this.username);
 
         utenti.insertOne(nuovo);
         
         // Recupero l'id del documento dal database
         this.id = nuovo.getObjectId("_id");
         
-        return true;
+        return this.nuovoUser = true;
 	}
 
 	@Override
 	public boolean loginDB() {
 		// Controlla se il database ha già questo record
-		if(controlloCredenziali() == null) {
+		if(controlloCredenziali(this.email, this.password) == null) {
 			System.out.println("Utente non registrato");
 			return false;
 		}
 		
 		// Recupero l'id del documento dal database
-		this.id = controlloCredenziali().getObjectId("_id");
-		this.username = controlloCredenziali().getString("username");
+		this.id = controlloCredenziali(this.email, this.password).getObjectId("_id");
+		this.username = controlloCredenziali(this.email, this.password).getString("username");
 		
 		return true;
 	}
@@ -157,10 +157,10 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	}
 
 	@Override
-	public Document controlloCredenziali() {
+	public Document controlloCredenziali(String email, String password) {
 		Document esistente = utenti.find(Filters.and(
-				Filters.eq("email", this.email),
-				Filters.eq("password", this.password)
+				Filters.eq("email", email),
+				Filters.eq("password", password)
 				)).first();
 		
 		return esistente;
