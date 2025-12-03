@@ -8,15 +8,32 @@ import com.mongodb.client.MongoCollection;
 
 import Database.Connessione;
 
+// TODO: Auto-generated Javadoc
+/**
+ * Classe Operatore.
+ */
 public class Operatore implements DatiOperatori, GestioneOperatori{
+	
+	/** nome struttura. */
 	String nomeStruttura;
+	
+	/** username. */
 	String username;
 	
+	/**
+	 * Instanza un nuovo operatore.
+	 *
+	 * @param n è il nomeStruttura
+	 * @param u è lo username
+	 */
 	public Operatore(String n, String u) {
 		nomeStruttura = n;
 		username = u;
 	}
 	
+	/**
+	 * Login.
+	 */
 	@Override
 	public void login() {
         try {
@@ -33,21 +50,41 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
         }
     }
 	
+	/**
+	 * Logout.
+	 */
 	@Override
 	public void logout() {
-		
+		System.out.println("Logout eseguito correttamente");
 	}
 	
+	/**
+	 * Recupera il nome della struttura.
+	 *
+	 * @return il nome struttura
+	 */
 	@Override
 	public String getNomeStruttura() {
 		return nomeStruttura;
 	}
 	
+	/**
+	 * Recupera lo username.
+	 *
+	 * @return lo username
+	 */
 	@Override
 	public String getUsername() {
 		return username;
 	}
 	
+	/**
+	 * Controlla se esiste l'operatore nel DB.
+	 *
+	 * @param operatore è l'operatore che è stato creato
+	 * @return true, se l'operatore esiste nel DB
+	 * @throws IOException segnala che c'è stata una I/O exception.
+	 */
 	@Override
 	public boolean esisteOperatore(Operatore operatore) throws IOException {
 	    MongoCollection<Document> collection = Connessione.connessioneOperatori();

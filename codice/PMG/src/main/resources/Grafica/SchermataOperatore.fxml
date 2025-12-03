@@ -21,7 +21,7 @@
 
                         <!-- Qui potrai aggiungere altri controlli utente -->
 
-                        <Button text="Torna alla home"
+                        <Button text="Logout"
                                 onAction="#onBack"
                                 styleClass="primary-button" />
                     </children>
