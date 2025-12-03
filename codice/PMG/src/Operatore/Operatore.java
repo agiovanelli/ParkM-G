@@ -2,7 +2,11 @@ package Operatore;
 
 import java.io.IOException;
 
-import Database.QueryOperatori;
+import org.bson.Document;
+
+import com.mongodb.client.MongoCollection;
+
+import Database.Connessione;
 
 public class Operatore implements DatiOperatori, GestioneOperatori{
 	String nomeStruttura;
@@ -16,8 +20,7 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
 	@Override
 	public void login() {
         try {
-            QueryOperatori qo = new QueryOperatori();
-            boolean esiste = qo.esisteOperatore(this);
+            boolean esiste = esisteOperatore(this);
 
             if (esiste) {
                 System.out.println("Login effettuato");
@@ -43,6 +46,18 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
 	@Override
 	public String getUsername() {
 		return username;
+	}
+	
+	@Override
+	public boolean esisteOperatore(Operatore operatore) throws IOException {
+	    MongoCollection<Document> collection = Connessione.connessioneOperatori();
+
+	    Document filtro = new Document()
+	            .append("nomeStruttura", operatore.getNomeStruttura())
+	            .append("username", operatore.getUsername());
+
+	    long count = collection.countDocuments(filtro);
+	    return count > 0;
 	}
 
 }

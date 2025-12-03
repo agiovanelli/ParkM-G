@@ -1,6 +1,5 @@
 package Utente;
 
-import java.util.ArrayList;
 import java.util.Map;
 
 import org.bson.Document;
