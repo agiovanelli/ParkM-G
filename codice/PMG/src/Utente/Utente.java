@@ -43,6 +43,8 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	
 	/** Controlla se l'utente è stato appena creato o esiste già. */
 	public boolean nuovoUser = false;
+	
+	private static Utente utenteLoggato;
 
 	/** Collezione di documenti della collection utenti in collegamento con il database. */
 	private final MongoCollection<Document> utenti;
@@ -239,8 +241,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	 */
 	@Override
 	public void logout() {
-		// TODO azione di logout su app
-		
+		 System.out.println("Logout eseguito correttamente");
 	}
 	
 	/**

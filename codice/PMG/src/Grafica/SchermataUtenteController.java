@@ -58,6 +58,9 @@ public class SchermataUtenteController {
     private void onBack() {
         try {
             Parent root = FXMLLoader.load(getClass().getResource("Home.fxml"));
+            
+            u.logout();
+            
             Stage stage = Main.getPrimaryStage();
             stage.setScene(new Scene(root));
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
