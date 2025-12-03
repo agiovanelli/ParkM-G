@@ -16,25 +16,54 @@ import com.mongodb.client.result.UpdateResult;
 import Database.Connessione;
 import Grafica.HomeController;
 
+/**
+ * Classe Utente.
+ */
 public class Utente implements DatiUtenti, GestioneUtenti{
-	String nome;
-	String cognome;
-	String username;
-	String password;
-	String email;
-	ObjectId id;
-	Map<String, String> preferenze;
+	
+	/** Nome dell'utente. */
+	private String nome;
+	
+	/** Cognome dell'utente. */
+	private String cognome;
+	
+	/** Username dell'utente. */
+	private String username;
+	
+	/** Password dell'utente. */
+	private String password;
+	
+	/** Email dell'utente. */
+	private String email;
+	
+	/** ID dell'utente. */
+	private ObjectId id;
+	
+	/** Preferenze selezionate dall'utente. */
+	private Map<String, String> preferenze;
+	
+	/** Controlla se l'utente è stato appena creato o esiste già. */
 	public boolean nuovoUser = false;
 
+	/** Collezione di documenti della collection utenti in collegamento con il database. */
 	private final MongoCollection<Document> utenti;
 	
-	public Utente(String n, String c, String p, String e) throws Exception{
-		nome = n;
-		cognome = c;
-		password = p;
-		email = e;
+	/**
+	 * Registrazione dell'utente.
+	 *
+	 * @param nome Nome dell'utente
+	 * @param cognome Cognome dell'utente
+	 * @param password Password dell'utente
+	 * @param email Email dell'utente
+	 * @throws Exception Eccezione che viene lanciata in caso di errore
+	 */
+	public Utente(String nome, String cognome, String password, String email) throws Exception{
+		this.nome = nome;
+		this.cognome = cognome;
+		this.password = password;
+		this.email = email;
 		
-		username = n + "." + c;
+		this.username = nome + "." + cognome;
 		
 		Connessione connection = new Connessione();
         this.utenti = connection.connessioneUtenti();
@@ -42,9 +71,16 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		registrazioneDB();
 	}
 	
-	public Utente(String p, String e) throws Exception{
-		password = p;
-		email = e;
+	/**
+	 * Login dell'utente.
+	 *
+	 * @param password Password dell'utente
+	 * @param email Email dell'utente
+	 * @throws Exception Eccezione che viene lanciata in caso di errore
+	 */
+	public Utente(String password, String email) throws Exception{
+		this.password = password;
+		this.email = email;
 		
 		Connessione connection = new Connessione();
         this.utenti = connection.connessioneUtenti();
@@ -52,6 +88,11 @@ public class Utente implements DatiUtenti, GestioneUtenti{
         loginDB();
 	}
 
+	/**
+	 * Registrazione utente e controllo sul database.
+	 *
+	 * @return true, se l'utente è nuovo e viene registrato sul database
+	 */
 	@Override
 	public boolean registrazioneDB() {
 		// Controlla se il database ha già questo record
@@ -75,6 +116,11 @@ public class Utente implements DatiUtenti, GestioneUtenti{
         return this.nuovoUser = true;
 	}
 
+	/**
+	 * Login e controllo sul database.
+	 *
+	 * @return true, se l'utente è già registrato e viene eseguito il login
+	 */
 	@Override
 	public boolean loginDB() {
 		// Controlla se il database ha già questo record
@@ -90,6 +136,11 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		return true;
 	}
 	
+	/**
+	 * Eliminazione del record nel database.
+	 *
+	 * @return true, se l'eliminazione ha avuto successo
+	 */
 	@Override
 	public boolean deleteDB() {
 		// Trova il record con stesso id e aggiorna il database eliminandolo
@@ -100,12 +151,18 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		return eliminazione != null;
 	}
 
+	/**
+	 * Caricamento delle preferenze selezionate nella GUI nel database.
+	 *
+	 * @param preferenze Mappa relativa alle preferenze
+	 * @return true, se il salvataggio ha avuto successo
+	 */
 	@Override
-	public boolean selezioneDB(Map<String, String> p) {
+	public boolean selezioneDB(Map<String, String> preferenze) {
 		// TODO Azione di salvataggio delle preferenze nel db
 		
 		List<Bson> updates = new ArrayList<>();
-		p.forEach((k, v) -> updates.add(Updates.set("preferenze." + k, v)));
+		preferenze.forEach((k, v) -> updates.add(Updates.set("preferenze." + k, v)));
 		
 		UpdateResult update = utenti.updateOne(
 			    Filters.eq("_id", this.id),
@@ -115,16 +172,31 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		return true;
 	}
 
+	/**
+	 * Restituisce l'username dell'utente.
+	 *
+	 * @return Username dell'utente
+	 */
 	@Override
 	public String getUsername() {
 		return this.username;
 	}
 
+	/**
+	 * Restituisce l'ID dell'utente.
+	 *
+	 * @return ID dell'utente
+	 */
 	@Override
 	public ObjectId getId() {
 		return this.id;
 	}
 
+	/**
+	 * Restituisce le preferenze dell'utente.
+	 *
+	 * @return Preferenze dell'utente
+	 */
 	@Override
 	public Object getPreferenze() {
 		Document esistente = utenti.find(Filters.eq("_id", this.id)).first();
@@ -132,6 +204,16 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		return esistente.get("preferenze");
 	}
 
+	/**
+	 * Registrazione.
+	 *
+	 * @param nome Nome dell'utente
+	 * @param cognome Cognome dell'utente
+	 * @param password Password dell'utente
+	 * @param email Email dell'utente
+	 * @return Utente registrato
+	 * @throws Exception Eccezione che viene lanciata in caso di errore
+	 */
 	@Override
 	public Utente registrazione(String nome, String cognome, String password, String email) throws Exception{
 		Utente newUser = new Utente(nome, cognome, password, email);
@@ -139,23 +221,46 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		return newUser;
 	}
 
+	/**
+	 * Login.
+	 *
+	 * @param password Password dell'utente
+	 * @param email Email dell'utente
+	 * @return Utente loggato
+	 * @throws Exception Eccezione che viene lanciata in caso di errore
+	 */
 	@Override
 	public Utente login(String password, String email) throws Exception{
 		Utente user = new Utente(password, email);
 		return user;
 	}
 
+	/**
+	 * Logout.
+	 */
 	@Override
 	public void logout() {
 		// TODO azione di logout su app
 		
 	}
 	
+	/**
+	 * Imposta la selezione delle preferenze.
+	 *
+	 * @param preferenze Mappa delle preferenze
+	 */
 	@Override
-	public void setSelezione(Map<String, String> p) {
-		selezioneDB(p);
+	public void setSelezione(Map<String, String> preferenze) {
+		selezioneDB(preferenze);
 	}
 
+	/**
+	 * Controllo credenziali.
+	 *
+	 * @param email Email dell'utente
+	 * @param password Password dell'utente
+	 * @return document, non vuoto se esiste il record
+	 */
 	@Override
 	public Document controlloCredenziali(String email, String password) {
 		Document esistente = utenti.find(Filters.and(
