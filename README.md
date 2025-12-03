@@ -22,3 +22,4 @@ Inoltre, il sistema prevede agevolazioni per fasce d’età / occupazione e la p
 ## Membri del gruppo
 * Riccardo Maffeis, mat. 1085706, r.maffeis4@studenti.unibg.it
 * Alessio Giovanelli, mat. 1081610, a.giovanelli3@studenti.unibg.it
+* Paolo Capelli, mat. 1081221, p.capelli2@studenti.unibg.it
