@@ -2,7 +2,6 @@ package Grafica;
 
 import java.io.IOException;
 
-import Database.QueryOperatori;
 import Operatore.Operatore;
 import Utente.GestioneUtenti;
 import Utente.Utente;
@@ -226,9 +225,8 @@ public class HomeController {
         // Se login ok -> vai alla schermata operatore
         try {
         	o = new Operatore(nomeStruttura, username);
-        	QueryOperatori qo = new QueryOperatori();
         	
-        	if(!qo.esisteOperatore(o)){
+        	if(!o.esisteOperatore(o)){
         		showError("Questo operatore non esiste");
         		return;
         	}
