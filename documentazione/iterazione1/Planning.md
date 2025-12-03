@@ -16,7 +16,7 @@
 ### Utente:
 * nome
 * cognome
-* username (= nome.cognome)
+* username
 * id
 * password
 * email
@@ -27,7 +27,7 @@
 * id
 
 ## Tipologia database
-Da capire se esterno o interno e di che tipologia
+MongoDB
 
 ## Modellazione
 * Modello di analisi
@@ -37,7 +37,7 @@ Da capire se esterno o interno e di che tipologia
 Creazione Java project su Eclipse condiviso tramite Github Desktop
 
 ## Sviluppo parte grafica dei casi d'uso implementati
-Tramite WindowBuilder o JavaFX
+Tramite JavaFX
 
 ## Analisi statica e dinamica + testing
 * Structure101
