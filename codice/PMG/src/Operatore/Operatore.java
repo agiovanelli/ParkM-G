@@ -8,7 +8,6 @@ import com.mongodb.client.MongoCollection;
 
 import Database.Connessione;
 
-// TODO: Auto-generated Javadoc
 /**
  * Classe Operatore.
  */

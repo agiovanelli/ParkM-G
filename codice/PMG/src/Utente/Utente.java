@@ -44,6 +44,7 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	/** Controlla se l'utente è stato appena creato o esiste già. */
 	public boolean nuovoUser = false;
 	
+	/** Controlla se l'utente è loggato o meno. */
 	private static Utente utenteLoggato;
 
 	/** Collezione di documenti della collection utenti in collegamento con il database. */
@@ -160,8 +161,6 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 	 */
 	@Override
 	public boolean selezioneDB(Map<String, String> preferenze) {
-		// TODO Azione di salvataggio delle preferenze nel db
-		
 		List<Bson> updates = new ArrayList<>();
 		preferenze.forEach((k, v) -> updates.add(Updates.set("preferenze." + k, v)));
 		
