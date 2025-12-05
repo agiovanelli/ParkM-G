@@ -1,5 +1,5 @@
-package Utente;
-
+package utente;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -17,7 +17,7 @@ public interface GestioneUtenti{
 	 * @return Utente registrato
 	 * @throws Exception Eccezione che viene lanciata in caso di errore
 	 */
-	public Utente registrazione(String nome, String cognome, String password, String email) throws Exception;
+	public Utente registrazione(String nome, String cognome, String password, String email) throws IOException,IllegalArgumentException, IllegalStateException;
 	
 	/**
 	 * Login.
@@ -27,7 +27,7 @@ public interface GestioneUtenti{
 	 * @return Utente loggato
 	 * @throws Exception Eccezione che viene lanciata in caso di errore
 	 */
-	public Utente login(String password, String email) throws Exception;
+	public Utente login(String password, String email) throws IOException, IllegalArgumentException;
 	
 	/**
 	 * Logout.

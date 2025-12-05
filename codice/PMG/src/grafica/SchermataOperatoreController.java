@@ -1,4 +1,4 @@
-package Grafica;
+package grafica;
 
 import java.io.IOException;
 import javafx.fxml.FXML;

@@ -1,4 +1,4 @@
-package Grafica;
+package grafica;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -8,24 +8,24 @@ import javafx.stage.Stage;
 
 public class Main extends Application {
 
-    private static Stage primaryStage;
+   
 
     @Override
     public void start(Stage stage) throws Exception {
-        primaryStage = stage; // lo salviamo per usarlo nei controller
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("Home.fxml"));
+        Parent root = loader.load();
 
-        Parent root = FXMLLoader.load(getClass().getResource("Home.fxml"));
+        HomeController controller = loader.getController();
+        controller.setStage(stage); // Passi lo stage al controller
+
         Scene scene = new Scene(root, 300, 250);
-
         stage.setTitle("ParkingM&G");
         stage.setScene(scene);
         stage.setMaximized(true);
         stage.show();
     }
 
-    public static Stage getPrimaryStage() {
-        return primaryStage;
-    }
+    
 
     public static void main(String[] args) {
         launch(args);

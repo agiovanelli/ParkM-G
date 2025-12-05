@@ -1,4 +1,4 @@
-package Operatore;
+package operatore;
 
 // TODO: Auto-generated Javadoc
 /**

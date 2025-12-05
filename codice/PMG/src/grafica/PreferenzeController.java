@@ -1,9 +1,8 @@
-package Grafica;
+package grafica;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import Utente.Utente;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.CheckBox;
@@ -12,6 +11,7 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleGroup;
 import javafx.stage.Stage;
+import utente.Utente;
 
 public class PreferenzeController {
 	private Map<String, String> pref = new HashMap<>();

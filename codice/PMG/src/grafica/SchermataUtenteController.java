@@ -1,8 +1,7 @@
-package Grafica;
+package grafica;
 
 import java.io.IOException;
 
-import Utente.Utente;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Rectangle2D;
@@ -11,6 +10,7 @@ import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import utente.Utente;
 
 public class SchermataUtenteController {
 	private Utente u;

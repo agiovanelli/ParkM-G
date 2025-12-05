@@ -1,4 +1,4 @@
-package Database;
+package database;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -13,7 +13,8 @@ import com.mongodb.client.MongoDatabase;
 
 public class Connessione {
 	
-	public Connessione() {
+   
+	private Connessione() {
 		
 	}
 	
@@ -23,25 +24,31 @@ public class Connessione {
             props.load(fis);
         }
         String uri = props.getProperty("mongo.uri");
-        if (uri == null || uri.isBlank()) {
+        
+        
+        if (uri == null || uri.trim().isEmpty()) { 
             throw new IllegalStateException("Chiave mongo.uri mancante in conf.properties");
         }
         return uri;
-    }
-	
-	public static MongoCollection<Document> connessioneUtenti() throws IOException{
-		String uri = loadMongoUri();
-		MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("PMG");
-        MongoCollection<Document> collection = database.getCollection("utenti");
-        return collection;
 	}
 	
+    
+	public static MongoCollection<Document> connessioneUtenti() throws IOException{
+		String uri = loadMongoUri();
+        
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+            MongoDatabase database = mongoClient.getDatabase("PMG");
+            return database.getCollection("utenti");
+        } 
+	}
+	
+    
 	public static MongoCollection<Document> connessioneOperatori() throws IOException{
 		String uri = loadMongoUri();
-		MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("PMG");
-        MongoCollection<Document> collection = database.getCollection("operatori");
-        return collection;
+        
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+            MongoDatabase database = mongoClient.getDatabase("PMG");
+            return database.getCollection("operatori");
+        }
 	}
 }

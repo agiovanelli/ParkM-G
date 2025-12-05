@@ -1,5 +1,6 @@
-package Utente;
+package utente;
 
+import java.io.IOException;
 import java.util.Map;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -13,15 +14,16 @@ public interface DatiUtenti {
 	 * Registrazione utente e controllo sul database.
 	 *
 	 * @return true, se l'utente è nuovo e viene registrato sul database
+	 * @throws IOException 
 	 */
-	public boolean registrazioneDB();
+	public boolean registrazioneDB() throws IOException;
 	
 	/**
 	 * Login e controllo sul database.
 	 *
 	 * @return true, se l'utente è già registrato e viene eseguito il login
 	 */
-	public boolean loginDB();
+	public boolean loginDB() throws IOException;
 	
 	/**
 	 * Eliminazione del record nel database.
@@ -45,7 +47,7 @@ public interface DatiUtenti {
 	 * @param password Password dell'utente
 	 * @return document, non vuoto se esiste il record
 	 */
-	public Document controlloCredenziali(String email, String password);
+	public Document controlloCredenziali(String email, String password) throws IOException;
 	
 	/**
 	 * Restituisce l'username dell'utente.

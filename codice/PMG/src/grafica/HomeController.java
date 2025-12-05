@@ -1,9 +1,7 @@
-package Grafica;
+package grafica;
 
 import java.io.IOException;
 
-import Operatore.Operatore;
-import Utente.Utente;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -20,11 +18,27 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.VBox;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import operatore.Operatore;
+import utente.Utente;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HomeController {
 	
+	
+
+    private Stage stage;
+
+	public void setStage(Stage stage) {
+        this.stage = stage;
+    }
+	
+	// 1. DICHIARAZIONE DEL LOGGER
+    private static final Logger LOGGER = LoggerFactory.getLogger(HomeController.class);
+	
 	private Utente u;
-	private Operatore o;
+	
 
     // --- Toggle Accedi / Registrati ---
     @FXML private ToggleGroup userModeGroup;
@@ -132,7 +146,7 @@ public class HomeController {
             
             suc.setUtente(u);
             
-            Stage stage = Main.getPrimaryStage();
+            
             
             stage.setScene(new Scene(root));
             stage.setResizable(true); 
@@ -195,13 +209,16 @@ public class HomeController {
 
     @FXML
     private void handleUserForgotPassword(ActionEvent event) {
+    	
         // TODO: apri finestra/scene per recupero password
-        System.out.println("Richiesto recupero password utente");
+        
+        LOGGER.info("Richiesto recupero password utente");
     }
-
+    
     // Operatori
     @FXML
     private void handleOperatorLogin(ActionEvent event) {
+    	final Operatore o;
         String nomeStruttura = operatorCode.getText();
         String username = operatorPassword.getText();
 
@@ -231,7 +248,7 @@ public class HomeController {
         	}
         	
             Parent root = FXMLLoader.load(getClass().getResource("SchermataOperatore.fxml"));
-            Stage stage = Main.getPrimaryStage();
+           
             stage.setScene(new Scene(root));
             stage.setResizable(true); 
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
@@ -245,30 +262,20 @@ public class HomeController {
         }
     }
     
+
+
+    
     private boolean passwordValida(String pwd) {
-        if (pwd == null) return false;
-
-        // Lunghezza minima
-        if (pwd.length() < 6) {
+        // 1. Gestione del caso nullo per prevenire NullPointerException 
+        if (pwd == null) {
             return false;
         }
 
-        // Almeno una maiuscola
-        if (!pwd.matches(".*[A-Z].*")) {
-            return false;
-        }
-
-        // Almeno un numero
-        if (!pwd.matches(".*\\d.*")) {
-            return false;
-        }
-
-        // Almeno un carattere speciale
-        if (!pwd.matches(".*[!@#$%^&*()_+\\-={}|\\[\\]:\";'<>?,./].*")) {
-            return false;
-        }
-
-        return true;
+        // 2. Combinazione di tutte le condizioni booleane di validità, valutate da sx a dx
+        return pwd.length() >= 6 && // Lunghezza minima
+               pwd.matches(".*[A-Z].*") && // Almeno una maiuscola
+               pwd.matches(".*\\d.*") && // Almeno un numero
+               pwd.matches(".*[!@#$%^&*()_+\\-={}|\\[\\]:\";'<>?,./].*"); // Almeno un carattere speciale
     }
     
     private void showError(String msg) {

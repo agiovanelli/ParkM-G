@@ -1,17 +1,20 @@
-package Operatore;
+package operatore;
 
 import java.io.IOException;
 
 import org.bson.Document;
 
+import org.slf4j.Logger; 
+import org.slf4j.LoggerFactory; 
 import com.mongodb.client.MongoCollection;
 
-import Database.Connessione;
+import database.Connessione;
 
 /**
  * Classe Operatore.
  */
 public class Operatore implements DatiOperatori, GestioneOperatori{
+	private static final Logger LOGGER = LoggerFactory.getLogger(Operatore.class);
 	
 	/** nome struttura. */
 	String nomeStruttura;
@@ -39,12 +42,12 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
             boolean esiste = esisteOperatore(this);
 
             if (esiste) {
-                System.out.println("Login effettuato");
+            	LOGGER.info("Login effettuato per l'operatore: {}", username);
             } else {
-                System.out.println("Utente non registrato");
+            	LOGGER.warn("Tentativo di login fallito. Operatore non registrato: {}", username);
             }
         } catch (IOException e) {
-            System.out.println("Errore di connessione al database: " + e.getMessage());
+        	LOGGER.error("Errore di connessione al database durante il login", e);
             e.printStackTrace();
         }
     }
@@ -54,7 +57,7 @@ public class Operatore implements DatiOperatori, GestioneOperatori{
 	 */
 	@Override
 	public void logout() {
-		System.out.println("Logout eseguito correttamente");
+		LOGGER.info("Logout eseguito correttamente per l'operatore: {}", username);
 	}
 	
 	/**
