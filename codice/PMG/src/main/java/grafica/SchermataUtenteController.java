@@ -2,6 +2,9 @@ package grafica;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Rectangle2D;
@@ -13,6 +16,14 @@ import javafx.stage.Stage;
 import utente.Utente;
 
 public class SchermataUtenteController {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(SchermataUtenteController.class); 
+private Stage stage;
+    
+    public void setStage(Stage stage) {
+        this.stage = stage;
+    }
+	
 	private Utente u;
 
     @FXML
@@ -30,6 +41,12 @@ public class SchermataUtenteController {
     }
 
     private void showPreferenzeDialog() {
+       
+        if (this.stage == null) {
+            LOGGER.error("Impossibile mostrare il dialog: Stage principale non iniettato.");
+            return;
+        }
+
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("Preferenze.fxml"));
             Parent root = loader.load();
@@ -39,7 +56,10 @@ public class SchermataUtenteController {
             pc.setUtente(u);
 
             Stage dialog = new Stage();
-            dialog.initOwner(Main.getPrimaryStage());
+            
+            // 💡 CORREZIONE: Usa lo Stage iniettato (this.stage) come proprietario
+            dialog.initOwner(this.stage); 
+            
             dialog.initModality(Modality.WINDOW_MODAL);
 
             Scene scene = new Scene(root);
@@ -50,25 +70,27 @@ public class SchermataUtenteController {
             dialog.setResizable(false);
             dialog.show();
         } catch (IOException e) {
+            LOGGER.error("Errore durante il caricamento del dialog Preferenze.", e);
             e.printStackTrace();
         }
     }
 
     @FXML
     private void onBack() {
-        try {
-            Parent root = FXMLLoader.load(getClass().getResource("Home.fxml"));
-            
-            u.logout();
-            
-            Stage stage = Main.getPrimaryStage();
-            stage.setScene(new Scene(root));
+try {
+        	
+        	if (this.stage == null) {
+                LOGGER.info("Errore: Lo Stage non è stato iniettato.");
+                return;
+            }
+        	Parent root = FXMLLoader.load(getClass().getResource("Home.fxml"));
+        	this.stage.setScene(new Scene(root));
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-            stage.setX(bounds.getMinX());
-            stage.setY(bounds.getMinY());
-            stage.setWidth(bounds.getWidth());
-            stage.setHeight(bounds.getHeight());
-            stage.setMaximized(true);
+            this.stage.setX(bounds.getMinX());
+            this.stage.setY(bounds.getMinY());
+            this.stage.setWidth(bounds.getWidth());
+            this.stage.setHeight(bounds.getHeight());
+            this.stage.setMaximized(true);
         } catch (IOException e) {
             e.printStackTrace();
         }
