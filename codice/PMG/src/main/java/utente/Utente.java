@@ -1,6 +1,7 @@
 package utente;
 
 import java.io.IOException; 
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
 
 import database.Connessione;
+
+
 
 /**
  * Classe Utente.
@@ -94,6 +97,8 @@ public class Utente implements DatiUtenti, GestioneUtenti{
         }
 	}
 	
+	
+	
 	/**
 	 * Login dell'utente.
 	 *
@@ -107,9 +112,10 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 		
 		this.utenti = Connessione.connessioneUtenti();
 
-		loginDB();
+		
 	}
-
+	
+	
 	/**
 	 * Registrazione utente e controllo sul database.
 	 *
@@ -310,4 +316,6 @@ public class Utente implements DatiUtenti, GestioneUtenti{
 				)).first();
 		
 	}
+	
+	
 }

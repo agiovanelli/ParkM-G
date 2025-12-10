@@ -1,6 +1,7 @@
 package database;
 
 import java.io.FileInputStream;
+
 import java.io.IOException;
 import java.util.Properties;
 
@@ -13,7 +14,8 @@ import com.mongodb.client.MongoDatabase;
 
 public class Connessione {
 	
-   
+	private static MongoClient mongoClient;
+	
 	private Connessione() {
 		
 	}
@@ -32,23 +34,30 @@ public class Connessione {
         return uri;
 	}
 	
-    
-	public static MongoCollection<Document> connessioneUtenti() throws IOException{
-		String uri = loadMongoUri();
-        
-        try (MongoClient mongoClient = MongoClients.create(uri)) {
-            MongoDatabase database = mongoClient.getDatabase("PMG");
-            return database.getCollection("utenti");
-        } 
-	}
+	private static MongoClient getMongoClient() throws IOException {
+        // Se il client è nullo o chiuso, lo apriamo
+        if (mongoClient == null) {
+            String uri = loadMongoUri();
+            mongoClient = MongoClients.create(uri);
+        }
+        return mongoClient;
+    }
+	public static void closeClient() {
+        if (mongoClient != null) {
+            mongoClient.close();
+            mongoClient = null;
+        }
+    }
 	
+	public static MongoCollection<Document> connessioneUtenti() throws IOException{
+        MongoClient client = getMongoClient(); // Ottieni il client singleton
+        MongoDatabase database = client.getDatabase("PMG");
+        return database.getCollection("utenti"); // Ritorna la collezione senza chiudere il client
+	}
     
 	public static MongoCollection<Document> connessioneOperatori() throws IOException{
-		String uri = loadMongoUri();
-        
-        try (MongoClient mongoClient = MongoClients.create(uri)) {
-            MongoDatabase database = mongoClient.getDatabase("PMG");
-            return database.getCollection("operatori");
-        }
+        MongoClient client = getMongoClient(); // Ottieni il client singleton
+        MongoDatabase database = client.getDatabase("PMG");
+        return database.getCollection("operatori"); // Ritorna la collezione senza chiudere il client
 	}
 }
