@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.control.ToggleGroup?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane stylesheets="@home.css" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="grafica.HomeController">
+            
+    <fx:define>
+    	<ToggleGroup fx:id="userModeGroup" />
+    </fx:define>
+
+    <!-- PANNELLO SINISTRO: BRANDING -->
+    <left>
+        <StackPane prefWidth="280" styleClass="branding-pane">
+            <children>
+                <VBox alignment="CENTER" spacing="16">
+                    <children>
+                        <Label styleClass="app-title" text="Park M&amp;G" />
+                        <Label maxWidth="220" prefWidth="169.0" styleClass="app-subtitle" text="Gestione utenti e operatori" wrapText="true" />
+                        <Label fx:id="brandingDescription" maxWidth="220" prefHeight="52.0" prefWidth="220.0" styleClass="app-description" text="" wrapText="true" />
+                    </children>
+                </VBox>
+            </children>
+        </StackPane>
+    </left>
+
+    <!-- AREA CENTRALE: TAB CLIENTI / OPERATORI -->
+    <center>
+        <VBox alignment="CENTER" spacing="24" styleClass="root-center">
+            <children>
+
+                <TabPane fx:id="mainTabs" prefHeight="420" prefWidth="420" styleClass="main-tabs" tabClosingPolicy="UNAVAILABLE">
+				    <tabs>
+
+                        <!-- TAB CLIENTI -->
+                        <Tab styleClass="segment-tab-left" text="Clienti">
+                            <content>
+                                <VBox alignment="TOP_CENTER" spacing="16" styleClass="card">
+                                    <children>
+
+                                        <!-- Toggle Accedi / Registrati -->
+                                        <HBox alignment="CENTER" spacing="8" styleClass="segmented-control">
+                                            <children>
+                                                <ToggleButton fx:id="btnUserLogin" selected="true" styleClass="segment-left" text="Accedi">
+                                       <toggleGroup>
+                                          <ToggleGroup fx:id="userModeGroup" />
+                                       </toggleGroup></ToggleButton>
+												<ToggleButton fx:id="btnUserRegister" styleClass="segment-right" text="Registrati" toggleGroup="$userModeGroup" />
+                                            </children>
+                                        </HBox>
+
+                                        <!-- FORM LOGIN UTENTE -->
+                                        <VBox fx:id="userLoginPane" alignment="TOP_CENTER" spacing="10">
+                                            <children>
+                                                <Label styleClass="card-title" text="Accedi al tuo account" />
+                                                <TextField fx:id="userLoginEmail" promptText="Email" />
+                                                <PasswordField fx:id="userLoginPassword" promptText="Password" />
+                                                <Button fx:id="btnUserLoginSubmit" maxWidth="Infinity" onAction="#handleUserLogin" styleClass="primary-button" text="Accedi" />
+                                                <Hyperlink onAction="#handleUserForgotPassword" text="Password dimenticata?" />
+                                            </children>
+                                        </VBox>
+
+                                        <!-- FORM REGISTRAZIONE UTENTE -->
+                                        <VBox fx:id="userRegisterPane" alignment="TOP_CENTER" managed="false" spacing="10" visible="false">
+                                            <children>
+                                                <Label styleClass="card-title" text="Crea un nuovo account" />
+                                                <TextField fx:id="userRegisterName" promptText="Nome" />
+                                                <TextField fx:id="userRegisterSurname" promptText="Cognome" />
+                                                <TextField fx:id="userRegisterEmail" promptText="Email" />
+                                                <PasswordField fx:id="userRegisterPassword" promptText="Password" />
+                                                <Button fx:id="btnUserRegisterSubmit" maxWidth="Infinity" onAction="#handleUserRegister" styleClass="primary-button" text="Registrati" />
+                                            </children>
+                                        </VBox>
+
+                                    </children>
+                                </VBox>
+                            </content>
+                        </Tab>
+
+                        <!-- TAB OPERATORI -->
+                        <Tab styleClass="segment-tab-right" text="Operatori">
+                            <content>
+                                <VBox alignment="TOP_CENTER" spacing="16" styleClass="card">
+                                    <children>
+                                        <Label styleClass="card-title" text="Login Operatore" />
+                                        <TextField fx:id="operatorCode" promptText="Nome Struttura" />
+                                        <PasswordField fx:id="operatorPassword" promptText="Username" />
+                                        <Button fx:id="btnOperatorLogin" maxWidth="Infinity" onAction="#handleOperatorLogin" styleClass="primary-button" text="Accedi" />
+                                        <Label styleClass="hint-label" text="Accesso riservato al personale autorizzato." wrapText="true" />
+                                    </children>
+                                </VBox>
+                            </content>
+                        </Tab>
+
+                    </tabs>
+                </TabPane>
+            </children>
+        </VBox>
+    </center>
+
+</BorderPane>
