@@ -1,4 +1,4 @@
-package PMG.PMG_backend;
+package pmg.backend;
 
 /**
  * Unit test for simple App.

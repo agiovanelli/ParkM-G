@@ -18,13 +18,13 @@ public class OperatoreServiceImpl implements OperatoreService {
     @Override
     public OperatoreResponse login(OperatoreLoginRequest req) {
         LOGGER.info("Richiesta login operatore: struttura='{}', username='{}'",
-                req.nomeStruttura(), req.username());
+                req.getNomeStruttura(), req.getUsername());
 
         var entity = repository
-                .findByNomeStrutturaAndUsername(req.nomeStruttura(), req.username())
+                .findByNomeStrutturaAndUsername(req.getNomeStruttura(), req.getUsername())
                 .orElseThrow(() -> {
                     LOGGER.warn("Operatore non registrato: struttura='{}', username='{}'",
-                            req.nomeStruttura(), req.username());
+                            req.getNomeStruttura(), req.getUsername());
                     return new IllegalArgumentException("Operatore non registrato");
                 });
 
@@ -37,8 +37,8 @@ public class OperatoreServiceImpl implements OperatoreService {
     private OperatoreResponse toResponse(Operatore e) {
         return new OperatoreResponse(
                 e.getId(),
-                e.getNomeStruttura(),
-                e.getUsername()
+                e.getUsername(),      
+                e.getNomeStruttura()   
         );
     }
 }
