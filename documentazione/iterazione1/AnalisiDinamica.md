@@ -1,134 +1,97 @@
-# Analisi Dinamica 
+# Analisi Dinamica
 
-## 1. Scopo dell’Analisi Dinamica
-L’analisi dinamica ha l’obiettivo di verificare, tramite esecuzione controllata del codice, il corretto comportamento delle componenti software principali del sistema, con particolare attenzione ai moduli:
-
-- **Utente**  
-- **Operatore**  
-- **Connessione** (integrazione con MongoDB)
-- **Interfacce funzionali**: `DatiUtenti`, `DatiOperatori`
-
-L’analisi dinamica si affianca all’analisi statica già svolta e permette di individuare malfunzionamenti solo rilevabili in fase di esecuzione reale o semi-reale (interazione con il database, eccezioni, comportamenti inattesi).
+## Obiettivo
+L’analisi dinamica del backend è stata svolta tramite una suite di test automatici **JUnit 5** con l’obiettivo di:
+- verificare a runtime i comportamenti principali (casi “happy path” e casi di errore);
+- validare la corretta gestione delle eccezioni e dei messaggi associati;
+- controllare la correttezza degli endpoint REST (status code e gestione payload JSON) isolando il layer web dal resto dell’applicazione.
 
 ---
 
-## 2. Componenti Coinvolte
-### 2.1 Modulo Utente
-La classe `Utente` gestisce:
-- autenticazione (`loginDB`)
-- registrazione (`registrazioneDB`)
-- eliminazione account (`deleteDB`)
-- gestione preferenze (`selezioneDB`, `getPreferenze`)
-- accesso credenziali (`controlloCredenziali`)
-
-
-### 2.2 Modulo Operatore
-La classe `Operatore` implementa `DatiOperatori` ed espone il metodo principale:
-- `esisteOperatore(Operatore operatore)`
-
-che verifica la presenza di un operatore nel database sulla base di:
-- `nomeStruttura`
-- `username`
-
-### 2.3 Modulo Connessione
-`Connessione` fornisce metodi statici per accedere alle collezioni MongoDB:
-- `connessioneUtenti()`
-- `connessioneOperatori()`
-
-La correttezza di tali connessioni è fondamentale per l’esito positivo dell’analisi dinamica.
+## Strumenti e tecnologie utilizzate
+- **JUnit 5 (Jupiter)** per la definizione ed esecuzione dei test.
+- **Mockito** per il mocking delle dipendenze nei test di servizio (repository) e nei test web (service).
+- **Spring Boot Test – @WebMvcTest + MockMvc** per testare il layer controller senza avviare l’intero contesto applicativo.
+- **Jackson ObjectMapper** per serializzare/deserializzare JSON nelle richieste HTTP simulate.
 
 ---
 
-## 3. Struttura dei Test Dinamici
-Sono stati realizzati test JUnit 5 sulle seguenti classi:
+## Struttura della suite di test
+La suite è organizzata per layer applicativo:
 
-### ✓ `ConnessioneTest`
-Verifica che:
-- le collezioni restituite non siano `null`
-- il database utilizzato sia `PMG`
-- le collezioni `utenti` e `operatori` appartengano allo stesso database
+### 1) Test di Service (unit test con MockitoExtension)
+**File:**
+- `UtenteServiceImplTest.java`
+- `OperatoreServiceImplTest.java`
 
-### ✓ `UtenteTest`
-Testati i seguenti comportamenti:
-- registrazione DB di un nuovo utente
-- rilevamento di utente duplicato (eccezione)
-- login corretto e login scorretto (eccezione)
-- eliminazione (`deleteDB`)
-- salvataggio e recupero preferenze (`selezioneDB`, `getPreferenze`)
-- generazione dello username `nome.cognome`
-- robustezza del metodo `logout`
+**Caratteristiche:**
+- Uso di `@ExtendWith(MockitoExtension.class)` per abilitare Mockito in JUnit 5.
+- Dipendenze del service mockate con `@Mock` (es. repository).
+- Classe under test iniettata con `@InjectMocks`.
+- Verifiche tramite `assertEquals`, `assertThrows`, e stubbing con `when(...).thenReturn(...)`.
 
-### ✓ `DatiUtentiTest`
-Valutazione dell’aderenza dell’implementazione `Utente` al contratto dell’interfaccia:
-- comportamento di registrazione
-- corretto funzionamento di login/logica DB
-- coerenza dei metodi richiesti da DatiUtenti
+**Casi coperti (principali):**
+- **UtenteServiceImplTest**
+  - `testRegistrazioneSuccess`: registrazione con email non presente → salvataggio utente e ritorno di `UtenteResponse`.
+  - `testRegistrazioneEmailGiaEsistente`: registrazione con email già presente → attesa gestione errore (blocco registrazione).
+  - `testLoginSuccess`: login valido → attesa risposta coerente.
+  - `testGetPreferenzeUtenteNonTrovato`: richiesta preferenze su ID inesistente → attesa eccezione (es. `IllegalArgumentException`).
 
-### ✓ `OperatoreTest`
-Senza l’uso di librerie di mocking:
-- inserimento controllato di documenti nel DB
-- verifica `true` se l’operatore esiste realmente
-- verifica `false` se l’operatore non esiste
-
-### ✓ `DatiOperatoriTest`
-Verifica che:
-- `Operatore` implementi realmente `DatiOperatori`
-- `esisteOperatore` si comporti correttamente dal punto di vista dell’interfaccia
+- **OperatoreServiceImplTest**
+  - `testLoginSuccess`: login operatore valido → ritorno risposta prevista.
+  - `testLoginFailure_NotFound`: operatore non presente (repository ritorna `Optional.empty()`) → attesa eccezione con messaggio **"Operatore non registrato"**.
 
 ---
 
-## 4. Metodologia
-L’analisi dinamica è stata effettuata tramite:
+### 2) Test di Controller (test del layer web con MockMvc)
+**File:**
+- `UtenteControllerTest.java`
+- `OperatoreControllerTest.java`
 
-- **JUnit 5** per l’esecuzione dei test
-- **Interazione reale con MongoDB**  
-  Nessuna simulazione o mock del database:  
-  → i comportamenti riflettono il funzionamento effettivo del sistema.
-- **Inserimento e rimozione temporanea dei dati**  
-  Ogni test genera dati unici (basati su `System.nanoTime()`) per evitare collisioni tra esecuzioni.
+**Caratteristiche:**
+- Uso di `@WebMvcTest(...)` per caricare solo componenti web (controller, filtri/handler web).
+- Dipendenze del controller mockate con `@MockBean` (service), così da isolare il controller dalla logica business.
+- Simulazione richieste HTTP con `MockMvc` e verifica di status code e (dove applicabile) risposta JSON.
 
-Questa metodologia garantisce risultati ripetibili e validi anche in presenza di test multipli.
+**Endpoint e casi coperti (principali):**
+- **UtenteControllerTest**
+  - `POST /api/utenti/registrazione` → `testRegistrazioneSuccess` (status **200 OK**).
+  - `POST /api/utenti/login` → `testLoginSuccess` (status **200 OK**).
+  - `GET /api/utenti/{id}/preferenze` → `testGetPreferenze` (verifica esito positivo e contenuto).
+  - `PUT /api/utenti/{id}/preferenze` → `testAggiornaPreferenze` (status **204 No Content**).
+  - `DELETE /api/utenti/{id}` → `testDeleteUtente` (status **204 No Content**).
 
----
-
-## 5. Risultati dell’Analisi Dinamica
-Tutti i test progettati hanno confermato che:
-
-- il sistema interagisce correttamente con il database
-- la logica applicativa rispetta il comportamento atteso
-- eccezioni e condizioni di errore sono correttamente rilevate
-- la separazione tra interfacce e implementazioni è coerente
-- i metodi critici (`loginDB`, `registrazioneDB`, `esisteOperatore`) reagiscono correttamente sia a input validi che non validi
-
-Non sono emersi malfunzionamenti critici.
+- **OperatoreControllerTest**
+  - `POST /api/operatori/login` → `testLoginSuccess` (status **200 OK**).
 
 ---
 
-## 6. Criticità Riscontrate
-Durante l’analisi sono emersi i seguenti punti potenzialmente migliorabili:
+## Modalità di esecuzione
+La suite è eseguibile tramite il normale lifecycle di build del progetto, ad esempio:
 
-### 🔸 Dipendenza diretta dal database reale
-L’assenza di mock del DB:
-- garantisce realismo dell’analisi,
-- ma rende i test più sensibili a:
-  - indisponibilità del server
-  - latenza durante le query
-  - cambiamenti schema DB
+- Maven:
+  - `mvn test`
+- Gradle:
+  - `./gradlew test`
 
-### 🔸 Assenza di gestione avanzata delle eccezioni
-Alcuni metodi effettuano logging senza propagare eccezioni informative.
+I test controller basati su `MockMvc` non richiedono l’avvio completo dell’applicazione: il layer web viene avviato in modo “slice” tramite `@WebMvcTest`, rendendo l’esecuzione più rapida e focalizzata.
 
 ---
 
-## 7. Possibili Miglioramenti Futuri
-- Introduzione di **mock del database** per esecuzioni rapide e indipendenti da componenti esterne.
-- Creazione di un livello Service dedicato per separare logica e accesso al DB.
-- Estensione dell’interfaccia `DatiOperatori` con ulteriori metodi (registrazione, eliminazione, update).
+## Risultato dell’analisi dinamica
+L’analisi dinamica copre i flussi essenziali di:
+- autenticazione/registrazione (utente e operatore),
+- gestione preferenze utente,
+- verifica delle risposte HTTP (status code) nel layer REST,
+- gestione degli errori tramite eccezioni nei service.
 
+Questa suite fornisce una base di regressione automatica: modifiche future a controller/service possono essere validate rapidamente rieseguendo i test.
 
 ---
 
-## 8. Conclusioni
-L’analisi dinamica ha evidenziato che i moduli Utente, Operatore e Connessione funzionano correttamente e rispettano i requisiti di progetto.
+## Limiti e possibili estensioni
+- Inserire test “negative” aggiuntivi sui controller (payload non valido, campi mancanti, status 4xx).
+- Aggiungere verifiche più profonde sul body JSON (oltre agli status code), usando `jsonPath(...)`.
+- Integrare una misura di copertura (es. **JaCoCo**) per quantificare la coverage (line/branch) e guidare il completamento della suite.
+- Integrare test di integrazione end-to-end (`@SpringBootTest`) con database in-memory o Testcontainers per coprire l’intera pipeline repository→service→controller.
 
-Il comportamento del sistema, osservato tramite esecuzioni reali, conferma la solidità dell’implementazione attuale, pur lasciando spazio a miglioramenti architetturali per una futura evoluzione del software.
