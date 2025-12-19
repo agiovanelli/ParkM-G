@@ -1,4 +1,4 @@
-package pmg.backend.operatore;
+package PMG.backend.operatore;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -11,6 +11,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import pmg.backend.operatore.Operatore;
+import pmg.backend.operatore.OperatoreLoginRequest;
+import pmg.backend.operatore.OperatoreRepository;
+import pmg.backend.operatore.OperatoreResponse;
+import pmg.backend.operatore.OperatoreServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
 public class OperatoreServiceImplTest {

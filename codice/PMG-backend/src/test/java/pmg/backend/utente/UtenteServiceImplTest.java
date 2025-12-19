@@ -1,4 +1,4 @@
-package pmg.backend.utente;
+package PMG.backend.utente;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -11,6 +11,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import pmg.backend.utente.Utente;
+import pmg.backend.utente.UtenteLoginRequest;
+import pmg.backend.utente.UtenteRegisterRequest;
+import pmg.backend.utente.UtenteRepository;
+import pmg.backend.utente.UtenteResponse;
+import pmg.backend.utente.UtenteServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
 public class UtenteServiceImplTest {

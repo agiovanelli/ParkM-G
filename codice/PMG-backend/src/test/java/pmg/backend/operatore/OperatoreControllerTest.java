@@ -1,6 +1,12 @@
-package pmg.backend.operatore;
+package PMG.backend.operatore;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import pmg.backend.operatore.OperatoreController;
+import pmg.backend.operatore.OperatoreLoginRequest;
+import pmg.backend.operatore.OperatoreResponse;
+import pmg.backend.operatore.OperatoreService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
