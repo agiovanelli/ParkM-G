@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'operatore.dart';
+import '../models/operatore.dart';
 
 class OperatorScreen extends StatelessWidget {
   final Operatore operatore;
