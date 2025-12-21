@@ -34,7 +34,6 @@ class _UserScreenState extends State<UserScreen> {
     zoom: 12,
   );
 
-  // Per la SEARCH (Geocoding API) ti conviene usare --dart-define per non hardcodare
   static const String _geocodingKey =
       String.fromEnvironment('GOOGLE_GEOCODING_KEY', defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY');
 
@@ -437,7 +436,6 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
       ),
       content: SingleChildScrollView(
         child: Theme(
-          // Colori coerenti per radio/checkbox/slider/dropdown
           data: Theme.of(context).copyWith(
             radioTheme: RadioThemeData(
               fillColor: WidgetStateProperty.all(AppColors.accentCyan),
