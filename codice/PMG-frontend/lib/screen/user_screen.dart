@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:park_mg/utils/theme.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../api/api_client.dart';
 import '../models/utente.dart';
 
@@ -11,19 +14,19 @@ class UserScreen extends StatefulWidget {
   final Utente utente;
   final ApiClient apiClient;
 
-  const UserScreen({
-    super.key,
-    required this.utente,
-    required this.apiClient,
-  });
+  const UserScreen({super.key, required this.utente, required this.apiClient});
 
   @override
   State<UserScreen> createState() => _UserScreenState();
 }
 
-class _UserScreenState extends State<UserScreen> {
+class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
+  final Set<Circle> _circles = {};
+  bool _locationGranted = false;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
@@ -34,34 +37,133 @@ class _UserScreenState extends State<UserScreen> {
     zoom: 12,
   );
 
-  static const String _geocodingKey =
-      String.fromEnvironment('GOOGLE_GEOCODING_KEY', defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY');
+  static const String _geocodingKey = String.fromEnvironment(
+    'GOOGLE_GEOCODING_KEY',
+    defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY',
+  );
 
   @override
   void initState() {
     super.initState();
+    _initLocationPermission();
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showPreferenzeDialog();
       });
     }
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _pulseAnimation =
+        Tween<double>(begin: 15, end: 35).animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+        )..addListener(() {
+          if (_circles.isNotEmpty && mounted) {
+            final old = _circles.last.center;
+            setState(() {
+              _circles.removeWhere((c) => c.circleId.value == 'pulse');
+              _circles.add(
+                Circle(
+                  circleId: const CircleId('pulse'),
+                  center: old,
+                  radius: _pulseAnimation.value,
+                  fillColor: Colors.blue.withOpacity(0.25),
+                  strokeColor: Colors.blue.withOpacity(0.1),
+                  strokeWidth: 1,
+                ),
+              );
+            });
+          }
+        });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _pulseController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initLocationPermission() async {
+    if (kIsWeb) {
+      // Su Web il permesso lo chiede il browser quando richiedi la posizione.
+      // Molti browser richiedono che sia attivato da un gesto utente (click).
+      setState(() => _locationGranted = false);
+      return;
+    }
+
+    final status = await Permission.locationWhenInUse.request();
+    if (!mounted) return;
+
+    setState(() => _locationGranted = status.isGranted);
+
+    if (!status.isGranted) {
+      _showToast(
+        'Permesso posizione non concesso: il pallino blu non verrà mostrato.',
+      );
+    }
+  }
+
+  Future<void> _goToMyLocation() async {
+    try {
+      // Su Web/desktop: richiesta permesso + posizione via geolocator
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        _showToast('Permesso posizione negato.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final me = LatLng(pos.latitude, pos.longitude);
+
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
+      );
+
+      setState(() {
+        _circles
+          ..clear()
+          ..addAll([
+            Circle(
+              circleId: const CircleId('pulse'),
+              center: me,
+              radius: 25,
+              fillColor: Colors.blue.withOpacity(0.25),
+              strokeColor: Colors.blue.withOpacity(0.1),
+              strokeWidth: 1,
+            ),
+            Circle(
+              circleId: const CircleId('dot'),
+              center: me,
+              radius: 6,
+              fillColor: const Color(0xFF4285F4),
+              strokeColor: Colors.white,
+              strokeWidth: 2,
+            ),
+          ]);
+      });
+    } catch (e) {
+      _showToast('Impossibile ottenere la posizione.');
+    }
   }
 
   Future<void> _showPreferenzeDialog() async {
     final updatedPrefs = await showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => PreferenzeDialog(
-        utente: widget.utente,
-        apiClient: widget.apiClient,
-      ),
+      builder: (_) =>
+          PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
     );
 
     if (updatedPrefs != null) {
@@ -82,8 +184,13 @@ class _UserScreenState extends State<UserScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          content: Text(
+            msg,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
         ),
       );
   }
@@ -111,7 +218,10 @@ class _UserScreenState extends State<UserScreen> {
               SizedBox(width: 10),
               Text(
                 'Preferences',
-                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -125,7 +235,10 @@ class _UserScreenState extends State<UserScreen> {
               SizedBox(width: 10),
               Text(
                 'Logout',
-                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -152,11 +265,10 @@ class _UserScreenState extends State<UserScreen> {
     }
 
     try {
-      final uri = Uri.https(
-        'maps.googleapis.com',
-        '/maps/api/geocode/json',
-        {'address': q, 'key': _geocodingKey},
-      );
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'address': q,
+        'key': _geocodingKey,
+      });
 
       final res = await http.get(uri);
       if (res.statusCode != 200) {
@@ -267,9 +379,16 @@ class _UserScreenState extends State<UserScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.bgDark,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: AppColors.borderField, width: 1),
+                            border: Border.all(
+                              color: AppColors.borderField,
+                              width: 1,
+                            ),
                           ),
-                          child: const Icon(Icons.settings, color: AppColors.textPrimary, size: 18),
+                          child: const Icon(
+                            Icons.settings,
+                            color: AppColors.textPrimary,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],
@@ -285,22 +404,39 @@ class _UserScreenState extends State<UserScreen> {
                   cursorColor: AppColors.accentCyan,
                   decoration: InputDecoration(
                     hintText: 'Search your Park',
-                    hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.9)),
-                    prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+                    hintStyle: TextStyle(
+                      color: AppColors.textMuted.withOpacity(0.9),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMuted,
+                    ),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: AppColors.accentCyan),
+                      icon: const Icon(
+                        Icons.arrow_forward,
+                        color: AppColors.accentCyan,
+                      ),
                       onPressed: () => _searchAndGo(_searchController.text),
                     ),
                     filled: true,
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: AppColors.borderField, width: 1),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: AppColors.accentCyan, width: 1.2),
+                      borderSide: const BorderSide(
+                        color: AppColors.accentCyan,
+                        width: 1.2,
+                      ),
                     ),
                   ),
                   onSubmitted: _searchAndGo,
@@ -314,7 +450,10 @@ class _UserScreenState extends State<UserScreen> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderField, width: 1),
+                      border: Border.all(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.35),
@@ -325,13 +464,33 @@ class _UserScreenState extends State<UserScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: GoogleMap(
-                        initialCameraPosition: _initialCamera,
-                        onMapCreated: (c) => _mapController = c,
-                        markers: _markers,
-                        myLocationButtonEnabled: false,
-                        zoomControlsEnabled: false,
-                        mapToolbarEnabled: false,
+                      child: Stack(
+                        children: [
+                          GoogleMap(
+                            initialCameraPosition: _initialCamera,
+                            onMapCreated: (c) => _mapController = c,
+                            markers: _markers,
+                            circles: _circles,
+                            myLocationEnabled: !kIsWeb && _locationGranted,
+                            myLocationButtonEnabled:
+                                !kIsWeb && _locationGranted,
+                            zoomControlsEnabled: false,
+                            mapToolbarEnabled: false,
+                          ),
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                top: 14,
+                                right: 14,
+                              ),
+                              child: GMapsControlButton(
+                                icon: Icons.my_location,
+                                onPressed: _goToMyLocation,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -413,7 +572,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.bgDark,
           content: Text(
-            e is ApiException ? e.message : 'Errore nel salvataggio delle preferenze',
+            e is ApiException
+                ? e.message
+                : 'Errore nel salvataggio delle preferenze',
             style: const TextStyle(color: AppColors.textPrimary),
           ),
         ),
@@ -432,7 +593,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       title: const Text(
         'Imposta preferenze',
-        style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       content: SingleChildScrollView(
         child: Theme(
@@ -442,7 +606,8 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             ),
             checkboxTheme: CheckboxThemeData(
               fillColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) return AppColors.accentCyan;
+                if (states.contains(WidgetState.selected))
+                  return AppColors.accentCyan;
                 return AppColors.borderField;
               }),
               checkColor: WidgetStateProperty.all(AppColors.textPrimary),
@@ -453,7 +618,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
               overlayColor: AppColors.accentCyan.withOpacity(0.15),
               inactiveTrackColor: AppColors.borderField,
               valueIndicatorColor: AppColors.brandTop,
-              valueIndicatorTextStyle: const TextStyle(color: AppColors.textPrimary),
+              valueIndicatorTextStyle: const TextStyle(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           child: DefaultTextStyle(
@@ -461,7 +628,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Età', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Età',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -488,7 +658,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Piano', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Piano',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -515,7 +688,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Distanza massima (m)', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Distanza massima (m)',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Slider(
                   value: _distanza,
                   min: 0,
@@ -526,11 +702,16 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 Text(
                   'Valore: ${_distanza.toStringAsFixed(0)} m',
-                  style: TextStyle(color: AppColors.textMuted.withOpacity(0.95)),
+                  style: TextStyle(
+                    color: AppColors.textMuted.withOpacity(0.95),
+                  ),
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Condizioni speciali', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Condizioni speciali',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 CheckboxListTile(
                   value: _disabile,
                   onChanged: (v) => setState(() => _disabile = v ?? false),
@@ -549,7 +730,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Occupazione', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Occupazione',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 DropdownButtonFormField<String>(
                   value: _occupazione,
                   dropdownColor: AppColors.bgDark,
@@ -558,7 +742,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderField),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -566,7 +752,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                     ),
                   ),
                   items: _occupazioni
-                      .map((o) => DropdownMenuItem<String>(value: o, child: Text(o)))
+                      .map(
+                        (o) =>
+                            DropdownMenuItem<String>(value: o, child: Text(o)),
+                      )
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _occupazione = v);
@@ -589,17 +778,69 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accentCyan,
             foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           child: _isSaving
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textPrimary,
+                  ),
                 )
-              : const Text('Salva', style: TextStyle(fontWeight: FontWeight.w800)),
+              : const Text(
+                  'Salva',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
         ),
       ],
     );
+  }
+}
+
+class GMapsControlButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String? tooltip;
+
+  const GMapsControlButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Material(
+      color: Colors.white,
+      elevation: 2.5,
+      shadowColor: Colors.black.withOpacity(0.22),
+      shape: const CircleBorder(
+        side: BorderSide(color: Color(0x1F000000), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            icon,
+            size: 22,
+            color: onPressed == null
+                ? const Color(0xFFB0B0B0)
+                : const Color(0xFF666666),
+          ),
+        ),
+      ),
+    );
+
+    if (tooltip == null) return child;
+
+    return Tooltip(message: tooltip!, child: child);
   }
 }
