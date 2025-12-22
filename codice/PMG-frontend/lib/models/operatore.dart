@@ -1,4 +1,3 @@
-/// Modello Operatore come tornato dal backend Spring Boot.
 class Operatore {
   final String id;
   final String nomeStruttura;

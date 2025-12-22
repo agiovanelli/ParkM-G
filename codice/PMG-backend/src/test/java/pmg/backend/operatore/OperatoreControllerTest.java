@@ -35,10 +35,7 @@ public class OperatoreControllerTest {
     @Test
     void testLoginSuccess() throws Exception {
         // GIVEN
-        OperatoreLoginRequest request = new OperatoreLoginRequest();
-        // Usa i nomi dei metodi corretti che abbiamo definito sopra
-        request.setNomeStruttura("strutturatest"); 
-        request.setUsername("admin");
+        OperatoreLoginRequest request = new OperatoreLoginRequest("strutturatest", "admin");
 
         OperatoreResponse fakeResponse = new OperatoreResponse();
         // Aggiungi qui eventuali setter per la risposta se necessari

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'utente.dart';
-import 'operatore.dart';
+import '../models/utente.dart';
+import '../models/operatore.dart';
 
 /// Eccezione generica per gli errori API.
 class ApiException implements Exception {

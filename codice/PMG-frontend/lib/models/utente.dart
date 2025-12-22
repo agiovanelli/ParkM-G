@@ -1,11 +1,10 @@
-/// Modello Utente come tornato dal backend Spring Boot.
 class Utente {
   final String id;
   final String nome;
   final String cognome;
   final String email;
   final String username;
-  Map<String, String>? preferenze; // può essere null o vuota
+  Map<String, String>? preferenze;
 
   Utente({
     required this.id,
@@ -20,7 +19,6 @@ class Utente {
     final prefsDynamic = json['preferenze'];
     Map<String, String>? prefs;
     if (prefsDynamic != null) {
-      // conversione sicura a Map<String, String>
       prefs = (prefsDynamic as Map).map(
         (key, value) => MapEntry(key.toString(), value.toString()),
       );

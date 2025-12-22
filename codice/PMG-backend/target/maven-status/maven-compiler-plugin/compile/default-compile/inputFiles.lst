@@ -1,17 +1,17 @@
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\PmgBackendApplication.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\Utente.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteLoginRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRegisterRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreRepository.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreResponse.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreService.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreServiceImpl.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\PmgBackendApplication.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\Utente.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteController.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteLoginRequest.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRegisterRequest.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRepository.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
