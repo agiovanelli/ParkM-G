@@ -32,7 +32,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-mongodb</artifactId>
     </dependency>
-
+    <!-- Riavvia Spring Boot ogni volta che salvi-->
+	<dependency>
+    	<groupId>org.springframework.boot</groupId>
+    	<artifactId>spring-boot-devtools</artifactId>
+    	<optional>true</optional>
+	</dependency>
     <!-- (Opzionale) Lombok per meno boilerplate -->
     <dependency>
       <groupId>org.projectlombok</groupId>
