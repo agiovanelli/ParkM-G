@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
+import pmg.backend.parcheggio.Parcheggio;
+
 //import pmg.backend.parcheggio.Parcheggio;
 
 public class AnaliticheResponse {
@@ -68,13 +70,5 @@ public class AnaliticheResponse {
 
     public List<String> getAllarmi() {
         return allarmi;
-    }
-
-    public void setEventi(List<String> eventi) {
-        this.eventi = eventi;
-    }
-
-    public void setAllarmi(List<String> allarmi) {
-        this.allarmi = allarmi;
     }
 }

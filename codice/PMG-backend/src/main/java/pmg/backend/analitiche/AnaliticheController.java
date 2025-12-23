@@ -1,11 +1,11 @@
 package pmg.backend.analitiche;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import pmg.backend.parcheggio.Parcheggio;
 
 @RestController
 @RequestMapping("/api/analitiche")
@@ -20,9 +20,9 @@ public class AnaliticheController {
     }
 
     @GetMapping("/getAnalitiche")
-    public ResponseEntity<AnaliticheResponse> getAnalitiche() {
+    public ResponseEntity<AnaliticheResponse> getAnalitiche(Parcheggio parcheggio, String operatoreId) {
         LOGGER.info("HTTP GET /api/analitiche/getAnalitiche chiamato");
-        AnaliticheResponse resp = analiticheService.getAnalitiche();
+        AnaliticheResponse resp = analiticheService.getAnalitiche(parcheggio, operatoreId);
         return ResponseEntity.ok(resp);
     }
 }

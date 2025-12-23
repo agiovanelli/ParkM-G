@@ -62,16 +62,4 @@ public class Analitiche {
     public String getTimestamp() {
         return timestamp;
     }
-
-    public void setTipo(String tipo) {
-        this.tipo = tipo;
-    }
-
-    public void setDescrizione(String descrizione) {
-        this.descrizione = descrizione;
-    }
-
-    public void setTimestamp(String timestamp) {
-        this.timestamp = timestamp;
-    }
 }
