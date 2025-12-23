@@ -62,6 +62,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   List<ParkingLogItem> _buildMockItems() {
     final now = DateTime.now();
+
+    // funzione che gli da l'id analitica e lui mi da tutti i log con quell'id
     return [
       ParkingLogItem(
         timestamp: now.subtract(const Duration(minutes: 6)),

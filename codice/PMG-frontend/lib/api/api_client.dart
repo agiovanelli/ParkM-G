@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:park_mg/models/log.dart';
 import '../models/utente.dart';
 import '../models/operatore.dart';
 
@@ -136,6 +137,22 @@ class ApiClient {
     } else {
       throw ApiException(
         'Errore backend operatori: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
+  }
+
+  Future<List<Log>> getLogByAnaliticaId(String analiticaId) async {
+    final uri = Uri.parse('$_baseUrl/$analiticaId');
+
+    final resp = await _client.get(uri);
+
+    if (resp.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
+      return jsonList.map((json) => Log.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      throw ApiException(
+        'Errore recupero log: HTTP ${resp.statusCode}',
         resp.statusCode,
       );
     }

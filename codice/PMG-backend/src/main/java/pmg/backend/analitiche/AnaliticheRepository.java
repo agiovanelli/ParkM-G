@@ -5,14 +5,14 @@ import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface AnaliticheRepository extends MongoRepository<Analitiche, String> {
 
-	List<Analitiche> findByParcheggioIdAndOperatoreIdAndTipo(String parcheggioId, String operatoreId, String tipo);
+	List<Analitiche> findByParcheggioIdAndOperatoreId(String parcheggioId, String operatoreId);
 
-    // Recupera un record per nomeAnalitica
-    Optional<Analitiche> findByNomeAnalitica(String tipo);
+	Optional<Analitiche> findByOperatoreId(String operatoreId);
 
-    // Recupera direttamente il campo 'valore' di un record
-    Optional<String> findValoreByNomeAnalitica(String tipo);
+    Optional<Analitiche> findByParcheggioId(String parcheggioId);
 }

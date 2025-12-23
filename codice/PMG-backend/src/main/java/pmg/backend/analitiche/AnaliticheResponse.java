@@ -2,11 +2,7 @@ package pmg.backend.analitiche;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
-import pmg.backend.parcheggio.Parcheggio;
-
-//import pmg.backend.parcheggio.Parcheggio;
+import pmg.backend.log.LogResponse;
 
 public class AnaliticheResponse {
 
@@ -14,38 +10,17 @@ public class AnaliticheResponse {
     private String parcheggioId;
     private String nomeParcheggio;
     private String operatoreId;
-
-    private List<String> eventi;
-    private List<String> allarmi;
-
-    @Autowired
-    private AnaliticheRepository analiticheRepository;
+    private List<LogResponse> log;
 
     public AnaliticheResponse() {}
 
-    // Costruisce la response a partire dal parcheggio e operatore
-    public AnaliticheResponse(Parcheggio parcheggio, String operatoreId) {
-        this.parcheggioId = parcheggio.getId();
-        this.nomeParcheggio = parcheggio.getNome();
+    public AnaliticheResponse(String id, String parcheggioId, String nomeParcheggio,
+                              String operatoreId, List<LogResponse> logEventi) {
+        this.id = id;
+        this.parcheggioId = parcheggioId;
+        this.nomeParcheggio = nomeParcheggio;
         this.operatoreId = operatoreId;
-        caricaAnalitiche();
-    }
-
-    private void caricaAnalitiche() {
-
-        this.eventi = analiticheRepository
-                .findByParcheggioIdAndOperatoreIdAndTipo(
-                        parcheggioId, operatoreId, "EVENTO")
-                .stream()
-                .map(Analitiche::getDescrizione)
-                .toList();
-
-        this.allarmi = analiticheRepository
-                .findByParcheggioIdAndOperatoreIdAndTipo(
-                        parcheggioId, operatoreId, "ALLARME")
-                .stream()
-                .map(Analitiche::getDescrizione)
-                .toList();
+        this.log = logEventi;
     }
 
     public String getId() {
@@ -64,11 +39,7 @@ public class AnaliticheResponse {
         return operatoreId;
     }
 
-    public List<String> getEventi() {
-        return eventi;
-    }
-
-    public List<String> getAllarmi() {
-        return allarmi;
+    public List<LogResponse> getLog() {
+        return log;
     }
 }

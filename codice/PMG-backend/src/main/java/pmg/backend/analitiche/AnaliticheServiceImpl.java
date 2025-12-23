@@ -17,10 +17,21 @@ public class AnaliticheServiceImpl implements AnaliticheService{
         this.repository = repository;
     }
     
-	@Override
-	public AnaliticheResponse getAnalitiche(Parcheggio parcheggio, String operatoreId) {
-		LOGGER.info("Recupero analitiche parcheggio");
-		return new AnaliticheResponse();
-	}
+    @Override
+    public Analitiche getById(String id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Analitiche non trovata"));
+    }
+
+    @Override
+    public Analitiche getByOperatoreId(String operatoreId) {
+        return repository.findByOperatoreId(operatoreId)
+                .orElseThrow(() -> new RuntimeException("Analitiche non trovata"));
+    }
+
+    @Override
+    public Analitiche save(Analitiche analitiche) {
+        return repository.save(analitiche);
+    }
 
 }

@@ -1,28 +1,50 @@
 package pmg.backend.analitiche;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import pmg.backend.parcheggio.Parcheggio;
+import pmg.backend.log.Log;
+import pmg.backend.log.LogService;
 
 @RestController
 @RequestMapping("/api/analitiche")
 public class AnaliticheController {
 	
-	private static final Logger LOGGER = LoggerFactory.getLogger(AnaliticheController.class);
+	private final AnaliticheService analiticheService;
+    private final LogService logService;
 
-    private final AnaliticheService analiticheService;
-
-    public AnaliticheController(AnaliticheService analiticheService) {
+    @Autowired
+    public AnaliticheController(AnaliticheService analiticheService,
+                                LogService logService) {
         this.analiticheService = analiticheService;
+        this.logService = logService;
     }
 
-    @GetMapping("/getAnalitiche")
-    public ResponseEntity<AnaliticheResponse> getAnalitiche(Parcheggio parcheggio, String operatoreId) {
-        LOGGER.info("HTTP GET /api/analitiche/getAnalitiche chiamato");
-        AnaliticheResponse resp = analiticheService.getAnalitiche(parcheggio, operatoreId);
-        return ResponseEntity.ok(resp);
+    @GetMapping("/{id}")
+    public Analitiche getById(@PathVariable String id) {
+        return analiticheService.getById(id);
+    }
+
+    @GetMapping("/operatore/{operatoreId}")
+    public Analitiche getByOperatoreId(@PathVariable String operatoreId) {
+        return analiticheService.getByOperatoreId(operatoreId);
+    }
+
+    @PostMapping
+    public Analitiche creaAnalitiche(@RequestBody Analitiche analitiche) {
+        return analiticheService.save(analitiche);
+    }
+
+    @GetMapping("/{id}/log")
+    public List<Log> getLogByAnaliticaId(@PathVariable String id) {
+        return logService.getLogByAnaliticaId(id);
+    }
+
+    @GetMapping("/{id}/log/{tipo}")
+    public List<Log> getLogByAnaliticaIdAndTipo(@PathVariable String id,
+                                                     @PathVariable String tipo) {
+        return logService.getLogByAnaliticaIdAndTipo(id, tipo);
     }
 }

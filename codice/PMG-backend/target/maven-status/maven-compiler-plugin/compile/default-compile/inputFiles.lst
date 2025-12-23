@@ -5,6 +5,12 @@ C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\bac
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheService.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheServiceImpl.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\Log.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogServiceImpl.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
