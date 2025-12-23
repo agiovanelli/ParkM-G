@@ -1,4 +1,4 @@
-package PMG.backend.utente;
+package pmg.backend.utente;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

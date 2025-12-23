@@ -181,7 +181,8 @@ class _HomePageState extends State<HomePage>
     setState(() => _isLoading = true);
     try {
       final utente = await widget.apiClient.loginUtente(email, password);
-
+      _userLoginEmailController.clear();
+      _userLoginPasswordController.clear();
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -228,7 +229,10 @@ class _HomePageState extends State<HomePage>
     setState(() => _isLoading = true);
     try {
       await widget.apiClient.registraUtente(nome, cognome, email, pwd);
-
+      _userRegisterNameController.clear();
+      _userRegisterSurnameController.clear();
+      _userRegisterEmailController.clear();
+      _userRegisterPasswordController.clear();
       if (!mounted) return;
       setState(() {
         _isLoginMode = true;
@@ -274,6 +278,8 @@ class _HomePageState extends State<HomePage>
         nomeStruttura,
         username,
       );
+      _operatorNomeStrutturaController.clear();
+      _operatorUsernameController.clear();
 
       if (!mounted) return;
       Navigator.of(context).push(
@@ -468,7 +474,7 @@ class _HomePageState extends State<HomePage>
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.bgDark, // #020617
+              color: AppColors.bgDark,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -495,6 +501,8 @@ class _HomePageState extends State<HomePage>
                           text: 'Accedi',
                           selected: _isLoginMode,
                           onTap: () {
+                            _userLoginEmailController.clear();
+                            _userLoginPasswordController.clear();
                             setState(() => _isLoginMode = true);
                           },
                           isLeft: true,
@@ -506,6 +514,10 @@ class _HomePageState extends State<HomePage>
                           text: 'Registrati',
                           selected: !_isLoginMode,
                           onTap: () {
+                            _userRegisterNameController.clear();
+                            _userRegisterSurnameController.clear();
+                            _userRegisterEmailController.clear();
+                            _userRegisterPasswordController.clear();
                             setState(() => _isLoginMode = false);
                           },
                           isLeft: false,

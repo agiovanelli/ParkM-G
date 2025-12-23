@@ -1,4 +1,4 @@
-package PMG.backend.operatore;
+package pmg.backend.operatore;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
