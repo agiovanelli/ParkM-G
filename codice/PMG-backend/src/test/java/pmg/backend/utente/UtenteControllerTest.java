@@ -1,4 +1,4 @@
-package pmg.backend.utente;
+package PMG.backend.utente;
 
 import static org.mockito.ArgumentMatchers.any;
 

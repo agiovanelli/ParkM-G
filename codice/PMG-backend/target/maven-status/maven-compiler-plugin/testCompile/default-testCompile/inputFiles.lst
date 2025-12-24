@@ -1,5 +1,13 @@
+<<<<<<< Updated upstream
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\AppTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\operatore\OperatoreControllerTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\operatore\OperatoreServiceImplTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\utente\UtenteControllerTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\utente\UtenteServiceImplTest.java
+=======
+C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\PMG\backend\AppTest.java
+C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\PMG\backend\operatore\OperatoreControllerTest.java
+C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\PMG\backend\operatore\OperatoreServiceImplTest.java
+C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\PMG\backend\utente\UtenteControllerTest.java
+C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\PMG\backend\utente\UtenteServiceImplTest.java
+>>>>>>> Stashed changes
