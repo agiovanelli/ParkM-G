@@ -1,14 +1,22 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
-import 'package:park_mg/widgets/parking_map.dart';
+import 'package:park_mg/widgets/parking_map.dart' as sch;
 import '../models/operatore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 enum LogCategory { allarme, evento, history }
-enum LogSeverity { critico, attenzione, controllo, pagamento, veicolo, info, risolto }
+
+enum LogSeverity {
+  critico,
+  attenzione,
+  controllo,
+  pagamento,
+  veicolo,
+  info,
+  risolto,
+}
 
 class ParkingLogItem {
   final DateTime timestamp;
@@ -35,7 +43,8 @@ class ParkingLogItem {
         orElse: () => LogCategory.history,
       ),
       severity: LogSeverity.values.firstWhere(
-        (e) => e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
+        (e) =>
+            e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
         orElse: () => LogSeverity.info,
       ),
       nome: json['nome'] ?? '—',
@@ -78,10 +87,11 @@ List<ParkingSpot> mockSpotsForFloor(int floor) {
     ParkingSpotState.reserved,
     ParkingSpotState.unavailable,
   ];
+
   return List.generate(
-    36,
+    44,
     (i) => ParkingSpot(
-      'P${floor}-${i + 1}',
+      'F$floor-${(i + 1).toString().padLeft(3, '0')}',
       random[(i + floor * 2) % random.length],
     ),
   );
@@ -101,6 +111,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   // --- Side menu navigation ---
   int _pageIndex = 0;
+
+  String? _selectedSpotId;
 
   int _selectedFloor = 1;
   late List<ParkingSpot> _spots;
@@ -147,7 +159,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   Future<List<ParkingLogItem>> _fetchLogItems() async {
-    final url = Uri.parse('http://localhost:8080/api/analitiche/694aa3eeb7b5590ae69d9379/log');
+    final url = Uri.parse(
+      'http://localhost:8080/api/analitiche/694aa3eeb7b5590ae69d9379/log',
+    );
 
     final response = await http.get(url);
 
@@ -160,10 +174,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
       throw Exception('Il backend non ha restituito una lista JSON');
     }
 
-    return jsonList
-        .map((json) => ParkingLogItem.fromJson(json))
-        .toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return jsonList.map((json) => ParkingLogItem.fromJson(json)).toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
   ParkingStats _buildMockStats() {
@@ -183,21 +195,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
   void _changeFloor(int floor) {
     setState(() {
       _selectedFloor = floor;
+      _selectedSpotId = null;
       _spots = mockSpotsForFloor(floor);
     });
-  }
-
-  Color _spotColor(ParkingSpotState state) {
-    switch (state) {
-      case ParkingSpotState.available:
-        return AppColors.accentCyan;
-      case ParkingSpotState.occupied:
-        return const Color(0xFFF59E0B); // amber
-      case ParkingSpotState.reserved:
-        return const Color(0xFF3B82F6); // blue
-      case ParkingSpotState.unavailable:
-        return const Color(0xFF6B7280); // gray
-    }
   }
 
   Future<void> _confirmLogout() async {
@@ -345,7 +345,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
     final q = _searchController.text.trim().toLowerCase();
     return _items.where((it) {
       if (it.category != _selectedCategory) return false;
-      if (_severityFilter != null && it.severity != _severityFilter) return false;
+      if (_severityFilter != null && it.severity != _severityFilter)
+        return false;
       if (q.isEmpty) return true;
       return it.nome.toLowerCase().contains(q) ||
           it.details.toLowerCase().contains(q) ||
@@ -358,7 +359,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   int get _eventsLast24hCount {
     final since = DateTime.now().subtract(const Duration(hours: 24));
-    return _items.where((e) => e.category == LogCategory.evento && e.timestamp.isAfter(since)).length;
+    return _items
+        .where(
+          (e) => e.category == LogCategory.evento && e.timestamp.isAfter(since),
+        )
+        .length;
   }
 
   String _formatTime(DateTime dt) {
@@ -406,7 +411,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   @override
   Widget build(BuildContext context) {
     final username = widget.operatore.username.trim();
-    final isWide = MediaQuery.of(context).size.width > 900; // sidebar persistente
+    final isWide =
+        MediaQuery.of(context).size.width > 900; // sidebar persistente
 
     return Scaffold(
       key: _scaffoldKey,
@@ -457,15 +463,23 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             if (!isWide) ...[
                               InkWell(
                                 borderRadius: BorderRadius.circular(999),
-                                onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                                onTap: () =>
+                                    _scaffoldKey.currentState?.openDrawer(),
                                 child: Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
                                     color: AppColors.bgDark,
                                     borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: AppColors.borderField, width: 1),
+                                    border: Border.all(
+                                      color: AppColors.borderField,
+                                      width: 1,
+                                    ),
                                   ),
-                                  child: const Icon(Icons.menu_rounded, color: AppColors.textPrimary, size: 18),
+                                  child: const Icon(
+                                    Icons.menu_rounded,
+                                    color: AppColors.textPrimary,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -501,9 +515,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
                                 decoration: BoxDecoration(
                                   color: AppColors.bgDark,
                                   borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: AppColors.borderField, width: 1),
+                                  border: Border.all(
+                                    color: AppColors.borderField,
+                                    width: 1,
+                                  ),
                                 ),
-                                child: const Icon(Icons.logout, color: AppColors.textPrimary, size: 18),
+                                child: const Icon(
+                                  Icons.logout,
+                                  color: AppColors.textPrimary,
+                                  size: 18,
+                                ),
                               ),
                             ),
                           ],
@@ -517,8 +538,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
                         child: IndexedStack(
                           index: _pageIndex,
                           children: [
-                            _dashboardPage(isWide: MediaQuery.of(context).size.width > 700),
-                            _parkingStatsPage(isWide: MediaQuery.of(context).size.width > 700),
+                            _dashboardPage(
+                              isWide: MediaQuery.of(context).size.width > 700,
+                            ),
+                            _parkingStatsPage(
+                              isWide: MediaQuery.of(context).size.width > 700,
+                            ),
                           ],
                         ),
                       ),
@@ -638,13 +663,19 @@ class _OperatorScreenState extends State<OperatorScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.brandTop : AppColors.bgDark2.withOpacity(0.18),
+          color: selected
+              ? AppColors.brandTop
+              : AppColors.bgDark2.withOpacity(0.18),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderField, width: 1),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: selected ? AppColors.textPrimary : AppColors.textMuted),
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? AppColors.textPrimary : AppColors.textMuted,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -761,7 +792,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: selected ? AppColors.brandTop : Colors.transparent,
+                        color: selected
+                            ? AppColors.brandTop
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
@@ -770,13 +803,17 @@ class _OperatorScreenState extends State<OperatorScreen> {
                           Icon(
                             _categoryIcon(c),
                             size: 18,
-                            color: selected ? AppColors.textPrimary : AppColors.textMuted,
+                            color: selected
+                                ? AppColors.textPrimary
+                                : AppColors.textMuted,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             _categoryLabel(c),
                             style: TextStyle(
-                              color: selected ? AppColors.textPrimary : AppColors.textMuted,
+                              color: selected
+                                  ? AppColors.textPrimary
+                                  : AppColors.textMuted,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -801,14 +838,24 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   cursorColor: AppColors.accentCyan,
                   decoration: InputDecoration(
                     hintText: 'Cerca…',
-                    hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.95)),
-                    prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+                    hintStyle: TextStyle(
+                      color: AppColors.textMuted.withOpacity(0.95),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMuted,
+                    ),
                     filled: true,
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppColors.borderField),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -1023,15 +1070,28 @@ class _OperatorScreenState extends State<OperatorScreen> {
           const SizedBox(height: 24),
 
           // ---- MAPPA PARCHEGGIO (ORA IN FILE SEPARATO) ----
-          ParkingMap<ParkingSpot>(
+          sch.ParkingSchematicMap(
             selectedFloor: _selectedFloor,
-            floors: const [1, 2, 3],
+            floors: const [1, 2, 3, 4, 5],
             onFloorChanged: (v) => _changeFloor(v),
-            items: _spots,
-            crossAxisCount: 6,
-            tooltipText: (spot) => '${spot.id} (${spot.state.name})',
-            cellText: (spot) => spot.id.split('-').last,
-            cellColor: (spot) => _spotColor(spot.state),
+
+            spots: sch.UniformGarageLayout.buildForFloor(
+              floor: _selectedFloor,
+              selectedId: _selectedSpotId,
+              occupiedIds: _occupiedIdsForSelectedFloor(),
+              reservedIds: _reservedIdsForSelectedFloor(),
+              unavailableIds: _unavailableIdsForSelectedFloor(),
+            ),
+
+            onSpotTap: (s) {
+              // Blocca tap su occupati/prenotati/non disponibili
+              if (s.state != sch.SpotState.free) return;
+
+              setState(() {
+                _selectedSpotId = (_selectedSpotId == s.id) ? null : s.id;
+              });
+            },
+
             legend: [
               _legendItem(AppColors.accentCyan, 'Disponibile'),
               _legendItem(const Color(0xFFF59E0B), 'Occupato'),
@@ -1042,6 +1102,27 @@ class _OperatorScreenState extends State<OperatorScreen> {
         ],
       ),
     );
+  }
+
+  Set<String> _occupiedIdsForSelectedFloor() {
+    return _spots
+        .where((s) => s.state == ParkingSpotState.occupied)
+        .map((s) => s.id)
+        .toSet();
+  }
+
+  Set<String> _reservedIdsForSelectedFloor() {
+    return _spots
+        .where((s) => s.state == ParkingSpotState.reserved)
+        .map((s) => s.id)
+        .toSet();
+  }
+
+  Set<String> _unavailableIdsForSelectedFloor() {
+    return _spots
+        .where((s) => s.state == ParkingSpotState.unavailable)
+        .map((s) => s.id)
+        .toSet();
   }
 
   // ---- Widgets (riusati) ----
@@ -1192,12 +1273,19 @@ class _OperatorScreenState extends State<OperatorScreen> {
       return ListView(
         children: [
           const SizedBox(height: 28),
-          Icon(Icons.inbox_rounded, size: 42, color: AppColors.textMuted.withOpacity(0.8)),
+          Icon(
+            Icons.inbox_rounded,
+            size: 42,
+            color: AppColors.textMuted.withOpacity(0.8),
+          ),
           const SizedBox(height: 10),
           const Center(
             child: Text(
               'Nessun elemento trovato con i filtri attuali.',
-              style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1228,7 +1316,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Container(
             width: 4,
             height: 54,
-            decoration: BoxDecoration(color: sevColor, borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(
+              color: sevColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
           const SizedBox(width: 12),
           Container(
@@ -1263,12 +1354,19 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 const SizedBox(height: 6),
                 Text(
                   it.details,
-                  style: TextStyle(color: AppColors.textMuted.withOpacity(0.95), height: 1.2),
+                  style: TextStyle(
+                    color: AppColors.textMuted.withOpacity(0.95),
+                    height: 1.2,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(Icons.schedule_rounded, size: 14, color: AppColors.textMuted.withOpacity(0.9)),
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 14,
+                      color: AppColors.textMuted.withOpacity(0.9),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       _formatTime(it.timestamp),
@@ -1280,7 +1378,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     ),
                     if (it.source != null) ...[
                       const SizedBox(width: 12),
-                      Icon(Icons.memory_rounded, size: 14, color: AppColors.textMuted.withOpacity(0.9)),
+                      Icon(
+                        Icons.memory_rounded,
+                        size: 14,
+                        color: AppColors.textMuted.withOpacity(0.9),
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -1314,7 +1416,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+        ),
       ),
     );
   }
@@ -1338,7 +1444,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: AppColors.borderField, width: 1),
         ),
-        child: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.textPrimary),
+        child: const Icon(
+          Icons.refresh_rounded,
+          size: 18,
+          color: AppColors.textPrimary,
+        ),
       ),
     );
   }
