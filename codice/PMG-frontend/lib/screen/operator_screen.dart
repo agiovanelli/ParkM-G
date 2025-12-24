@@ -2,20 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
+import 'package:park_mg/widgets/parking_map.dart';
 import '../models/operatore.dart';
-<<<<<<< Updated upstream
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 enum LogCategory { allarme, evento, history }
 enum LogSeverity { critico, attenzione, controllo, pagamento, veicolo, info, risolto }
-=======
-import '../widgets/parking_map.dart';
-
-enum LogCategory { alarms, events, history }
-
-enum LogSeverity { critical, warning, info }
->>>>>>> Stashed changes
 
 class ParkingLogItem {
   final DateTime timestamp;
@@ -113,13 +106,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
   late List<ParkingSpot> _spots;
 
   // Dashboard state
-<<<<<<< Updated upstream
   LogCategory _selectedCategory = LogCategory.allarme;
   LogSeverity? _severityFilter; // null = tutte
-=======
-  LogCategory _selectedCategory = LogCategory.alarms;
-  LogSeverity? _severityFilter;
->>>>>>> Stashed changes
+
   final _searchController = TextEditingController();
 
   bool _isRefreshing = false;
@@ -137,11 +126,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   @override
   void initState() {
     super.initState();
-<<<<<<< Updated upstream
     _items = [];
     _loadLogs();
-=======
-    _items = _buildMockItems();
     _stats = _buildMockStats();
     _lastFetchAt = DateTime.now();
     _spots = mockSpotsForFloor(_selectedFloor);
@@ -151,7 +137,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       if (_isRefreshing) return;
       _refresh();
     });
->>>>>>> Stashed changes
   }
 
   @override
@@ -373,13 +358,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   int get _eventsLast24hCount {
     final since = DateTime.now().subtract(const Duration(hours: 24));
-<<<<<<< Updated upstream
     return _items.where((e) => e.category == LogCategory.evento && e.timestamp.isAfter(since)).length;
-=======
-    return _items
-        .where((e) => e.category == LogCategory.events && e.timestamp.isAfter(since))
-        .length;
->>>>>>> Stashed changes
   }
 
   String _formatTime(DateTime dt) {
@@ -387,13 +366,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return '${two(dt.day)}/${two(dt.month)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
-<<<<<<< Updated upstream
   Future<void> _loadLogs() async {
-=======
-  Future<void> _refresh() async {
-    if (_isRefreshing) return;
-
->>>>>>> Stashed changes
     setState(() => _isRefreshing = true);
 
     // Qui in futuro farai: await api.fetchLogs(...);
@@ -403,20 +376,29 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
     if (!mounted) return;
     setState(() {
-<<<<<<< Updated upstream
       _items = data;
-=======
-      _items = _buildMockItems();
-      _stats = _buildMockStats();
-      _spots = mockSpotsForFloor(_selectedFloor); // aggiorna anche la mappa
-      _lastFetchAt = DateTime.now();
->>>>>>> Stashed changes
       _isRefreshing = false;
     });
   }
 
   Future<void> _refresh() async {
-    await _loadLogs();
+    if (_isRefreshing) return;
+
+    setState(() => _isRefreshing = true);
+
+    // Qui in futuro farai: await api.fetchLogs(...);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    final data = await _fetchLogItems();
+
+    if (!mounted) return;
+    setState(() {
+      _items = data;
+      _stats = _buildMockStats();
+      _spots = mockSpotsForFloor(_selectedFloor); // aggiorna anche la mappa
+      _lastFetchAt = DateTime.now();
+      _isRefreshing = false;
+    });
   }
 
   // ---- UI ----
@@ -1267,16 +1249,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   children: [
                     Expanded(
                       child: Text(
-<<<<<<< Updated upstream
                         it.nome,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w800,
                         ),
-=======
-                        it.title,
-                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
->>>>>>> Stashed changes
                       ),
                     ),
                     const SizedBox(width: 8),
