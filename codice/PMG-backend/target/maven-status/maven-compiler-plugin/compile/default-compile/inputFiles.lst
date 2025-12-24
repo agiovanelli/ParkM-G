@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\Analitiche.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheController.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRepository.java
@@ -38,38 +37,3 @@ C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\bac
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
-=======
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\Analitiche.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheController.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRepository.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheResponse.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheService.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheServiceImpl.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreRepository.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreResponse.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreService.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreServiceImpl.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\Parcheggio.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioController.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioRepository.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioResponse.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioService.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioServiceImpl.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\PmgBackendApplication.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\Prenotazione.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRepository.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRequest.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneResponse.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\Utente.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteController.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteLoginRequest.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRegisterRequest.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRepository.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
-C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
->>>>>>> Stashed changes

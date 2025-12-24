@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
 import '../models/operatore.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-enum LogCategory { alarms, events, history }
-enum LogSeverity { critical, warning, info }
+enum LogCategory { allarme, evento, history }
+enum LogSeverity { critico, attenzione, controllo, pagamento, veicolo, info, risolto }
 
 class ParkingLogItem {
   final DateTime timestamp;
   final LogCategory category;
   final LogSeverity severity;
-  final String title;
+  final String nome;
   final String details;
   final String? source;
 
@@ -17,10 +19,26 @@ class ParkingLogItem {
     required this.timestamp,
     required this.category,
     required this.severity,
-    required this.title,
+    required this.nome,
     required this.details,
     this.source,
   });
+
+  factory ParkingLogItem.fromJson(Map<String, dynamic> json) {
+    return ParkingLogItem(
+      timestamp: DateTime.parse(json['data']),
+      category: LogCategory.values.firstWhere(
+        (e) => e.name.toLowerCase() == (json['tipo'] as String).toLowerCase(),
+        orElse: () => LogCategory.history,
+      ),
+      severity: LogSeverity.values.firstWhere(
+        (e) => e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
+        orElse: () => LogSeverity.info,
+      ),
+      nome: json['nome'] ?? '—',
+      details: json['descrizione'] ?? '—',
+    );
+  }
 }
 
 class OperatorScreen extends StatefulWidget {
@@ -39,7 +57,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
   final GlobalKey _gearKey = GlobalKey();
 
   // Dashboard state
-  LogCategory _selectedCategory = LogCategory.alarms;
+  LogCategory _selectedCategory = LogCategory.allarme;
   LogSeverity? _severityFilter; // null = tutte
   final _searchController = TextEditingController();
 
@@ -51,7 +69,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   @override
   void initState() {
     super.initState();
-    _items = _buildMockItems();
+    _items = [];
+    _loadLogs();
   }
 
   @override
@@ -60,60 +79,24 @@ class _OperatorScreenState extends State<OperatorScreen> {
     super.dispose();
   }
 
-  List<ParkingLogItem> _buildMockItems() {
-    final now = DateTime.now();
+  Future<List<ParkingLogItem>> _fetchLogItems() async {
+    final url = Uri.parse('http://localhost:8080/api/analitiche/694aa3eeb7b5590ae69d9379/log');
 
-    // funzione che gli da l'id analitica e lui mi da tutti i log con quell'id
-    return [
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(minutes: 6)),
-        category: LogCategory.alarms,
-        severity: LogSeverity.critical,
-        title: 'Sbarra ingresso bloccata',
-        details: 'Motore in overload. Verificare alimentazione e finecorsa.',
-        source: 'Gate #1',
-      ),
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(minutes: 14)),
-        category: LogCategory.alarms,
-        severity: LogSeverity.warning,
-        title: 'Sensore posto non coerente',
-        details: 'Posto A-12: stato oscillante nelle ultime letture.',
-        source: 'Sensor A-12',
-      ),
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(minutes: 30)),
-        category: LogCategory.events,
-        severity: LogSeverity.info,
-        title: 'Pagamento completato',
-        details: 'Ticket #4932 pagato con carta. Uscita autorizzata.',
-        source: 'Cassa automatica',
-      ),
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(hours: 2, minutes: 5)),
-        category: LogCategory.events,
-        severity: LogSeverity.info,
-        title: 'Ingresso veicolo',
-        details: 'Targa rilevata e associata a ticket.',
-        source: 'Camera IN',
-      ),
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(hours: 5)),
-        category: LogCategory.history,
-        severity: LogSeverity.info,
-        title: 'Cambio tariffa',
-        details: 'Tariffa oraria aggiornata da 1.50€ a 2.00€.',
-        source: 'Operatore admin',
-      ),
-      ParkingLogItem(
-        timestamp: now.subtract(const Duration(days: 1, hours: 3)),
-        category: LogCategory.history,
-        severity: LogSeverity.warning,
-        title: 'Interruzione rete',
-        details: 'Connessione persa per 3 minuti. Recupero automatico ok.',
-        source: 'Gateway',
-      ),
-    ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore nel caricamento dei log');
+    }
+
+    final jsonList = jsonDecode(response.body);
+    if (jsonList is! List) {
+      throw Exception('Il backend non ha restituito una lista JSON');
+    }
+
+    return jsonList
+        .map((json) => ParkingLogItem.fromJson(json))
+        .toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
   // ---- Top menu actions ----
@@ -210,20 +193,28 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   Color _severityColor(LogSeverity s) {
     switch (s) {
-      case LogSeverity.critical:
+      case LogSeverity.critico:
         return const Color(0xFFEF4444); // red
-      case LogSeverity.warning:
+      case LogSeverity.attenzione:
         return const Color(0xFFF59E0B); // amber
+      case LogSeverity.controllo:
+        return const Color.fromARGB(255, 11, 245, 73);
+      case LogSeverity.pagamento:
+        return const Color.fromARGB(255, 237, 118, 223);
+      case LogSeverity.veicolo:
+        return const Color.fromARGB(255, 132, 118, 237);
       case LogSeverity.info:
         return AppColors.accentCyan;
+      case LogSeverity.risolto:
+        return const Color.fromARGB(255, 116, 245, 11);
     }
   }
 
   IconData _categoryIcon(LogCategory c) {
     switch (c) {
-      case LogCategory.alarms:
+      case LogCategory.allarme:
         return Icons.warning_amber_rounded;
-      case LogCategory.events:
+      case LogCategory.evento:
         return Icons.bolt_rounded;
       case LogCategory.history:
         return Icons.history_rounded;
@@ -232,9 +223,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   String _categoryLabel(LogCategory c) {
     switch (c) {
-      case LogCategory.alarms:
+      case LogCategory.allarme:
         return 'Allarmi';
-      case LogCategory.events:
+      case LogCategory.evento:
         return 'Eventi';
       case LogCategory.history:
         return 'Storico';
@@ -243,12 +234,20 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   String _severityLabel(LogSeverity s) {
     switch (s) {
-      case LogSeverity.critical:
+      case LogSeverity.critico:
         return 'Critico';
-      case LogSeverity.warning:
-        return 'Warning';
+      case LogSeverity.attenzione:
+        return 'Attenzione';
+      case LogSeverity.controllo:
+        return 'Controllo';
+      case LogSeverity.pagamento:
+        return 'Pagamento';
+      case LogSeverity.veicolo:
+        return 'Veicolo';
       case LogSeverity.info:
         return 'Info';
+      case LogSeverity.risolto:
+        return 'Risolto';
     }
   }
 
@@ -258,18 +257,18 @@ class _OperatorScreenState extends State<OperatorScreen> {
       if (it.category != _selectedCategory) return false;
       if (_severityFilter != null && it.severity != _severityFilter) return false;
       if (q.isEmpty) return true;
-      return it.title.toLowerCase().contains(q) ||
+      return it.nome.toLowerCase().contains(q) ||
           it.details.toLowerCase().contains(q) ||
           (it.source?.toLowerCase().contains(q) ?? false);
     }).toList();
   }
 
   int get _activeAlarmsCount =>
-      _items.where((e) => e.category == LogCategory.alarms).length;
+      _items.where((e) => e.category == LogCategory.allarme).length;
 
   int get _eventsLast24hCount {
     final since = DateTime.now().subtract(const Duration(hours: 24));
-    return _items.where((e) => e.category == LogCategory.events && e.timestamp.isAfter(since)).length;
+    return _items.where((e) => e.category == LogCategory.evento && e.timestamp.isAfter(since)).length;
   }
 
   DateTime? get _lastUpdate =>
@@ -280,17 +279,23 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return '${two(dt.day)}/${two(dt.month)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
-  Future<void> _refresh() async {
+  Future<void> _loadLogs() async {
     setState(() => _isRefreshing = true);
 
     // Qui in futuro farai: await api.fetchLogs(...);
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
+    final data = await _fetchLogItems();
+
     if (!mounted) return;
     setState(() {
-      _items = _buildMockItems();
+      _items = data;
       _isRefreshing = false;
     });
+  }
+
+  Future<void> _refresh() async {
+    await _loadLogs();
   }
 
   // ---- UI ----
@@ -681,7 +686,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        it.title,
+                        it.nome,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w800,

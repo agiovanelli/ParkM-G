@@ -12,7 +12,8 @@ public class Log {
     private String id;
 
     private String analiticaId;
-    private String tipo;          // Evento | Allarme
+    private LogCategoria tipo; 
+    private LogSeverità severità;
     private String descrizione;
     private LocalDateTime data;
     
@@ -24,8 +25,12 @@ public class Log {
         return analiticaId;
     }
 
-    public String getTipo() {
+    public LogCategoria getTipo() {
         return tipo;
+    }
+    
+    public LogSeverità getSeverità() {
+        return severità;
     }
 
     public String getDescrizione() {
@@ -36,8 +41,12 @@ public class Log {
         return data;
     }
     
-    public void setTipo(String tipo) {
+    public void setTipo(LogCategoria tipo) {
         this.tipo = tipo;
+    }
+    
+    public void setGravità(LogSeverità severità) {
+        this.severità = severità;
     }
     
     public void getDescrizione(String descrizione) {
