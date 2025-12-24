@@ -6,14 +6,16 @@ public class LogResponse {
 	
     private String id;
     private String tipo;
+    private String titolo;
     private String descrizione;
     private LocalDateTime data;
 
     public LogResponse() {}
 
-    public LogResponse(String id, String tipo, String descrizione, LocalDateTime data) {
+    public LogResponse(String id, String tipo, String titolo, String descrizione, LocalDateTime data) {
         this.id = id;
         this.tipo = tipo;
+        this.titolo= titolo;
         this.descrizione = descrizione;
         this.data = data;
     }
@@ -26,6 +28,10 @@ public class LogResponse {
         return tipo;
     }
 
+    public String getTitolo() {
+        return titolo;
+    }
+    
     public String getDescrizione() {
         return descrizione;
     }

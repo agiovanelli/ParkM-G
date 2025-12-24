@@ -1,8 +1,9 @@
 class Log {
   final String id;
   final String analiticheId;
-  final String tipo;        // Evento | Allarme
+  final String tipo;
   final String descrizione;
+  final String titolo;
   final DateTime data;
 
   Log({
@@ -10,6 +11,7 @@ class Log {
     required this.analiticheId,
     required this.tipo,
     required this.descrizione,
+    required this.titolo,
     required this.data,
   });
 
@@ -19,6 +21,7 @@ class Log {
       analiticheId: json['analiticheId'] as String,
       tipo: json['tipo'] as String,
       descrizione: json['descrizione'] as String,
+      titolo: json['titolo'] as String,
       data: DateTime.parse(json['data'] as String),
     );
   }
@@ -29,6 +32,7 @@ class Log {
       'analiticheId': analiticheId,
       'tipo': tipo,
       'descrizione': descrizione,
+      'titolo': titolo,
       'data': data.toIso8601String(),
     };
   }

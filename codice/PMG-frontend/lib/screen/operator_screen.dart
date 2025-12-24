@@ -11,7 +11,7 @@ class ParkingLogItem {
   final DateTime timestamp;
   final LogCategory category;
   final LogSeverity severity;
-  final String nome;
+  final String title;
   final String details;
   final String? source;
 
@@ -19,7 +19,7 @@ class ParkingLogItem {
     required this.timestamp,
     required this.category,
     required this.severity,
-    required this.nome,
+    required this.title,
     required this.details,
     this.source,
   });
@@ -35,7 +35,7 @@ class ParkingLogItem {
         (e) => e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
         orElse: () => LogSeverity.info,
       ),
-      nome: json['nome'] ?? '—',
+      title: json['titolo'] ?? '—',
       details: json['descrizione'] ?? '—',
     );
   }
@@ -257,7 +257,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
       if (it.category != _selectedCategory) return false;
       if (_severityFilter != null && it.severity != _severityFilter) return false;
       if (q.isEmpty) return true;
-      return it.nome.toLowerCase().contains(q) ||
+      return it.title.toLowerCase().contains(q) ||
           it.details.toLowerCase().contains(q) ||
           (it.source?.toLowerCase().contains(q) ?? false);
     }).toList();
@@ -686,7 +686,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        it.nome,
+                        it.title,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w800,

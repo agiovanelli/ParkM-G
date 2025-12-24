@@ -14,6 +14,7 @@ public class Log {
     private String analiticaId;
     private LogCategoria tipo; 
     private LogSeverità severità;
+    private String titolo;
     private String descrizione;
     private LocalDateTime data;
     
@@ -33,6 +34,10 @@ public class Log {
         return severità;
     }
 
+    public String getTitolo() {
+        return titolo;
+    }
+    
     public String getDescrizione() {
         return descrizione;
     }
@@ -47,6 +52,10 @@ public class Log {
     
     public void setGravità(LogSeverità severità) {
         this.severità = severità;
+    }
+    
+    public void getTitolo(String titolo) {
+        this.titolo = titolo;
     }
     
     public void getDescrizione(String descrizione) {
