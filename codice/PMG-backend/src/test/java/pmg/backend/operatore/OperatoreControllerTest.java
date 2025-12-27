@@ -1,4 +1,4 @@
-package pmg.backend.operatore;
+package PMG.backend.operatore;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

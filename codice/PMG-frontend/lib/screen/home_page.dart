@@ -613,7 +613,7 @@ class _HomePageState extends State<HomePage>
         TextButton(
           onPressed: _handleUserForgotPassword,
           style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF60A5FA), // hyperlink
+            foregroundColor: const Color(0xFF60A5FA),
           ),
           child: const Text(
             'Password dimenticata?',
@@ -716,7 +716,7 @@ class _HomePageState extends State<HomePage>
                 TextField(
                   controller: _operatorUsernameController,
                   decoration: const InputDecoration(labelText: 'Username'),
-                  obscureText: true, // come PasswordField in JavaFX
+                  obscureText: true, 
                 ),
                 const SizedBox(height: 16),
                 PrimaryButton(text: 'Accedi', onPressed: _handleOperatorLogin),
