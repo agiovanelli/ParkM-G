@@ -178,6 +178,27 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
+  List<LogSeverity> _allowedSeverities() {
+  switch (_selectedCategory) {
+    case LogCategory.allarme:
+      return [
+        LogSeverity.critico,
+        LogSeverity.attenzione,
+        LogSeverity.controllo,
+      ];
+
+    case LogCategory.evento:
+      return [
+        LogSeverity.pagamento,
+        LogSeverity.veicolo,
+        LogSeverity.info,
+      ];
+
+    case LogCategory.history:
+      return LogSeverity.values;
+  }
+}
+
   ParkingStats _buildMockStats() {
     // TODO: rimpiazza con dati reali (API/websocket/polling)
     return const ParkingStats(
@@ -788,7 +809,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 return Expanded(
                   child: InkWell(
                     borderRadius: BorderRadius.circular(999),
-                    onTap: () => setState(() => _selectedCategory = c),
+                    onTap: () {
+                      setState(() {
+                        _selectedCategory = c;
+                        _severityFilter = null; // reset consigliato
+                      });
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -1210,6 +1236,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   Widget _severityDropdown() {
+    final allowed = _allowedSeverities();
+
+    if (_severityFilter != null && !allowed.contains(_severityFilter)) {
+        _severityFilter = null;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -1231,7 +1263,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               value: null,
               child: Text('Tutte'),
             ),
-            ...LogSeverity.values.map(
+            ...allowed.map(
               (s) => DropdownMenuItem<LogSeverity?>(
                 value: s,
                 child: Row(
@@ -1400,7 +1432,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 ),
               ],
             ),
-          ),
+          ),  
         ],
       ),
     );
