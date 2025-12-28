@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -31,10 +32,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
 
-  // Metti la tua posizione di default (qui Bergamo)
+  LatLng _cameraTarget = _initialCamera.target;
+  bool _showParkings = false;
+  bool _isLoadingParkings = false;
+  BitmapDescriptor? _parkingIcon;
+
+  String? _hoveredParkingId;
+  Map<String, dynamic>? _selectedParkingData;
+
   static const CameraPosition _initialCamera = CameraPosition(
-    target: LatLng(45.6983, 9.6773),
-    zoom: 12,
+    target: LatLng(41.9028, 12.4964),
+    zoom: 6,
   );
 
   static const String _geocodingKey = String.fromEnvironment(
@@ -46,6 +54,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _initLocationPermission();
+
+    _bitmapDescriptorFromIcon(Icons.local_parking, size: 64, iconSize: 34).then(
+      (v) {
+        if (mounted) setState(() => _parkingIcon = v);
+      },
+    );
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -106,6 +120,45 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         'Permesso posizione non concesso: il pallino blu non verrà mostrato.',
       );
     }
+  }
+
+  Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
+    IconData icon, {
+    double size = 96,
+    double iconSize = 56,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // sfondo (stile “pallino”)
+    final paint = Paint()..color = const Color(0xFF4285F4);
+    canvas.drawCircle(Offset(size / 2, size / 2), size / 2, paint);
+
+    // disegna il glifo Material (la P del parking)
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: iconSize,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: Colors.white,
+        ),
+      ),
+    );
+
+    textPainter.layout();
+    final offset = Offset(
+      (size - textPainter.width) / 2,
+      (size - textPainter.height) / 2,
+    );
+    textPainter.paint(canvas, offset);
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
   Future<void> _goToMyLocation() async {
@@ -302,17 +355,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         ),
       );
 
-      setState(() {
-        _markers
-          ..removeWhere((m) => m.markerId.value == 'search')
-          ..add(
-            Marker(
-              markerId: const MarkerId('search'),
-              position: target,
-              infoWindow: InfoWindow(title: q),
-            ),
-          );
-      });
+      // Non aggiungo marker, solo sposto la camera
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: target, zoom: 15),
+        ),
+      );
     } catch (_) {
       _showToast('Errore durante la ricerca.');
     }
@@ -467,6 +515,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                       child: Stack(
                         children: [
                           GoogleMap(
+                            onCameraMove: (pos) => _cameraTarget = pos.target,
                             initialCameraPosition: _initialCamera,
                             onMapCreated: (c) => _mapController = c,
                             markers: _markers,
@@ -477,6 +526,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             zoomControlsEnabled: false,
                             mapToolbarEnabled: false,
                           ),
+                          if (_isLoadingParkings)
+                            Container(
+                              color: Colors.black54,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.accentCyan,
+                                ),
+                              ),
+                            ),
                           Align(
                             alignment: Alignment.topRight,
                             child: Padding(
@@ -484,12 +542,38 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                 top: 14,
                                 right: 14,
                               ),
-                              child: GMapsControlButton(
-                                icon: Icons.my_location,
-                                onPressed: _goToMyLocation,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GMapsControlButton(
+                                    icon: Icons.my_location,
+                                    onPressed: _goToMyLocation,
+                                    tooltip: 'La mia posizione',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  GMapsControlButton(
+                                    icon: Icons.local_parking,
+                                    onPressed: _toggleParkings,
+                                    tooltip: 'Parcheggi vicino',
+                                  ),
+                                ],
                               ),
                             ),
                           ),
+                          // Mostra info "hover" o popup
+                          if (_hoveredParkingId != null ||
+                              _selectedParkingData != null)
+                            Positioned(
+                              bottom: _selectedParkingData != null ? 40 : 80,
+                              left: 20,
+                              right: 20,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _selectedParkingData != null
+                                    ? _buildParkingPopup(_selectedParkingData!)
+                                    : _buildHoverCard(),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -501,6 +585,167 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  Widget _buildHoverCard() {
+    return Container(
+      key: const ValueKey('hover'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.info_outline, color: Colors.white, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'Sposta il cursore sopra un parcheggio per maggiori dettagli',
+            style: TextStyle(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParkingPopup(Map<String, dynamic> p) {
+    return Container(
+      key: const ValueKey('popup'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgDark,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.accentCyan, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                p['nome'] ?? 'Parcheggio',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.textPrimary),
+                onPressed: () => setState(() => _selectedParkingData = null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Area: ${p['area'] ?? 'N/D'}',
+            style: const TextStyle(color: AppColors.textMuted),
+          ),
+          Text(
+            'Posti disponibili: ${p['postiDisponibili']}/${p['postiTotali']}',
+            style: const TextStyle(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Placeholder grafico → backend collegherà la prenotazione
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Prenotazione in arrivo...')),
+              );
+            },
+            icon: const Icon(Icons.event_seat),
+            label: const Text('Prenota parcheggio'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentCyan,
+              foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleParkings() async {
+    setState(() => _showParkings = !_showParkings);
+
+    if (!_showParkings) {
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      });
+      return;
+    }
+
+    await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+  }
+
+  Future<void> _loadParkingsNearby(
+    LatLng center, {
+    double radiusMeters = 1200,
+  }) async {
+    setState(() => _isLoadingParkings = true);
+
+    try {
+      final uri = Uri.parse(
+        'http://localhost:8080/api/parcheggi/nearby'
+        '?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
+      );
+
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        _showToast('Errore caricamento parcheggi (${res.statusCode})');
+        return;
+      }
+
+      final data = jsonDecode(res.body) as List<dynamic>;
+      final newMarkers = <Marker>{};
+
+      for (final p in data) {
+        final markerId = 'p_${p['id']}';
+        newMarkers.add(
+          Marker(
+            markerId: MarkerId(markerId),
+            position: LatLng(p['latitudine'], p['longitudine']),
+            icon:
+                _parkingIcon ??
+                BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
+            infoWindow: InfoWindow(
+              title: p['nome'],
+              snippet:
+                  '${p['postiDisponibili']}/${p['postiTotali']} posti disponibili',
+            ),
+            onTap: () {
+              setState(() {
+                _selectedParkingData = p;
+              });
+            },
+          ),
+        );
+      }
+
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+        _markers.addAll(newMarkers);
+      });
+    } catch (e) {
+      _showToast('Errore durante il caricamento dei parcheggi.');
+    } finally {
+      setState(() => _isLoadingParkings = false);
+    }
   }
 }
 

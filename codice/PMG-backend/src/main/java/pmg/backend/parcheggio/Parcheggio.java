@@ -9,17 +9,23 @@ public class Parcheggio {
     @Id
     private String id;
     private String nome;
-    private String area; 
+    private String area;
     private int postiTotali;
     private int postiDisponibili;
 
+    private double latitudine;
+    private double longitudine;
+
     public Parcheggio() {}
 
-    public Parcheggio(String nome, String area, int postiTotali, int postiDisponibili) {
+    public Parcheggio(String nome, String area, int postiTotali, int postiDisponibili,
+                      double latitudine, double longitudine) {
         this.nome = nome;
         this.area = area;
         this.postiTotali = postiTotali;
         this.postiDisponibili = postiDisponibili;
+        this.latitudine = latitudine;
+        this.longitudine = longitudine;
     }
 
     // Getter e Setter 
@@ -33,4 +39,8 @@ public class Parcheggio {
     public void setPostiTotali(int postiTotali) { this.postiTotali = postiTotali; }
     public int getPostiDisponibili() { return postiDisponibili; }
     public void setPostiDisponibili(int postiDisponibili) { this.postiDisponibili = postiDisponibili; }
+    public double getLatitudine() { return latitudine; }
+    public void setLatitudine(double latitudine) { this.latitudine = latitudine; }
+    public double getLongitudine() { return longitudine; }
+    public void setLongitudine(double longitudine) { this.longitudine = longitudine; }
 }

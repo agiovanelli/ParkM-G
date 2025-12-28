@@ -36,4 +36,16 @@ public class ParcheggioController {
         
         return ResponseEntity.ok(response);
     }
+    
+    @GetMapping("/nearby")
+    public ResponseEntity<List<ParcheggioResponse>> getNearby(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "1000") double radius) {
+
+        LOGGER.info("HTTP GET /api/parcheggi/nearby?lat={}&lng={}&radius={}", lat, lng, radius);
+        List<ParcheggioResponse> risultati = parcheggioService.cercaVicini(lat, lng, radius);
+        return ResponseEntity.ok(risultati);
+    }
+
 }

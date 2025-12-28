@@ -8,6 +8,7 @@ public interface ParcheggioService {
 
     List<ParcheggioResponse> cercaPerArea(String area);
 
-    
     PrenotazioneResponse effettuaPrenotazione(PrenotazioneRequest req);
+    
+    List<ParcheggioResponse> cercaVicini(double lat, double lng, double radius);
 }

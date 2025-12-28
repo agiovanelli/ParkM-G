@@ -80,11 +80,44 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 
     private ParcheggioResponse toResponse(Parcheggio p) {
         return new ParcheggioResponse(
-                p.getId(),
-                p.getNome(),
-                p.getArea(),
-                p.getPostiTotali(),
-                p.getPostiDisponibili()
+            p.getId(),
+            p.getNome(),
+            p.getArea(),
+            p.getPostiTotali(),
+            p.getPostiDisponibili(),
+            p.getLatitudine(),
+            p.getLongitudine()
         );
+    }
+    
+    @Override
+    public List<ParcheggioResponse> cercaVicini(double lat, double lng, double radius) {
+        LOGGER.info("Ricerca parcheggi vicini a lat={}, lng={}, raggio={} m", lat, lng, radius);
+
+        // 1. Recupera tutti i parcheggi dal DB
+        List<Parcheggio> tutti = parcheggioRepository.findAll();
+
+        // 2. Calcola la distanza per ciascun parcheggio
+        return tutti.stream()
+                .filter(p -> p.getLatitudine() != 0 && p.getLongitudine() != 0)
+                .filter(p -> distanzaMetri(lat, lng, p.getLatitudine(), p.getLongitudine()) <= radius)
+                .sorted((p1, p2) -> Double.compare(
+                        distanzaMetri(lat, lng, p1.getLatitudine(), p1.getLongitudine()),
+                        distanzaMetri(lat, lng, p2.getLatitudine(), p2.getLongitudine())
+                ))
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    // Metodo di supporto per calcolare la distanza (formula haversine)
+    private double distanzaMetri(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371000; // raggio terrestre in metri
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 }
