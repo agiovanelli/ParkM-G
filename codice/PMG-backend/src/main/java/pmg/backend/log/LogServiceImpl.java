@@ -2,6 +2,7 @@ package pmg.backend.log;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,11 @@ public class LogServiceImpl implements LogService{
         this.repository = repository;
     }
 
+    @Override
+    public Optional<Log> getLogById(String id) {
+        return repository.findById(id);
+    }
+    
     @Override
     public Log salvaLog(Log log) {
         log.setData(LocalDateTime.now());

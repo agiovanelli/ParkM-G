@@ -50,7 +50,7 @@ public class Log {
         this.tipo = tipo;
     }
     
-    public void setGravità(LogSeverità severità) {
+    public void setSeverità(LogSeverità severità) {
         this.severità = severità;
     }
     

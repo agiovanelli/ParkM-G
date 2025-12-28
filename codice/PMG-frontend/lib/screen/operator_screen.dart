@@ -21,12 +21,14 @@ enum LogSeverity {
 class ParkingLogItem {
   final DateTime timestamp;
   final LogCategory category;
-  final LogSeverity severity;
+  LogSeverity severity;
+  final String id;
   final String title;
   final String details;
   final String? source;
 
-  const ParkingLogItem({
+  ParkingLogItem({
+    required this.id,
     required this.timestamp,
     required this.category,
     required this.severity,
@@ -37,6 +39,7 @@ class ParkingLogItem {
 
   factory ParkingLogItem.fromJson(Map<String, dynamic> json) {
     return ParkingLogItem(
+      id: json['id'] as String,
       timestamp: DateTime.parse(json['data']),
       category: LogCategory.values.firstWhere(
         (e) => e.name.toLowerCase() == (json['tipo'] as String).toLowerCase(),
@@ -1394,40 +1397,71 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 14,
-                      color: AppColors.textMuted.withOpacity(0.9),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _formatTime(it.timestamp),
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (it.source != null) ...[
-                      const SizedBox(width: 12),
-                      Icon(
-                        Icons.memory_rounded,
-                        size: 14,
-                        color: AppColors.textMuted.withOpacity(0.9),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          it.source!,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                    Expanded(
+                      child: 
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 14,
+                            color: AppColors.textMuted.withOpacity(0.9),
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatTime(it.timestamp),
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (it.source != null) ...[
+                            const SizedBox(width: 12),
+                            Icon(
+                              Icons.memory_rounded,
+                              size: 14,
+                              color: AppColors.textMuted.withOpacity(0.9),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                it.source!,
+                                style: const TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+
+                          if(it.category == LogCategory.allarme)...{
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final newSeverity = LogSeverity.risolto; 
+                                await updateLogSeverity(it, newSeverity); 
+                                setState(() {}); 
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _severityColor(it.severity),
+                                minimumSize: const Size(26, 26),
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_upward,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                          }
+                        ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ],
@@ -1437,6 +1471,25 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
   }
+
+  Future<void> updateLogSeverity(ParkingLogItem log, LogSeverity newSeverity) async {
+    final url = Uri.parse(
+      'http://localhost:8080/api/log/${log.id}/severity?severity=${newSeverity.name}'
+    );
+
+    final response = await http.put(url);
+
+    if (response.statusCode == 200) {
+      // Aggiorno localmente
+      setState(() {
+        log.severity = newSeverity;
+      });
+    } else {
+      // Gestione errore
+      debugPrint('Errore aggiornamento severity: ${response.statusCode}');
+    }
+  }
+
 
   Widget _badge(String text, Color color) {
     return Container(

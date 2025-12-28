@@ -32,4 +32,18 @@ public class LogController {
             @PathVariable String tipo) {
         return service.getLogByAnaliticaIdAndTipo(analiticaId, tipo);
     }
+    
+    @PutMapping("/{id}/severity")
+    public Log aggiornaSeverity(
+            @PathVariable String id,
+            @RequestParam LogSeverità severity) {
+
+        Log log = service.getLogById(id)
+                .orElseThrow(() -> new RuntimeException("Log non trovato"));
+
+        log.setSeverità(severity);
+
+        return service.salvaLog(log);
+    }
+
 }
