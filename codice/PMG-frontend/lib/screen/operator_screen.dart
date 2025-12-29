@@ -20,7 +20,7 @@ enum LogSeverity {
 
 class ParkingLogItem {
   final DateTime timestamp;
-  final LogCategory category;
+  LogCategory category;
   LogSeverity severity;
   final String id;
   final String title;
@@ -1440,8 +1440,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             const SizedBox(width: 12),
                             ElevatedButton(
                               onPressed: () async {
-                                final newSeverity = LogSeverity.risolto; 
-                                await updateLogSeverity(it, newSeverity); 
+                                await updateLogSeverity(it, LogSeverity.risolto); 
+                                await updateLogCategory(it, LogCategory.history); 
                                 setState(() {}); 
                               },
                               style: ElevatedButton.styleFrom(
@@ -1487,6 +1487,24 @@ class _OperatorScreenState extends State<OperatorScreen> {
     } else {
       // Gestione errore
       debugPrint('Errore aggiornamento severity: ${response.statusCode}');
+    }
+  }
+
+  Future<void> updateLogCategory(ParkingLogItem log, LogCategory newCategory) async {
+    final url = Uri.parse(
+      'http://localhost:8080/api/log/${log.id}/category?category=${newCategory.name}'
+    );
+
+    final response = await http.put(url);
+
+    if (response.statusCode == 200) {
+      // Aggiorno localmente
+      setState(() {
+        log.category = newCategory;
+      });
+    } else {
+      // Gestione errore
+      debugPrint('Errore aggiornamento category: ${response.statusCode}');
     }
   }
 

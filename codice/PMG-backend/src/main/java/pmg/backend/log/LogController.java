@@ -45,5 +45,18 @@ public class LogController {
 
         return service.salvaLog(log);
     }
+    
+    @PutMapping("/{id}/category")
+    public Log aggiornaCategory(
+            @PathVariable String id,
+            @RequestParam LogCategoria category) {
+
+        Log log = service.getLogById(id)
+                .orElseThrow(() -> new RuntimeException("Log non trovato"));
+
+        log.setTipo(category);
+
+        return service.salvaLog(log);
+    }
 
 }
