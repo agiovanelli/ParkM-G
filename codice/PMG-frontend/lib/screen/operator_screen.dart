@@ -38,13 +38,26 @@ class ParkingLogItem {
   });
 
   factory ParkingLogItem.fromJson(Map<String, dynamic> json) {
+
+    final DateTime timestamp = DateTime.parse(json['data']);
+    final DateTime now = DateTime.now();
+
+    // Categoria originale dal backend
+    LogCategory category = LogCategory.values.firstWhere(
+      (e) => e.name.toLowerCase() == (json['tipo'] as String).toLowerCase(),
+      orElse: () => LogCategory.history,
+    );
+
+    // SE è Evento ed è più vecchio di 24h → diventa History
+    if (category == LogCategory.evento &&
+        now.difference(timestamp).inHours >= 24) {
+      category = LogCategory.history;
+    }
+
     return ParkingLogItem(
       id: json['id'] as String,
-      timestamp: DateTime.parse(json['data']),
-      category: LogCategory.values.firstWhere(
-        (e) => e.name.toLowerCase() == (json['tipo'] as String).toLowerCase(),
-        orElse: () => LogCategory.history,
-      ),
+      timestamp: timestamp,
+      category: category,
       severity: LogSeverity.values.firstWhere(
         (e) =>
             e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
