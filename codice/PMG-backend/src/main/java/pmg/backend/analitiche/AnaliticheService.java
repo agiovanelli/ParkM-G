@@ -2,8 +2,6 @@ package pmg.backend.analitiche;
 
 import org.springframework.stereotype.Service;
 
-import pmg.backend.parcheggio.Parcheggio;
-
 @Service
 public interface AnaliticheService {
     
