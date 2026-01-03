@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:park_mg/models/log.dart';
 import '../models/utente.dart';
 import '../models/operatore.dart';
+import '../models/prenotazione.dart';
 
 /// Eccezione generica per gli errori API.
 class ApiException implements Exception {
@@ -157,4 +158,40 @@ class ApiClient {
       );
     }
   }
+
+//-------------------- PRENOTAZIONI --------------------
+
+  Future<PrenotazioneResponse> prenotaParcheggio(
+  String utenteId,
+  String parcheggioId,
+  String orario,
+) async {
+  final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
+  final body = jsonEncode({
+    'utenteId': utenteId,
+    'parcheggioId': parcheggioId,
+    'orario': orario,
+  });
+
+  final resp = await _client.post(
+    uri,
+    headers: {'Content-Type': 'application/json'},
+    body: body,
+  );
+
+  if (resp.statusCode == 200) {
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    return PrenotazioneResponse.fromJson(json);
+  } else if (resp.statusCode == 400) {
+    // Ad esempio: parcheggio già occupato o dati mancanti
+    throw ApiException('Dati prenotazione non validi o parcheggio non disponibile', resp.statusCode);
+  } else if (resp.statusCode == 404) {
+    throw ApiException('Utente o parcheggio non trovato', resp.statusCode);
+  } else {
+    throw ApiException(
+      'Errore durante la prenotazione: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
+  }
+}
 }
