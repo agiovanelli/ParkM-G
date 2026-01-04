@@ -1,0 +1,17 @@
+{
+  // Configurazioni di esecuzione per Visual Studio Code
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Park M&G (backend su 8080)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "-d", "web-server",
+        "--web-port", "5173",
+        "--dart-define=API_BASE_URL=http://localhost:8080/api"
+      ]
+    }
+  ]
+}
