@@ -788,6 +788,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       Navigator.of(context).pop();
       _showToast("Errore di connessione o del server");
     }
+    // 5. AGGIORNAMENTO POSTI: ricarica i parcheggi sulla mappa
+    _loadParkingsNearby(_cameraTarget);
   }
 
       void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
