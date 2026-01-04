@@ -17,8 +17,10 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  /// Per sviluppo locale (Flutter web + backend sullo stesso PC)
-  static const String _baseUrl = 'http://localhost:8080/api';
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
 
   final http.Client _client;
 
@@ -29,10 +31,7 @@ class ApiClient {
   /// Login utente: POST /api/utenti/login
   Future<Utente> loginUtente(String email, String password) async {
     final uri = Uri.parse('$_baseUrl/utenti/login');
-    final body = jsonEncode({
-      'email': email,
-      'password': password,
-    });
+    final body = jsonEncode({'email': email, 'password': password});
 
     final resp = await _client.post(
       uri,
@@ -133,8 +132,13 @@ class ApiClient {
     if (resp.statusCode == 200) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Operatore.fromJson(json);
-    } else if (resp.statusCode == 400 || resp.statusCode == 401 || resp.statusCode == 404) {
-      throw ApiException('Operatore non registrato o credenziali errate', resp.statusCode);
+    } else if (resp.statusCode == 400 ||
+        resp.statusCode == 401 ||
+        resp.statusCode == 404) {
+      throw ApiException(
+        'Operatore non registrato o credenziali errate',
+        resp.statusCode,
+      );
     } else {
       throw ApiException(
         'Errore backend operatori: HTTP ${resp.statusCode}',
@@ -150,7 +154,9 @@ class ApiClient {
 
     if (resp.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
-      return jsonList.map((json) => Log.fromJson(json as Map<String, dynamic>)).toList();
+      return jsonList
+          .map((json) => Log.fromJson(json as Map<String, dynamic>))
+          .toList();
     } else {
       throw ApiException(
         'Errore recupero log: HTTP ${resp.statusCode}',
@@ -159,39 +165,42 @@ class ApiClient {
     }
   }
 
-//-------------------- PRENOTAZIONI --------------------
+  //-------------------- PRENOTAZIONI --------------------
 
   Future<PrenotazioneResponse> prenotaParcheggio(
-  String utenteId,
-  String parcheggioId,
-  String orario,
-) async {
-  final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
-  final body = jsonEncode({
-    'utenteId': utenteId,
-    'parcheggioId': parcheggioId,
-    'orario': orario,
-  });
+    String utenteId,
+    String parcheggioId,
+    String orario,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
+    final body = jsonEncode({
+      'utenteId': utenteId,
+      'parcheggioId': parcheggioId,
+      'orario': orario,
+    });
 
-  final resp = await _client.post(
-    uri,
-    headers: {'Content-Type': 'application/json'},
-    body: body,
-  );
-
-  if (resp.statusCode == 200) {
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    return PrenotazioneResponse.fromJson(json);
-  } else if (resp.statusCode == 400) {
-    // Ad esempio: parcheggio già occupato o dati mancanti
-    throw ApiException('Dati prenotazione non validi o parcheggio non disponibile', resp.statusCode);
-  } else if (resp.statusCode == 404) {
-    throw ApiException('Utente o parcheggio non trovato', resp.statusCode);
-  } else {
-    throw ApiException(
-      'Errore durante la prenotazione: HTTP ${resp.statusCode}',
-      resp.statusCode,
+    final resp = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
     );
+
+    if (resp.statusCode == 200) {
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      return PrenotazioneResponse.fromJson(json);
+    } else if (resp.statusCode == 400) {
+      // Ad esempio: parcheggio già occupato o dati mancanti
+      throw ApiException(
+        'Dati prenotazione non validi o parcheggio non disponibile',
+        resp.statusCode,
+      );
+    } else if (resp.statusCode == 404) {
+      throw ApiException('Utente o parcheggio non trovato', resp.statusCode);
+    } else {
+      throw ApiException(
+        'Errore durante la prenotazione: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
   }
-}
 }

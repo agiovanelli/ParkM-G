@@ -41,6 +41,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   String? _hoveredParkingId;
   Map<String, dynamic>? _selectedParkingData;
 
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
+
   static const CameraPosition _initialCamera = CameraPosition(
     target: LatLng(41.9028, 12.4964),
     zoom: 6,
@@ -700,7 +705,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
     try {
       final uri = Uri.parse(
-        'http://localhost:8080/api/parcheggi/nearby'
+        '$_baseUrl/parcheggi/nearby'
         '?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
       );
 
@@ -773,7 +778,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       // 4. Mostra il dialogo di successo con il QR Code
       _mostraDialogoPrenotazioneConclusa(risposta);
-
     } on ApiException catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -785,8 +789,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     }
   }
 
-  
-    void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
+  void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -794,12 +797,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text(
           "Prenotazione Confermata",
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle_outline, color: Colors.green, size: 64),
+            const Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 64,
+            ),
             const SizedBox(height: 16),
             const Text(
               "Il tuo posto è stato riservato. Mostra questo codice all'ingresso:",
@@ -822,17 +832,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("CHIUDI", style: TextStyle(color: AppColors.textPrimary)),
+            child: const Text(
+              "CHIUDI",
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
     );
   }
-
-
-
-
-  
 }
 
 class PreferenzeDialog extends StatefulWidget {

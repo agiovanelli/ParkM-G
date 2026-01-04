@@ -38,7 +38,6 @@ class ParkingLogItem {
   });
 
   factory ParkingLogItem.fromJson(Map<String, dynamic> json) {
-
     final DateTime timestamp = DateTime.parse(json['data']);
     final DateTime now = DateTime.now();
 
@@ -151,6 +150,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
   Timer? _autoRefreshTimer;
   DateTime? _lastFetchAt;
 
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
+
   @override
   void initState() {
     super.initState();
@@ -175,9 +179,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   Future<List<ParkingLogItem>> _fetchLogItems() async {
-    final url = Uri.parse(
-      'http://localhost:8080/api/analitiche/694aa3eeb7b5590ae69d9379/log',
-    );
+    final url = Uri.parse('$_baseUrl/analitiche/694aa3eeb7b5590ae69d9379/log');
 
     final response = await http.get(url);
 
@@ -195,25 +197,21 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   List<LogSeverity> _allowedSeverities() {
-  switch (_selectedCategory) {
-    case LogCategory.allarme:
-      return [
-        LogSeverity.critico,
-        LogSeverity.attenzione,
-        LogSeverity.controllo,
-      ];
+    switch (_selectedCategory) {
+      case LogCategory.allarme:
+        return [
+          LogSeverity.critico,
+          LogSeverity.attenzione,
+          LogSeverity.controllo,
+        ];
 
-    case LogCategory.evento:
-      return [
-        LogSeverity.pagamento,
-        LogSeverity.veicolo,
-        LogSeverity.info,
-      ];
+      case LogCategory.evento:
+        return [LogSeverity.pagamento, LogSeverity.veicolo, LogSeverity.info];
 
-    case LogCategory.history:
-      return LogSeverity.values;
+      case LogCategory.history:
+        return LogSeverity.values;
+    }
   }
-}
 
   ParkingStats _buildMockStats() {
     // TODO: rimpiazza con dati reali (API/websocket/polling)
@@ -1255,7 +1253,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     final allowed = _allowedSeverities();
 
     if (_severityFilter != null && !allowed.contains(_severityFilter)) {
-        _severityFilter = null;
+      _severityFilter = null;
     }
 
     return Container(
@@ -1411,8 +1409,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: 
-                      Row(
+                      child: Row(
                         children: [
                           Icon(
                             Icons.schedule_rounded,
@@ -1449,13 +1446,19 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             ),
                           ],
 
-                          if(it.category == LogCategory.allarme)...{
+                          if (it.category == LogCategory.allarme) ...{
                             const SizedBox(width: 12),
                             ElevatedButton(
                               onPressed: () async {
-                                await updateLogSeverity(it, LogSeverity.risolto); 
-                                await updateLogCategory(it, LogCategory.history); 
-                                setState(() {}); 
+                                await updateLogSeverity(
+                                  it,
+                                  LogSeverity.risolto,
+                                );
+                                await updateLogCategory(
+                                  it,
+                                  LogCategory.history,
+                                );
+                                setState(() {});
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _severityColor(it.severity),
@@ -1471,7 +1474,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                          }
+                          },
                         ],
                       ),
                     ),
@@ -1479,15 +1482,18 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 ),
               ],
             ),
-          ),  
+          ),
         ],
       ),
     );
   }
 
-  Future<void> updateLogSeverity(ParkingLogItem log, LogSeverity newSeverity) async {
+  Future<void> updateLogSeverity(
+    ParkingLogItem log,
+    LogSeverity newSeverity,
+  ) async {
     final url = Uri.parse(
-      'http://localhost:8080/api/log/${log.id}/severity?severity=${newSeverity.name}'
+      '$_baseUrl/log/${log.id}/severity?severity=${newSeverity.name}',
     );
 
     final response = await http.put(url);
@@ -1503,9 +1509,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  Future<void> updateLogCategory(ParkingLogItem log, LogCategory newCategory) async {
+  Future<void> updateLogCategory(
+    ParkingLogItem log,
+    LogCategory newCategory,
+  ) async {
     final url = Uri.parse(
-      'http://localhost:8080/api/log/${log.id}/category?category=${newCategory.name}'
+      '$_baseUrl/log/${log.id}/category?category=${newCategory.name}',
     );
 
     final response = await http.put(url);
@@ -1520,7 +1529,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       debugPrint('Errore aggiornamento category: ${response.statusCode}');
     }
   }
-
 
   Widget _badge(String text, Color color) {
     return Container(
