@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../api/api_client.dart';
 import '../models/utente.dart';
 import '../models/prenotazione.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class UserScreen extends StatefulWidget {
   final Utente utente;
@@ -669,7 +670,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               setState(() => _selectedParkingData = null);
               _effettuaPrenotazione(pId);
             },
-            icon: const Icon(Icons.event_seat),
+            icon: const Icon(Icons.qr_code),
             label: const Text('Prenota parcheggio'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accentCyan,
@@ -787,60 +788,70 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       Navigator.of(context).pop();
       _showToast("Errore di connessione o del server");
     }
+    // 5. AGGIORNAMENTO POSTI: ricarica i parcheggi sulla mappa
+    _loadParkingsNearby(_cameraTarget);
   }
 
-  void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text(
-          "Prenotazione Confermata",
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
+      void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Center(
+            child: Text(
+              "Prenotazione Confermata",
+              style: TextStyle(color: AppColors.accentCyan, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.check_circle_outline,
-              color: Colors.green,
-              size: 64,
+          content: SizedBox(
+            width: 280, // Dimensione fissa per evitare problemi di rendering
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Mostra questo codice all'ingresso",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                // Sfondo bianco necessario per il contrasto del QR
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: QrImageView(
+                    data: risposta.codiceQr, // Stringa dal backend
+                    version: QrVersions.auto,
+                    size: 200.0,
+                    gapless: false,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  risposta.codiceQr,
+                  style: const TextStyle(color: AppColors.accentCyan, fontSize: 10),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              "Il tuo posto è stato riservato. Mostra questo codice all'ingresso:",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 16),
-            // Valore del codice QR ricevuto dal backend
-            SelectableText(
-              risposta.codiceQr,
-              style: const TextStyle(
-                color: AppColors.accentCyan,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  // Innesca l'aggiornamento posti promesso
+                  _loadParkingsNearby(_cameraTarget); 
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentCyan),
+                child: const Text("CHIUDI", style: TextStyle(color: AppColors.textPrimary)),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              "CHIUDI",
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      );
+    }
 }
 
 class PreferenzeDialog extends StatefulWidget {
