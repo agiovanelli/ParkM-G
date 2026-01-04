@@ -10,8 +10,8 @@ import 'package:park_mg/utils/theme.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../api/api_client.dart';
 import '../models/utente.dart';
-import '../models/prenotazione.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import '../widgets/prenotazione_dialog.dart';
+import 'history_screen.dart';
 
 class UserScreen extends StatefulWidget {
   final Utente utente;
@@ -286,6 +286,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             ],
           ),
         ),
+          // STORICO
+        PopupMenuItem<String>(
+          value: 'history',
+          child: Row(
+            children: const [
+              Icon(Icons.history, size: 18, color: AppColors.textPrimary),
+              SizedBox(width: 10),
+              Text('Le mie prenotazioni', style: TextStyle(color: AppColors.textPrimary)),
+            ],
+          ),
+        ),
         const PopupMenuDivider(height: 10),
         PopupMenuItem<String>(
           value: 'logout',
@@ -310,6 +321,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
     if (selected == 'prefs') {
       _showPreferenzeDialog();
+      
+    }else if (selected == 'history') {
+      _vaiAlloStorico();
+    
     } else if (selected == 'logout') {
       _logout();
     }
@@ -778,7 +793,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       Navigator.of(context).pop();
 
       // 4. Mostra il dialogo di successo con il QR Code
-      _mostraDialogoPrenotazioneConclusa(risposta);
+      PrenotazioneDialog.mostra(context, risposta);
     } on ApiException catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -792,66 +807,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     _loadParkingsNearby(_cameraTarget);
   }
 
-      void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Center(
-            child: Text(
-              "Prenotazione Confermata",
-              style: TextStyle(color: AppColors.accentCyan, fontWeight: FontWeight.bold),
-            ),
-          ),
-          content: SizedBox(
-            width: 280, // Dimensione fissa per evitare problemi di rendering
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Mostra questo codice all'ingresso",
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                const SizedBox(height: 20),
-                // Sfondo bianco necessario per il contrasto del QR
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.all(10),
-                  child: QrImageView(
-                    data: risposta.codiceQr, // Stringa dal backend
-                    version: QrVersions.auto,
-                    size: 200.0,
-                    gapless: false,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  risposta.codiceQr,
-                  style: const TextStyle(color: AppColors.accentCyan, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  // Innesca l'aggiornamento posti promesso
-                  _loadParkingsNearby(_cameraTarget); 
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentCyan),
-                child: const Text("CHIUDI", style: TextStyle(color: AppColors.textPrimary)),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+  void _vaiAlloStorico() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => HistoryScreen(
+        utente: widget.utente,
+        apiClient: widget.apiClient,
+      ),
+    ),
+  );
+}
+
+      
 }
 
 class PreferenzeDialog extends StatefulWidget {

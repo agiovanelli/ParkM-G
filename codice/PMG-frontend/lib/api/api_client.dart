@@ -166,7 +166,7 @@ class ApiClient {
   }
 
   //-------------------- PRENOTAZIONI --------------------
-
+  /// Prenota un parcheggio: POST /api/parcheggi/prenota
   Future<PrenotazioneResponse> prenotaParcheggio(
     String utenteId,
     String parcheggioId,
@@ -199,6 +199,32 @@ class ApiClient {
     } else {
       throw ApiException(
         'Errore durante la prenotazione: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
+  }
+
+//API recupero storico prenotazioni per utente
+// GET /api/prenotazioni/utente/{utenteId}
+
+  Future<List<PrenotazioneResponse>> getStoricoPrenotazioni(String utenteId) async {
+    final uri = Uri.parse('$_baseUrl/prenotazioni/utente/$utenteId');
+
+    final resp = await _client.get(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(resp.body);
+      // Trasformiamo ogni elemento della lista JSON in un oggetto PrenotazioneResponse
+      return jsonList.map((json) => PrenotazioneResponse.fromJson(json)).toList();
+    } else if (resp.statusCode == 204) {
+      // Se il backend restituisce 204 No Content, restituiamo una lista vuota
+      return [];
+    } else {
+      throw ApiException(
+        'Errore nel recupero dello storico: HTTP ${resp.statusCode}',
         resp.statusCode,
       );
     }
