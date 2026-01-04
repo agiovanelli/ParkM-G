@@ -10,6 +10,7 @@ import 'package:park_mg/utils/theme.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../api/api_client.dart';
 import '../models/utente.dart';
+import '../models/prenotazione.dart';
 
 class UserScreen extends StatefulWidget {
   final Utente utente;
@@ -658,10 +659,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              // Placeholder grafico → backend collegherà la prenotazione
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Prenotazione in arrivo...')),
-              );
+              // Chiude il popup informativo e avvia la prenotazione
+              final pId = p['id'].toString();
+              setState(() => _selectedParkingData = null);
+              _effettuaPrenotazione(pId);
             },
             icon: const Icon(Icons.event_seat),
             label: const Text('Prenota parcheggio'),
@@ -747,6 +748,91 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       setState(() => _isLoadingParkings = false);
     }
   }
+
+  Future<void> _effettuaPrenotazione(String parcheggioId) async {
+    // 1. Mostra caricamento (usando lo stile del tuo progetto)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accentCyan),
+      ),
+    );
+
+    try {
+      // 2. Chiamata API con dati REALI dal widget e dall'orario corrente
+      final risposta = await widget.apiClient.prenotaParcheggio(
+        widget.utente.id, // ID reale dell'utente loggato
+        parcheggioId,
+        DateTime.now().toIso8601String(),
+      );
+
+      // 3. Chiudi il caricamento
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      // 4. Mostra il dialogo di successo con il QR Code
+      _mostraDialogoPrenotazioneConclusa(risposta);
+
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showToast(e.message); // Usa il tuo metodo _showToast esistente
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showToast("Errore di connessione o del server");
+    }
+  }
+
+  
+    void _mostraDialogoPrenotazioneConclusa(PrenotazioneResponse risposta) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          "Prenotazione Confermata",
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.green, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              "Il tuo posto è stato riservato. Mostra questo codice all'ingresso:",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 16),
+            // Valore del codice QR ricevuto dal backend
+            SelectableText(
+              risposta.codiceQr,
+              style: const TextStyle(
+                color: AppColors.accentCyan,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("CHIUDI", style: TextStyle(color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+
+  
 }
 
 class PreferenzeDialog extends StatefulWidget {
