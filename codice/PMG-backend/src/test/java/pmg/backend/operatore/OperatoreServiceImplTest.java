@@ -1,4 +1,4 @@
-package PMG.backend.operatore;
+package pmg.backend.operatore;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -12,14 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import pmg.backend.operatore.Operatore;
-import pmg.backend.operatore.OperatoreLoginRequest;
-import pmg.backend.operatore.OperatoreRepository;
-import pmg.backend.operatore.OperatoreResponse;
-import pmg.backend.operatore.OperatoreServiceImpl;
-
 @ExtendWith(MockitoExtension.class)
-public class OperatoreServiceImplTest {
+class OperatoreServiceImplTest {
 
     @Mock
     private OperatoreRepository repository; // "Fingiamo" il database MongoDB

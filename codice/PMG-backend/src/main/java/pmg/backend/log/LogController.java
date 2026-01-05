@@ -17,20 +17,46 @@ public class LogController {
     }
 
     @PostMapping
-    public Log creaLog(@RequestBody Log logEvento) {
-        return service.salvaLog(logEvento);
+    public LogResponse creaLog(@RequestBody LogRequest request) {
+        Log saved = service.salvaLog(request);
+        return new LogResponse(
+                saved.getId(),
+                saved.getTipo().name(),
+                saved.getTitolo(),
+                saved.getDescrizione(),
+                saved.getData(),
+                saved.getSeverita().name()
+        );
     }
 
     @GetMapping("/analitiche/{analiticaId}/log")
-    public List<Log> getLogByAnaliticaId(@PathVariable String analiticaId) {
-        return service.getLogByAnaliticaId(analiticaId);
+    public List<LogResponse> getLogByAnaliticaId(@PathVariable String analiticaId) {
+        return service.getLogByAnaliticaId(analiticaId).stream()
+                .map(log -> new LogResponse(
+                        log.getId(),
+                        log.getTipo().name(),
+                        log.getTitolo(),
+                        log.getDescrizione(),
+                        log.getData(),
+                        log.getSeverita().name()
+                ))
+                .toList();
     }
 
     @GetMapping("/analitiche/{analiticaId}/tipo/{tipo}")
-    public List<Log> getLogByAnaliticaIdAndTipo(
+    public List<LogResponse> getLogByAnaliticaIdAndTipo(
             @PathVariable String analiticaId,
             @PathVariable String tipo) {
-        return service.getLogByAnaliticaIdAndTipo(analiticaId, tipo);
+        return service.getLogByAnaliticaIdAndTipo(analiticaId, tipo).stream()
+                .map(log -> new LogResponse(
+                        log.getId(),
+                        log.getTipo().name(),
+                        log.getTitolo(),
+                        log.getDescrizione(),
+                        log.getData(),
+                        log.getSeverita().name()
+                ))
+                .toList();
     }
     
     @PutMapping("/{id}/severity")
@@ -41,9 +67,9 @@ public class LogController {
         Log log = service.getLogById(id)
                 .orElseThrow(() -> new RuntimeException("Log non trovato"));
 
-        log.setSeverità(severity);
+        log.setSeverita(severity);
 
-        return service.salvaLog(log);
+        return service.salvaLog1(log);
     }
     
     @PutMapping("/{id}/category")
@@ -56,7 +82,7 @@ public class LogController {
 
         log.setTipo(category);
 
-        return service.salvaLog(log);
+        return service.salvaLog1(log);
     }
 
 }

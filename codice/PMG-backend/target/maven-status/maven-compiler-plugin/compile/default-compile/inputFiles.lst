@@ -1,6 +1,7 @@
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\Analitiche.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheController.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRepository.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRequest.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheResponse.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheService.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheServiceImpl.java
@@ -9,6 +10,7 @@ C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\ba
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogCategoria.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogController.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRepository.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRequest.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogResponse.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogService.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogServiceImpl.java

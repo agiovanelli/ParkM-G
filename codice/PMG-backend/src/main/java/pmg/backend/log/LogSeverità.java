@@ -1,7 +1,7 @@
 package pmg.backend.log;
 
 public enum LogSeverità {
-	Critico, Attenzione, Controllo,
-	Pagamento, Veicolo, Info,
-	risolto
+	CRITICO, ATTENZIONE, CONTROLLO,
+	PAGAMENTO, VEICOLO, INFO,
+	RISOLTO
 }

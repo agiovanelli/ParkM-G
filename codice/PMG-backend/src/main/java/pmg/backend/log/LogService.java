@@ -5,7 +5,9 @@ import java.util.Optional;
 
 public interface LogService {
 
-	 Log salvaLog(Log logEvento);
+	 Log salvaLog(LogRequest request);
+	 
+	 Log salvaLog1(Log log);
 	 
 	 Optional<Log> getLogById(String id);
 

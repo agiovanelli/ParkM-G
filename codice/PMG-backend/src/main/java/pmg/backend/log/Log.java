@@ -13,7 +13,7 @@ public class Log {
 
     private String analiticaId;
     private LogCategoria tipo; 
-    private LogSeverità severità;
+    private LogSeverità severita;
     private String titolo;
     private String descrizione;
     private LocalDateTime data;
@@ -30,8 +30,8 @@ public class Log {
         return tipo;
     }
     
-    public LogSeverità getSeverità() {
-        return severità;
+    public LogSeverità getSeverita() {
+        return severita;
     }
 
     public String getTitolo() {
@@ -50,15 +50,15 @@ public class Log {
         this.tipo = tipo;
     }
     
-    public void setSeverità(LogSeverità severità) {
-        this.severità = severità;
+    public void setSeverita(LogSeverità severita) {
+        this.severita = severita;
     }
     
-    public void getTitolo(String titolo) {
+    public void setTitolo(String titolo) {
         this.titolo = titolo;
     }
     
-    public void getDescrizione(String descrizione) {
+    public void setDescrizione(String descrizione) {
         this.descrizione = descrizione;
     }
     

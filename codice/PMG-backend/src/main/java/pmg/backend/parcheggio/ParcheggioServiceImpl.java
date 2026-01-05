@@ -12,7 +12,6 @@ import pmg.backend.prenotazione.PrenotazioneRepository;
 
 import java.util.List;
 import java.util.UUID; // Per generare un codice QR temporaneo
-import java.util.stream.Collectors;
 
 @Service
 public class ParcheggioServiceImpl implements ParcheggioService {
@@ -34,7 +33,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         return parcheggioRepository.findByAreaContainingIgnoreCase(area)
                 .stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -106,7 +105,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                         distanzaMetri(lat, lng, p2.getLatitudine(), p2.getLongitudine())
                 ))
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     // Metodo di supporto per calcolare la distanza (formula haversine)

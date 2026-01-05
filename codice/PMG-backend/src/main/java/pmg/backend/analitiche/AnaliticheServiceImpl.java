@@ -1,15 +1,11 @@
 package pmg.backend.analitiche;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AnaliticheServiceImpl implements AnaliticheService{
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(AnaliticheServiceImpl.class);
-
-    private final AnaliticheRepository repository;
+	private final AnaliticheRepository repository;
 
     public AnaliticheServiceImpl(AnaliticheRepository repository) {
         this.repository = repository;
@@ -28,8 +24,13 @@ public class AnaliticheServiceImpl implements AnaliticheService{
     }
 
     @Override
-    public Analitiche save(Analitiche analitiche) {
-        return repository.save(analitiche);
+    public Analitiche save(AnaliticheRequest request) {
+        Analitiche entity = new Analitiche(
+                request.parcheggioId(),
+                request.nomeParcheggio(),
+                request.operatoreId()
+        );
+        return repository.save(entity);
     }
 
 }

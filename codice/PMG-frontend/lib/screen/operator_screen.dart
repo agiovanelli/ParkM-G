@@ -41,27 +41,36 @@ class ParkingLogItem {
     final DateTime timestamp = DateTime.parse(json['data']);
     final DateTime now = DateTime.now();
 
-    // Categoria originale dal backend
-    LogCategory category = LogCategory.values.firstWhere(
-      (e) => e.name.toLowerCase() == (json['tipo'] as String).toLowerCase(),
-      orElse: () => LogCategory.history,
-    );
+    // tipo
+    final rawTipo = json['tipo'];
+    LogCategory category = LogCategory.history;
+    if (rawTipo is String && rawTipo.isNotEmpty) {
+      category = LogCategory.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawTipo.toLowerCase(),
+        orElse: () => LogCategory.history,
+      );
+    }
 
-    // SE è Evento ed è più vecchio di 24h → diventa History
+    // Se è evento ed è più vecchio di 24h → diventa storico
     if (category == LogCategory.evento &&
         now.difference(timestamp).inHours >= 24) {
       category = LogCategory.history;
     }
 
+    // severità (supporta "severita" e "severità")
+    final rawSeverita = (json['severità'] ?? json['severita']) as String?;
+    final severity = rawSeverita != null
+        ? LogSeverity.values.firstWhere(
+            (e) => e.name.toLowerCase() == rawSeverita.toLowerCase(),
+            orElse: () => LogSeverity.info,
+          )
+        : LogSeverity.info;
+
     return ParkingLogItem(
       id: json['id'] as String,
       timestamp: timestamp,
       category: category,
-      severity: LogSeverity.values.firstWhere(
-        (e) =>
-            e.name.toLowerCase() == (json['severità'] as String).toLowerCase(),
-        orElse: () => LogSeverity.info,
-      ),
+      severity: severity,
       title: json['titolo'] ?? '—',
       details: json['descrizione'] ?? '—',
     );

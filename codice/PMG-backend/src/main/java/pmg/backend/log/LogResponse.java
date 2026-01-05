@@ -9,15 +9,17 @@ public class LogResponse {
     private String titolo;
     private String descrizione;
     private LocalDateTime data;
+    private String severita;
 
     public LogResponse() {}
 
-    public LogResponse(String id, String tipo, String titolo, String descrizione, LocalDateTime data) {
+    public LogResponse(String id, String tipo, String titolo, String descrizione, LocalDateTime data, String severita) {
         this.id = id;
         this.tipo = tipo;
         this.titolo= titolo;
         this.descrizione = descrizione;
         this.data = data;
+        this.severita = severita;
     }
     
     public String getId() {
@@ -38,5 +40,9 @@ public class LogResponse {
 
     public LocalDateTime getData() {
         return data;
+    }
+    
+    public String getSeverita() {
+        return severita;
     }
 }

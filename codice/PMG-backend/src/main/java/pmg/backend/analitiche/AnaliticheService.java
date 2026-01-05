@@ -9,5 +9,5 @@ public interface AnaliticheService {
 
     Analitiche getByOperatoreId(String operatoreId);
 
-    Analitiche save(Analitiche analitiche);
+    Analitiche save(AnaliticheRequest request);
 }

@@ -23,9 +23,21 @@ public class LogServiceImpl implements LogService{
     }
     
     @Override
-    public Log salvaLog(Log log) {
+    public Log salvaLog1(Log log) {
         log.setData(LocalDateTime.now());
         return repository.save(log);
+    }
+    
+    public Log salvaLog(LogRequest request) {
+        Log entity = new Log();
+
+        entity.setTipo(request.tipo());
+        entity.setSeverita(request.severita());
+        entity.setTitolo(request.titolo());
+        entity.setDescrizione(request.descrizione());
+        entity.setData(request.data());
+
+        return repository.save(entity);
     }
 
     @Override

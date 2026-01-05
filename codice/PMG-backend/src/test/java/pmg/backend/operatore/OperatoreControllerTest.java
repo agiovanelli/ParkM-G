@@ -1,11 +1,6 @@
-package PMG.backend.operatore;
+package pmg.backend.operatore;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import pmg.backend.operatore.OperatoreController;
-import pmg.backend.operatore.OperatoreLoginRequest;
-import pmg.backend.operatore.OperatoreResponse;
-import pmg.backend.operatore.OperatoreService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 
 @WebMvcTest(OperatoreController.class) // Carica solo lo stretto necessario per testare questo controller
-public class OperatoreControllerTest {
+class OperatoreControllerTest {
 
     @Autowired
     private MockMvc mockMvc; // Simula il client che fa la chiamata API
