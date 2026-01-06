@@ -26,7 +26,7 @@ public class LogResponse {
         return id;
     }
 
-    public String getTipoId() {
+    public String getTipo() {
         return tipo;
     }
 
