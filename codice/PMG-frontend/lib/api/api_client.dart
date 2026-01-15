@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'utente.dart';
-import 'operatore.dart';
+import 'package:park_mg/models/log.dart';
+import '../models/utente.dart';
+import '../models/operatore.dart';
+import '../models/prenotazione.dart';
 
 /// Eccezione generica per gli errori API.
 class ApiException implements Exception {
@@ -15,8 +17,10 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  /// Per sviluppo locale (Flutter web + backend sullo stesso PC)
-  static const String _baseUrl = 'http://localhost:8080/api';
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
 
   final http.Client _client;
 
@@ -27,10 +31,7 @@ class ApiClient {
   /// Login utente: POST /api/utenti/login
   Future<Utente> loginUtente(String email, String password) async {
     final uri = Uri.parse('$_baseUrl/utenti/login');
-    final body = jsonEncode({
-      'email': email,
-      'password': password,
-    });
+    final body = jsonEncode({'email': email, 'password': password});
 
     final resp = await _client.post(
       uri,
@@ -131,11 +132,99 @@ class ApiClient {
     if (resp.statusCode == 200) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Operatore.fromJson(json);
-    } else if (resp.statusCode == 400 || resp.statusCode == 401 || resp.statusCode == 404) {
-      throw ApiException('Operatore non registrato o credenziali errate', resp.statusCode);
+    } else if (resp.statusCode == 400 ||
+        resp.statusCode == 401 ||
+        resp.statusCode == 404) {
+      throw ApiException(
+        'Operatore non registrato o credenziali errate',
+        resp.statusCode,
+      );
     } else {
       throw ApiException(
         'Errore backend operatori: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
+  }
+
+  Future<List<Log>> getLogByAnaliticaId(String analiticaId) async {
+    final uri = Uri.parse('$_baseUrl/$analiticaId');
+
+    final resp = await _client.get(uri);
+
+    if (resp.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
+      return jsonList
+          .map((json) => Log.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw ApiException(
+        'Errore recupero log: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
+  }
+
+  //-------------------- PRENOTAZIONI --------------------
+  /// Prenota un parcheggio: POST /api/parcheggi/prenota
+  Future<PrenotazioneResponse> prenotaParcheggio(
+    String utenteId,
+    String parcheggioId,
+    String orario,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
+    final body = jsonEncode({
+      'utenteId': utenteId,
+      'parcheggioId': parcheggioId,
+      'orario': orario,
+    });
+
+    final resp = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+
+    if (resp.statusCode == 200) {
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      return PrenotazioneResponse.fromJson(json);
+    } else if (resp.statusCode == 400) {
+      // Ad esempio: parcheggio già occupato o dati mancanti
+      throw ApiException(
+        'Dati prenotazione non validi o parcheggio non disponibile',
+        resp.statusCode,
+      );
+    } else if (resp.statusCode == 404) {
+      throw ApiException('Utente o parcheggio non trovato', resp.statusCode);
+    } else {
+      throw ApiException(
+        'Errore durante la prenotazione: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
+    }
+  }
+
+//API recupero storico prenotazioni per utente
+// GET /api/prenotazioni/utente/{utenteId}
+
+  Future<List<PrenotazioneResponse>> getStoricoPrenotazioni(String utenteId) async {
+    final uri = Uri.parse('$_baseUrl/prenotazioni/utente/$utenteId');
+
+    final resp = await _client.get(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(resp.body);
+      // Trasformiamo ogni elemento della lista JSON in un oggetto PrenotazioneResponse
+      return jsonList.map((json) => PrenotazioneResponse.fromJson(json)).toList();
+    } else if (resp.statusCode == 204) {
+      // Se il backend restituisce 204 No Content, restituiamo una lista vuota
+      return [];
+    } else {
+      throw ApiException(
+        'Errore nel recupero dello storico: HTTP ${resp.statusCode}',
         resp.statusCode,
       );
     }

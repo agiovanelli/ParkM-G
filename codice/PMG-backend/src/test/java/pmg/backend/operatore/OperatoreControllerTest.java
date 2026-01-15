@@ -1,11 +1,6 @@
-package PMG.backend.operatore;
+package pmg.backend.operatore;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import pmg.backend.operatore.OperatoreController;
-import pmg.backend.operatore.OperatoreLoginRequest;
-import pmg.backend.operatore.OperatoreResponse;
-import pmg.backend.operatore.OperatoreService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 
 @WebMvcTest(OperatoreController.class) // Carica solo lo stretto necessario per testare questo controller
-public class OperatoreControllerTest {
+class OperatoreControllerTest {
 
     @Autowired
     private MockMvc mockMvc; // Simula il client che fa la chiamata API
@@ -35,10 +30,7 @@ public class OperatoreControllerTest {
     @Test
     void testLoginSuccess() throws Exception {
         // GIVEN
-        OperatoreLoginRequest request = new OperatoreLoginRequest();
-        // Usa i nomi dei metodi corretti che abbiamo definito sopra
-        request.setNomeStruttura("strutturatest"); 
-        request.setUsername("admin");
+        OperatoreLoginRequest request = new OperatoreLoginRequest("strutturatest", "admin");
 
         OperatoreResponse fakeResponse = new OperatoreResponse();
         // Aggiungi qui eventuali setter per la risposta se necessari

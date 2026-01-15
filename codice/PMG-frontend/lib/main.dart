@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
-import 'api_client.dart';
-import 'home_page.dart';
-
-class AppColors {
-  static const Color bgDark = Color(0xFF020617);
-  static const Color bgDark2 = Color(0xFF0B1120);
-  static const Color brandTop = Color(0xFF0F172A);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFFE5E7EB);
-  static const Color textMuted = Color(0xFF9CA3AF);
-  static const Color borderField = Color(0xFF1F2937);
-  static const Color accentBlue = Color(0xFF3B82F6);
-  static const Color accentCyan = Color(0xFF06B6D4);
-}
+import 'package:park_mg/utils/theme.dart';
+import 'api/api_client.dart';
+import 'screen/home_page.dart';
 
 void main() {
   final apiClient = ApiClient();

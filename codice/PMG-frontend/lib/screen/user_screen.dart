@@ -1,0 +1,1164 @@
+import 'dart:convert';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:park_mg/utils/theme.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../api/api_client.dart';
+import '../models/utente.dart';
+import '../widgets/prenotazione_dialog.dart';
+import 'history_screen.dart';
+
+class UserScreen extends StatefulWidget {
+  final Utente utente;
+  final ApiClient apiClient;
+
+  const UserScreen({super.key, required this.utente, required this.apiClient});
+
+  @override
+  State<UserScreen> createState() => _UserScreenState();
+}
+
+class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
+  final _searchController = TextEditingController();
+  final GlobalKey _gearKey = GlobalKey();
+  final Set<Circle> _circles = {};
+  bool _locationGranted = false;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+
+  LatLng _cameraTarget = _initialCamera.target;
+  bool _showParkings = false;
+  bool _isLoadingParkings = false;
+  BitmapDescriptor? _parkingIcon;
+
+  String? _hoveredParkingId;
+  Map<String, dynamic>? _selectedParkingData;
+
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
+
+  static const CameraPosition _initialCamera = CameraPosition(
+    target: LatLng(41.9028, 12.4964),
+    zoom: 6,
+  );
+
+  static const String _geocodingKey = String.fromEnvironment(
+    'GOOGLE_GEOCODING_KEY',
+    defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocationPermission();
+
+    _bitmapDescriptorFromIcon(Icons.local_parking, size: 64, iconSize: 34).then(
+      (v) {
+        if (mounted) setState(() => _parkingIcon = v);
+      },
+    );
+
+    if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPreferenzeDialog();
+      });
+    }
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _pulseAnimation =
+        Tween<double>(begin: 15, end: 35).animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+        )..addListener(() {
+          if (_circles.isNotEmpty && mounted) {
+            final old = _circles.last.center;
+            setState(() {
+              _circles.removeWhere((c) => c.circleId.value == 'pulse');
+              _circles.add(
+                Circle(
+                  circleId: const CircleId('pulse'),
+                  center: old,
+                  radius: _pulseAnimation.value,
+                  fillColor: Colors.blue.withOpacity(0.25),
+                  strokeColor: Colors.blue.withOpacity(0.1),
+                  strokeWidth: 1,
+                ),
+              );
+            });
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initLocationPermission() async {
+    if (kIsWeb) {
+      // Su Web il permesso lo chiede il browser quando richiedi la posizione.
+      // Molti browser richiedono che sia attivato da un gesto utente (click).
+      setState(() => _locationGranted = false);
+      return;
+    }
+
+    final status = await Permission.locationWhenInUse.request();
+    if (!mounted) return;
+
+    setState(() => _locationGranted = status.isGranted);
+
+    if (!status.isGranted) {
+      _showToast(
+        'Permesso posizione non concesso: il pallino blu non verrà mostrato.',
+      );
+    }
+  }
+
+  Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
+    IconData icon, {
+    double size = 96,
+    double iconSize = 56,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // sfondo (stile “pallino”)
+    final paint = Paint()..color = const Color(0xFF4285F4);
+    canvas.drawCircle(Offset(size / 2, size / 2), size / 2, paint);
+
+    // disegna il glifo Material (la P del parking)
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: iconSize,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: Colors.white,
+        ),
+      ),
+    );
+
+    textPainter.layout();
+    final offset = Offset(
+      (size - textPainter.width) / 2,
+      (size - textPainter.height) / 2,
+    );
+    textPainter.paint(canvas, offset);
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  }
+
+  Future<void> _goToMyLocation() async {
+    try {
+      // Su Web/desktop: richiesta permesso + posizione via geolocator
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        _showToast('Permesso posizione negato.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final me = LatLng(pos.latitude, pos.longitude);
+
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
+      );
+
+      setState(() {
+        _circles
+          ..clear()
+          ..addAll([
+            Circle(
+              circleId: const CircleId('pulse'),
+              center: me,
+              radius: 25,
+              fillColor: Colors.blue.withOpacity(0.25),
+              strokeColor: Colors.blue.withOpacity(0.1),
+              strokeWidth: 1,
+            ),
+            Circle(
+              circleId: const CircleId('dot'),
+              center: me,
+              radius: 6,
+              fillColor: const Color(0xFF4285F4),
+              strokeColor: Colors.white,
+              strokeWidth: 2,
+            ),
+          ]);
+      });
+    } catch (e) {
+      _showToast('Impossibile ottenere la posizione.');
+    }
+  }
+
+  Future<void> _showPreferenzeDialog() async {
+    final updatedPrefs = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
+    );
+
+    if (updatedPrefs != null) {
+      setState(() {
+        widget.utente.preferenze = updatedPrefs;
+      });
+    }
+  }
+
+  void _logout() {
+    Navigator.of(context).pop();
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          content: Text(
+            msg,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _openUserMenu() async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = _gearKey.currentContext!.findRenderObject() as RenderBox;
+    final pos = box.localToGlobal(Offset.zero, ancestor: overlay);
+
+    final selected = await showMenu<String>(
+      context: context,
+      color: AppColors.bgDark,
+      elevation: 16,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(pos.dx, pos.dy + box.size.height, box.size.width, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'prefs',
+          child: Row(
+            children: const [
+              Icon(Icons.tune, size: 18, color: AppColors.textPrimary),
+              SizedBox(width: 10),
+              Text(
+                'Preferences',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+          // STORICO
+        PopupMenuItem<String>(
+          value: 'history',
+          child: Row(
+            children: const [
+              Icon(Icons.history, size: 18, color: AppColors.textPrimary),
+              SizedBox(width: 10),
+              Text('Le mie prenotazioni', style: TextStyle(color: AppColors.textPrimary)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 10),
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: const [
+              Icon(Icons.logout, size: 18, color: AppColors.textPrimary),
+              SizedBox(width: 10),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (!mounted) return;
+
+    if (selected == 'prefs') {
+      _showPreferenzeDialog();
+      
+    }else if (selected == 'history') {
+      _vaiAlloStorico();
+    
+    } else if (selected == 'logout') {
+      _logout();
+    }
+  }
+
+  Future<void> _searchAndGo(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+
+    if (_geocodingKey.isEmpty) {
+      _showToast('Manca GOOGLE_GEOCODING_KEY (usa --dart-define).');
+      return;
+    }
+
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'address': q,
+        'key': _geocodingKey,
+      });
+
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        _showToast('Errore Geocoding (${res.statusCode}).');
+        return;
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final status = (data['status'] ?? '') as String;
+
+      if (status != 'OK') {
+        final err = (data['error_message'] ?? 'Nessun risultato') as String;
+        _showToast(err);
+        return;
+      }
+
+      final results = (data['results'] as List).cast<Map<String, dynamic>>();
+      if (results.isEmpty) {
+        _showToast('Nessun risultato trovato.');
+        return;
+      }
+
+      final loc = results.first['geometry']['location'] as Map<String, dynamic>;
+      final lat = (loc['lat'] as num).toDouble();
+      final lng = (loc['lng'] as num).toDouble();
+      final target = LatLng(lat, lng);
+
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: target, zoom: 15),
+        ),
+      );
+
+      // Non aggiungo marker, solo sposto la camera
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: target, zoom: 15),
+        ),
+      );
+    } catch (_) {
+      _showToast('Errore durante la ricerca.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fullName = '${widget.utente.nome} ${widget.utente.cognome}'.trim();
+
+    return Scaffold(
+      backgroundColor: AppColors.bgDark2,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.bgDark2, AppColors.bgDark, AppColors.bgDark2],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Container(
+                  height: 64,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgDark,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.35),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Park M&G',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        fullName.isEmpty ? 'Utente' : fullName,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      InkWell(
+                        key: _gearKey,
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: _openUserMenu,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgDark,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: AppColors.borderField,
+                              width: 1,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.settings,
+                            color: AppColors.textPrimary,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // SEARCH BAR
+                TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  cursorColor: AppColors.accentCyan,
+                  decoration: InputDecoration(
+                    hintText: 'Search your Park',
+                    hintStyle: TextStyle(
+                      color: AppColors.textMuted.withOpacity(0.9),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMuted,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_forward,
+                        color: AppColors.accentCyan,
+                      ),
+                      onPressed: () => _searchAndGo(_searchController.text),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.bgDark2.withOpacity(0.35),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: const BorderSide(
+                        color: AppColors.accentCyan,
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                  onSubmitted: _searchAndGo,
+                ),
+
+                const SizedBox(height: 14),
+
+                // MAP AREA
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.35),
+                          blurRadius: 22,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Stack(
+                        children: [
+                          GoogleMap(
+                            onCameraMove: (pos) => _cameraTarget = pos.target,
+                            initialCameraPosition: _initialCamera,
+                            onMapCreated: (c) => _mapController = c,
+                            markers: _markers,
+                            circles: _circles,
+                            myLocationEnabled: !kIsWeb && _locationGranted,
+                            myLocationButtonEnabled:
+                                !kIsWeb && _locationGranted,
+                            zoomControlsEnabled: false,
+                            mapToolbarEnabled: false,
+                          ),
+                          if (_isLoadingParkings)
+                            Container(
+                              color: Colors.black54,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.accentCyan,
+                                ),
+                              ),
+                            ),
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                top: 14,
+                                right: 14,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GMapsControlButton(
+                                    icon: Icons.my_location,
+                                    onPressed: _goToMyLocation,
+                                    tooltip: 'La mia posizione',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  GMapsControlButton(
+                                    icon: Icons.local_parking,
+                                    onPressed: _toggleParkings,
+                                    tooltip: 'Parcheggi vicino',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Mostra info "hover" o popup
+                          if (_hoveredParkingId != null ||
+                              _selectedParkingData != null)
+                            Positioned(
+                              bottom: _selectedParkingData != null ? 40 : 80,
+                              left: 20,
+                              right: 20,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _selectedParkingData != null
+                                    ? _buildParkingPopup(_selectedParkingData!)
+                                    : _buildHoverCard(),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHoverCard() {
+    return Container(
+      key: const ValueKey('hover'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.info_outline, color: Colors.white, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'Sposta il cursore sopra un parcheggio per maggiori dettagli',
+            style: TextStyle(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParkingPopup(Map<String, dynamic> p) {
+    return Container(
+      key: const ValueKey('popup'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgDark,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.accentCyan, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                p['nome'] ?? 'Parcheggio',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.textPrimary),
+                onPressed: () => setState(() => _selectedParkingData = null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Area: ${p['area'] ?? 'N/D'}',
+            style: const TextStyle(color: AppColors.textMuted),
+          ),
+          Text(
+            'Posti disponibili: ${p['postiDisponibili']}/${p['postiTotali']}',
+            style: const TextStyle(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Chiude il popup informativo e avvia la prenotazione
+              final pId = p['id'].toString();
+              setState(() => _selectedParkingData = null);
+              _effettuaPrenotazione(pId);
+            },
+            icon: const Icon(Icons.qr_code),
+            label: const Text('Prenota parcheggio'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentCyan,
+              foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleParkings() async {
+    setState(() => _showParkings = !_showParkings);
+
+    if (!_showParkings) {
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      });
+      return;
+    }
+
+    await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+  }
+
+  Future<void> _loadParkingsNearby(
+    LatLng center, {
+    double radiusMeters = 1200,
+  }) async {
+    setState(() => _isLoadingParkings = true);
+
+    try {
+      final uri = Uri.parse(
+        '$_baseUrl/parcheggi/nearby'
+        '?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
+      );
+
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        _showToast('Errore caricamento parcheggi (${res.statusCode})');
+        return;
+      }
+
+      final data = jsonDecode(res.body) as List<dynamic>;
+      final newMarkers = <Marker>{};
+
+      for (final p in data) {
+        final markerId = 'p_${p['id']}';
+        newMarkers.add(
+          Marker(
+            markerId: MarkerId(markerId),
+            position: LatLng(p['latitudine'], p['longitudine']),
+            icon:
+                _parkingIcon ??
+                BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
+            infoWindow: InfoWindow(
+              title: p['nome'],
+              snippet:
+                  '${p['postiDisponibili']}/${p['postiTotali']} posti disponibili',
+            ),
+            onTap: () {
+              setState(() {
+                _selectedParkingData = p;
+              });
+            },
+          ),
+        );
+      }
+
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+        _markers.addAll(newMarkers);
+      });
+    } catch (e) {
+      _showToast('Errore durante il caricamento dei parcheggi.');
+    } finally {
+      setState(() => _isLoadingParkings = false);
+    }
+  }
+
+  Future<void> _effettuaPrenotazione(String parcheggioId) async {
+    // 1. Mostra caricamento (usando lo stile del tuo progetto)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accentCyan),
+      ),
+    );
+
+    try {
+      // 2. Chiamata API con dati REALI dal widget e dall'orario corrente
+      final risposta = await widget.apiClient.prenotaParcheggio(
+        widget.utente.id, // ID reale dell'utente loggato
+        parcheggioId,
+        DateTime.now().toIso8601String(),
+      );
+
+      // 3. Chiudi il caricamento
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      // 4. Mostra il dialogo di successo con il QR Code
+      PrenotazioneDialog.mostra(context, risposta);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showToast(e.message); // Usa il tuo metodo _showToast esistente
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showToast("Errore di connessione o del server");
+    }
+    // 5. AGGIORNAMENTO POSTI: ricarica i parcheggi sulla mappa
+    _loadParkingsNearby(_cameraTarget);
+  }
+
+  void _vaiAlloStorico() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => HistoryScreen(
+        utente: widget.utente,
+        apiClient: widget.apiClient,
+      ),
+    ),
+  );
+}
+
+      
+}
+
+class PreferenzeDialog extends StatefulWidget {
+  final Utente utente;
+  final ApiClient apiClient;
+
+  const PreferenzeDialog({
+    super.key,
+    required this.utente,
+    required this.apiClient,
+  });
+
+  @override
+  State<PreferenzeDialog> createState() => _PreferenzeDialogState();
+}
+
+class _PreferenzeDialogState extends State<PreferenzeDialog> {
+  String _eta = 'under30';
+  String _piano = 'piano_terra';
+  double _distanza = 30;
+  bool _disabile = false;
+  bool _donnaIncinta = false;
+  String _occupazione = 'Studente';
+
+  bool _isSaving = false;
+
+  final List<String> _occupazioni = const [
+    'Studente',
+    'Lavoratore dipendente',
+    'Libero professionista',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    final prefs = widget.utente.preferenze;
+    if (prefs != null && prefs.isNotEmpty) {
+      _eta = prefs['età'] ?? _eta;
+      _piano = prefs['piano'] ?? _piano;
+      _distanza = double.tryParse(prefs['distanza'] ?? '') ?? _distanza;
+      _disabile = (prefs['disabile'] ?? 'No') == 'Sì';
+      _donnaIncinta = (prefs['donnaIncinta'] ?? 'No') == 'Sì';
+      _occupazione = prefs['occupazione'] ?? _occupazione;
+      if (!_occupazioni.contains(_occupazione)) _occupazione = 'Studente';
+    }
+  }
+
+  Future<void> _onSalva() async {
+    final prefs = <String, String>{
+      'età': _eta,
+      'piano': _piano,
+      'distanza': _distanza.toStringAsFixed(2),
+      'disabile': _disabile ? 'Sì' : 'No',
+      'donnaIncinta': _donnaIncinta ? 'Sì' : 'No',
+      'occupazione': _occupazione,
+    };
+
+    setState(() => _isSaving = true);
+    try {
+      await widget.apiClient.aggiornaPreferenze(widget.utente.id, prefs);
+      if (!mounted) return;
+      Navigator.of(context).pop(prefs);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.bgDark,
+          content: Text(
+            e is ApiException
+                ? e.message
+                : 'Errore nel salvataggio delle preferenze',
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _onAnnulla() => Navigator.of(context).pop();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.bgDark,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Text(
+        'Imposta preferenze',
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            radioTheme: RadioThemeData(
+              fillColor: WidgetStateProperty.all(AppColors.accentCyan),
+            ),
+            checkboxTheme: CheckboxThemeData(
+              fillColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected))
+                  return AppColors.accentCyan;
+                return AppColors.borderField;
+              }),
+              checkColor: WidgetStateProperty.all(AppColors.textPrimary),
+            ),
+            sliderTheme: Theme.of(context).sliderTheme.copyWith(
+              activeTrackColor: AppColors.accentCyan,
+              thumbColor: AppColors.accentCyan,
+              overlayColor: AppColors.accentCyan.withOpacity(0.15),
+              inactiveTrackColor: AppColors.borderField,
+              valueIndicatorColor: AppColors.brandTop,
+              valueIndicatorTextStyle: const TextStyle(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          child: DefaultTextStyle(
+            style: const TextStyle(color: AppColors.textPrimary),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Età',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Under 30'),
+                        value: 'under30',
+                        groupValue: _eta,
+                        onChanged: (v) => setState(() => _eta = v!),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Over 60'),
+                        value: 'over60',
+                        groupValue: _eta,
+                        onChanged: (v) => setState(() => _eta = v!),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Piano',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Piano terra'),
+                        value: 'piano_terra',
+                        groupValue: _piano,
+                        onChanged: (v) => setState(() => _piano = v!),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Altri piani'),
+                        value: 'altri_piani',
+                        groupValue: _piano,
+                        onChanged: (v) => setState(() => _piano = v!),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Distanza massima (m)',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Slider(
+                  value: _distanza,
+                  min: 0,
+                  max: 200,
+                  divisions: 40,
+                  label: _distanza.toStringAsFixed(0),
+                  onChanged: (v) => setState(() => _distanza = v),
+                ),
+                Text(
+                  'Valore: ${_distanza.toStringAsFixed(0)} m',
+                  style: TextStyle(
+                    color: AppColors.textMuted.withOpacity(0.95),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Condizioni speciali',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                CheckboxListTile(
+                  value: _disabile,
+                  onChanged: (v) => setState(() => _disabile = v ?? false),
+                  title: const Text('Disabile'),
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  value: _donnaIncinta,
+                  onChanged: (v) => setState(() => _donnaIncinta = v ?? false),
+                  title: const Text('Donna incinta'),
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Occupazione',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                DropdownButtonFormField<String>(
+                  value: _occupazione,
+                  dropdownColor: AppColors.bgDark,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.bgDark2.withOpacity(0.35),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.accentCyan),
+                    ),
+                  ),
+                  items: _occupazioni
+                      .map(
+                        (o) =>
+                            DropdownMenuItem<String>(value: o, child: Text(o)),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _occupazione = v);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : _onAnnulla,
+          style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+          child: const Text('Annulla'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _onSalva,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accentCyan,
+            foregroundColor: AppColors.textPrimary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isSaving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textPrimary,
+                  ),
+                )
+              : const Text(
+                  'Salva',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class GMapsControlButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String? tooltip;
+
+  const GMapsControlButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Material(
+      color: Colors.white,
+      elevation: 2.5,
+      shadowColor: Colors.black.withOpacity(0.22),
+      shape: const CircleBorder(
+        side: BorderSide(color: Color(0x1F000000), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            icon,
+            size: 22,
+            color: onPressed == null
+                ? const Color(0xFFB0B0B0)
+                : const Color(0xFF666666),
+          ),
+        ),
+      ),
+    );
+
+    if (tooltip == null) return child;
+
+    return Tooltip(message: tooltip!, child: child);
+  }
+}

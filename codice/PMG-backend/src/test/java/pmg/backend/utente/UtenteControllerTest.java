@@ -1,4 +1,4 @@
-package PMG.backend.utente;
+package pmg.backend.utente;
 
 import static org.mockito.ArgumentMatchers.any;
 
@@ -18,14 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import pmg.backend.utente.UtenteController;
-import pmg.backend.utente.UtenteLoginRequest;
-import pmg.backend.utente.UtenteRegisterRequest;
-import pmg.backend.utente.UtenteResponse;
-import pmg.backend.utente.UtenteService;
-
 @WebMvcTest(UtenteController.class) // Carica solo lo strato Web per UtenteController
-public class UtenteControllerTest {
+class UtenteControllerTest {
 
     @Autowired
     private MockMvc mockMvc;

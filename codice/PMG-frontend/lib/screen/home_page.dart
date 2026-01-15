@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
-import 'api_client.dart';
+import 'package:park_mg/utils/theme.dart';
+import '../api/api_client.dart';
 import 'user_screen.dart';
 import 'operator_screen.dart';
-import 'main.dart' show AppColors;
 
 /// Pulsante primario con gradiente (equivalente a .primary-button)
 class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
 
-  const PrimaryButton({
-    super.key,
-    required this.text,
-    this.onPressed,
-  });
+  const PrimaryButton({super.key, required this.text, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +25,7 @@ class PrimaryButton extends StatelessWidget {
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    AppColors.accentBlue, // #3b82f6
+                    AppColors.accentCyan2, // #3b82f6
                     AppColors.accentCyan, // #06b6d4
                   ],
                 )
@@ -69,9 +65,15 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   // stato toggle Accedi / Registrati
   bool _isLoginMode = true;
+
+  late final TabController _tabController;
+
+  bool _obscureLoginPassword = true;
+  bool _obscureRegisterPassword = true;
 
   // controller campi Clienti - login
   final _userLoginEmailController = TextEditingController();
@@ -90,6 +92,12 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
   void dispose() {
     _userLoginEmailController.dispose();
     _userLoginPasswordController.dispose();
@@ -99,6 +107,7 @@ class _HomePageState extends State<HomePage> {
     _userRegisterPasswordController.dispose();
     _operatorNomeStrutturaController.dispose();
     _operatorUsernameController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -109,15 +118,41 @@ class _HomePageState extends State<HomePage> {
     final hasMinLen = pwd.length >= 6;
     final hasUpper = RegExp(r'[A-Z]').hasMatch(pwd);
     final hasDigit = RegExp(r'\d').hasMatch(pwd);
-    final hasSpecial =
-        RegExp(r'[!@#$%^&*()_+\-={}\[\]|:;"\<>,.?/]').hasMatch(pwd);
+    final hasSpecial = RegExp(
+      r'[!@#$%^&*()_+\-={}\[\]|:;"\<>,.?/]',
+    ).hasMatch(pwd);
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+    final snackBar = SnackBar(
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      backgroundColor: Colors.white, // card-like
+      content: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              msg,
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      duration: const Duration(seconds: 4),
     );
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(snackBar);
   }
 
   // ------------------ AZIONI CLIENTI ------------------
@@ -146,19 +181,21 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
     try {
       final utente = await widget.apiClient.loginUtente(email, password);
-
+      _userLoginEmailController.clear();
+      _userLoginPasswordController.clear();
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => UserScreen(
-            utente: utente,
-            apiClient: widget.apiClient,
-          ),
+          builder: (_) =>
+              UserScreen(utente: utente, apiClient: widget.apiClient),
         ),
       );
     } catch (e) {
       _showError(
-          e is ApiException ? e.message : 'Errore di connessione al server utenti');
+        e is ApiException
+            ? e.message
+            : 'Errore di connessione al server utenti',
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -192,7 +229,10 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
     try {
       await widget.apiClient.registraUtente(nome, cognome, email, pwd);
-
+      _userRegisterNameController.clear();
+      _userRegisterSurnameController.clear();
+      _userRegisterEmailController.clear();
+      _userRegisterPasswordController.clear();
       if (!mounted) return;
       setState(() {
         _isLoginMode = true;
@@ -200,7 +240,10 @@ class _HomePageState extends State<HomePage> {
       _showError('Registrazione completata. Ora effettua il login.');
     } catch (e) {
       _showError(
-          e is ApiException ? e.message : 'Errore di connessione al server utenti');
+        e is ApiException
+            ? e.message
+            : 'Errore di connessione al server utenti',
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -231,18 +274,22 @@ class _HomePageState extends State<HomePage> {
 
     setState(() => _isLoading = true);
     try {
-      final operatore =
-          await widget.apiClient.loginOperatore(nomeStruttura, username);
+      final operatore = await widget.apiClient.loginOperatore(
+        nomeStruttura,
+        username,
+      );
+      _operatorNomeStrutturaController.clear();
+      _operatorUsernameController.clear();
 
       if (!mounted) return;
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => OperatorScreen(operatore: operatore),
-        ),
+        MaterialPageRoute(builder: (_) => OperatorScreen(operatore: operatore)),
       );
     } catch (e) {
       _showError(
-        e is ApiException ? e.message : 'Errore di connessione al server operatori',
+        e is ApiException
+            ? e.message
+            : 'Errore di connessione al server operatori',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -266,8 +313,8 @@ class _HomePageState extends State<HomePage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.bgDark,  // #020617
-              AppColors.bgDark,  // 40%
+              AppColors.bgDark2, // #020617
+              AppColors.bgDark2, // 40%
               AppColors.bgDark2, // #0b1120
             ],
           ),
@@ -279,7 +326,10 @@ class _HomePageState extends State<HomePage> {
                   ? Row(
                       children: [
                         SizedBox(width: 280, child: branding),
-                        const VerticalDivider(width: 1, color: Colors.transparent),
+                        const VerticalDivider(
+                          width: 1,
+                          color: Colors.transparent,
+                        ),
                         Expanded(child: tabs),
                       ],
                     )
@@ -314,8 +364,8 @@ class _HomePageState extends State<HomePage> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.brandTop, // #0f172a
-            AppColors.bgDark,   // #020617
+            AppColors.bgDark, // #0f172a
+            AppColors.bgDark, // #020617
           ],
         ),
         boxShadow: [
@@ -332,8 +382,8 @@ class _HomePageState extends State<HomePage> {
           constraints: const BoxConstraints(maxWidth: 260),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
+            children: [
+              const Text(
                 'Park M&G',
                 style: TextStyle(
                   color: AppColors.textPrimary,
@@ -341,23 +391,31 @@ class _HomePageState extends State<HomePage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Gestione utenti e operatori',
+              const SizedBox(height: 16),
+              const Text(
+                'Gestione Utenti e Operatori',
                 style: TextStyle(
                   color: AppColors.textSecondary, // #e5e7eb
                   fontSize: 14,
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
-              Text(
-                'Accedi o registra un nuovo account utente',
-                style: TextStyle(
-                  color: AppColors.textMuted, // #9ca3af
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) {
+                  final isOperatori = _tabController.index == 1;
+                  return Text(
+                    isOperatori
+                        ? "Accedi con l'account Operatore"
+                        : 'Accedi o Registra un nuovo account Utente',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  );
+                },
               ),
             ],
           ),
@@ -367,47 +425,42 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTabs() {
-    // TabPane + header area tipo segmented-control
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: AppColors.bgDark, // #020617
+    return Column(
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: AppColors.bgDark,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: AppColors.accentCyan2,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: TabBar(
-                indicator: BoxDecoration(
-                  color: const Color(0xFF111827), // #111827
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: AppColors.textSecondary, // #e5e7eb
-                unselectedLabelColor: AppColors.textMuted, // #9ca3af
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: 'Clienti'),
-                  Tab(text: 'Operatori'),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildClientiTab(),
-                _buildOperatoriTab(),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelColor: AppColors.textSecondary,
+              unselectedLabelColor: AppColors.textMuted,
+              dividerColor: Colors.transparent,
+              tabs: const [
+                Tab(text: 'Clienti'),
+                Tab(text: 'Operatori'),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildClientiTab(), _buildOperatoriTab()],
+          ),
+        ),
+      ],
     );
   }
 
@@ -421,7 +474,7 @@ class _HomePageState extends State<HomePage> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.bgDark, // #020617
+              color: AppColors.bgDark,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -448,6 +501,8 @@ class _HomePageState extends State<HomePage> {
                           text: 'Accedi',
                           selected: _isLoginMode,
                           onTap: () {
+                            _userLoginEmailController.clear();
+                            _userLoginPasswordController.clear();
                             setState(() => _isLoginMode = true);
                           },
                           isLeft: true,
@@ -459,6 +514,10 @@ class _HomePageState extends State<HomePage> {
                           text: 'Registrati',
                           selected: !_isLoginMode,
                           onTap: () {
+                            _userRegisterNameController.clear();
+                            _userRegisterSurnameController.clear();
+                            _userRegisterEmailController.clear();
+                            _userRegisterPasswordController.clear();
                             setState(() => _isLoginMode = false);
                           },
                           isLeft: false,
@@ -485,9 +544,13 @@ class _HomePageState extends State<HomePage> {
   }) {
     final radius = isLeft
         ? const BorderRadius.horizontal(
-            left: Radius.circular(999), right: Radius.circular(24))
+            left: Radius.circular(999),
+            right: Radius.circular(24),
+          )
         : const BorderRadius.horizontal(
-            left: Radius.circular(24), right: Radius.circular(999));
+            left: Radius.circular(24),
+            right: Radius.circular(999),
+          );
 
     return InkWell(
       borderRadius: radius,
@@ -495,15 +558,14 @@ class _HomePageState extends State<HomePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF111827) : Colors.transparent,
+          color: selected ? AppColors.accentCyan2 : Colors.transparent,
           borderRadius: radius,
         ),
         alignment: Alignment.center,
         child: Text(
           text,
           style: TextStyle(
-            color:
-                selected ? AppColors.textSecondary : AppColors.textMuted,
+            color: selected ? AppColors.textSecondary : AppColors.textMuted,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -526,28 +588,32 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         TextField(
           controller: _userLoginEmailController,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-          ),
+          decoration: const InputDecoration(labelText: 'Email'),
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _userLoginPasswordController,
-          decoration: const InputDecoration(
+          obscureText: _obscureLoginPassword,
+          decoration: InputDecoration(
             labelText: 'Password',
+            suffixIcon: IconButton(
+              onPressed: () {
+                setState(() => _obscureLoginPassword = !_obscureLoginPassword);
+              },
+              icon: Icon(
+                _obscureLoginPassword ? Icons.visibility_off : Icons.visibility,
+                color: AppColors.textMuted,
+              ),
+            ),
           ),
-          obscureText: true,
         ),
         const SizedBox(height: 16),
-        PrimaryButton(
-          text: 'Accedi',
-          onPressed: _handleUserLogin,
-        ),
+        PrimaryButton(text: 'Accedi', onPressed: _handleUserLogin),
         TextButton(
           onPressed: _handleUserForgotPassword,
           style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF60A5FA), // hyperlink
+            foregroundColor: const Color(0xFF60A5FA),
           ),
           child: const Text(
             'Password dimenticata?',
@@ -573,38 +639,38 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         TextField(
           controller: _userRegisterNameController,
-          decoration: const InputDecoration(
-            labelText: 'Nome',
-          ),
+          decoration: const InputDecoration(labelText: 'Nome'),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _userRegisterSurnameController,
-          decoration: const InputDecoration(
-            labelText: 'Cognome',
-          ),
+          decoration: const InputDecoration(labelText: 'Cognome'),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _userRegisterEmailController,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-          ),
+          decoration: const InputDecoration(labelText: 'Email'),
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _userRegisterPasswordController,
-          decoration: const InputDecoration(
+          obscureText: _obscureRegisterPassword,
+          decoration: InputDecoration(
             labelText: 'Password',
+            suffixIcon: IconButton(
+              onPressed: () {
+                setState(() => _obscureRegisterPassword = !_obscureRegisterPassword);
+              },
+              icon: Icon(
+                _obscureRegisterPassword ? Icons.visibility_off : Icons.visibility,
+                color: AppColors.textMuted,
+              ),
+            ),
           ),
-          obscureText: true,
         ),
         const SizedBox(height: 16),
-        PrimaryButton(
-          text: 'Registrati',
-          onPressed: _handleUserRegister,
-        ),
+        PrimaryButton(text: 'Registrati', onPressed: _handleUserRegister),
       ],
     );
   }
@@ -649,23 +715,15 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _operatorUsernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                  ),
-                  obscureText: true, // come PasswordField in JavaFX
+                  decoration: const InputDecoration(labelText: 'Username'),
+                  obscureText: true, 
                 ),
                 const SizedBox(height: 16),
-                PrimaryButton(
-                  text: 'Accedi',
-                  onPressed: _handleOperatorLogin,
-                ),
+                PrimaryButton(text: 'Accedi', onPressed: _handleOperatorLogin),
                 const SizedBox(height: 8),
                 const Text(
                   'Accesso riservato al personale autorizzato.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                   textAlign: TextAlign.center,
                 ),
               ],

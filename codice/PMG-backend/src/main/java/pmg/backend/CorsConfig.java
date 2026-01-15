@@ -15,7 +15,7 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
                         // permette qualsiasi porta su localhost (utile per Flutter web dev server)
-                        .allowedOriginPatterns("http://localhost:*")
+                		.allowedOriginPatterns("http://*:*", "https://*:*")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
