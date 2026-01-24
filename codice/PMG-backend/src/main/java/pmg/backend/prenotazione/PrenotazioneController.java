@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,5 +23,15 @@ public class PrenotazioneController {
     public ResponseEntity<List<PrenotazioneResponse>> getStorico(@PathVariable String utenteId) {
         List<PrenotazioneResponse> storico = prenotazioneService.getStoricoUtente(utenteId);
         return ResponseEntity.ok(storico);
+    }
+    
+    @PostMapping("/valida-ingresso/{codiceQr}")
+    public ResponseEntity<?> validaIngresso(@PathVariable String codiceQr) {
+        try {
+            PrenotazioneResponse res = prenotazioneService.validaIngresso(codiceQr);
+            return ResponseEntity.ok(res);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
