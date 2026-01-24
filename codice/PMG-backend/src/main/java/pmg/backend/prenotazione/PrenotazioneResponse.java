@@ -6,6 +6,10 @@ public record PrenotazioneResponse(
     String id,
     String utenteId,
     String parcheggioId,
-    LocalDateTime orario,
-    String codiceQr
+    LocalDateTime dataCreazione,
+    String codiceQr,
+    StatoPrenotazione stato,
+    LocalDateTime dataIngresso,
+    LocalDateTime dataUscita
+    
 ) {}

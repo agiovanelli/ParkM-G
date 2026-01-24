@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import pmg.backend.prenotazione.Prenotazione;
 import pmg.backend.prenotazione.PrenotazioneRepository;
-
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID; // Per generare un codice QR temporaneo
 
@@ -61,7 +61,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         Prenotazione entity = new Prenotazione(
                 req.utenteId(),
                 req.parcheggioId(),
-                req.orario(),
+                LocalDateTime.now(),
                 codiceQr
         );
         Prenotazione salvata = prenotazioneRepository.save(entity);
@@ -69,11 +69,14 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         LOGGER.info("Prenotazione completata con successo! ID: {}", salvata.getId());
 
         return new PrenotazioneResponse(
-                salvata.getId(),
+                String.valueOf(salvata.getId()), 
                 salvata.getUtenteId(),
                 salvata.getParcheggioId(),
-                salvata.getOrario(),
-                salvata.getCodiceQr()
+                salvata.getDataCreazione(),
+                salvata.getCodiceQr(),
+                salvata.getStato(),          
+                salvata.getDataIngresso(),   
+                salvata.getDataUscita()      
         );
     }
 

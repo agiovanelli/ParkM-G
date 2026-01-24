@@ -23,8 +23,11 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                         p.getId(),
                         p.getUtenteId(),
                         p.getParcheggioId(),
-                        p.getOrario(),
-                        p.getCodiceQr()
+                        p.getDataCreazione(),
+                        p.getCodiceQr(),
+                        p.getStato(),
+                        p.getDataIngresso(),
+                        p.getDataUscita()
                 ))
                 .toList();
     }
