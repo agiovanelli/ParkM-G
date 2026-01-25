@@ -44,9 +44,9 @@ class ParcheggioControllerTest {
 
     @Test
     void prenotaTest() throws Exception {
-        LocalDateTime orario = LocalDateTime.of(2025, 1, 1, 10, 0);
+        LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
-        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", orario, "QR123");
+        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", dataCreazione, "QR123");
 
         when(parcheggioService.effettuaPrenotazione(any(PrenotazioneRequest.class))).thenReturn(resp);
 
@@ -56,13 +56,13 @@ class ParcheggioControllerTest {
                     {
                       "utenteId": "utente1",
                       "parcheggioId": "parcheggio1",
-                      "orario": "2025-01-01T10:00:00"
+                      "dataCreazione": "2025-01-01T10:00:00"
                     }
                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("1"))
                 .andExpect(jsonPath("$.codiceQr").value("QR123"))
-                .andExpect(jsonPath("$.orario").value("2025-01-01T10:00:00"));
+                .andExpect(jsonPath("$.dataCreazione").value("2025-01-01T10:00:00"));
 
         verify(parcheggioService).effettuaPrenotazione(any(PrenotazioneRequest.class));
     }

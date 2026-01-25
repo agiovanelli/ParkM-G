@@ -25,10 +25,10 @@ class PrenotazioneControllerTest {
 
     @Test
     void getStoricoTest() throws Exception {
-        LocalDateTime orario = LocalDateTime.of(2025, 1, 1, 10, 0);
+        LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
-        PrenotazioneResponse r1 = new PrenotazioneResponse("p1", "u1", "park1", orario, "QR1");
-        PrenotazioneResponse r2 = new PrenotazioneResponse("p2", "u1", "park2", orario.plusHours(1), "QR2");
+        PrenotazioneResponse r1 = new PrenotazioneResponse("p1", "u1", "park1", dataCreazione, "QR1");
+        PrenotazioneResponse r2 = new PrenotazioneResponse("p2", "u1", "park2", dataCreazione.plusHours(1), "QR2");
 
         when(prenotazioneService.getStoricoUtente("u1")).thenReturn(List.of(r1, r2));
 

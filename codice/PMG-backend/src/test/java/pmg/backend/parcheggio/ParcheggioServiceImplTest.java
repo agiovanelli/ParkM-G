@@ -49,24 +49,24 @@ class ParcheggioServiceImplTest {
 
     @Test
     void effettuaPrenotazioneTest() {
-        LocalDateTime orario = LocalDateTime.of(2025, 1, 1, 10, 0);
+        LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
         Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 10, 45.5, 9.1);
         parcheggio.setId("p1");
         when(parcheggioRepository.findById("p1")).thenReturn(Optional.of(parcheggio));
         when(parcheggioRepository.save(any(Parcheggio.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Prenotazione prenotazione = new Prenotazione("u1", "p1", orario, UUID.randomUUID().toString());
+        Prenotazione prenotazione = new Prenotazione("u1", "p1", dataCreazione, UUID.randomUUID().toString());
         prenotazione.setId("pr1");
         when(prenotazioneRepository.save(any(Prenotazione.class))).thenReturn(prenotazione);
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p1", orario);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p1", dataCreazione);
         PrenotazioneResponse resp = service.effettuaPrenotazione(req);
 
         assertEquals("pr1", resp.id());
         assertEquals("u1", resp.utenteId());
         assertEquals("p1", resp.parcheggioId());
-        assertEquals(orario, resp.orario());
+        assertEquals(dataCreazione, resp.dataCreazione());
 
         verify(parcheggioRepository).findById("p1");
         verify(parcheggioRepository).save(any(Parcheggio.class));
@@ -75,13 +75,13 @@ class ParcheggioServiceImplTest {
 
     @Test
     void effettuaPrenotazionePostiEsauritiTest() {
-        LocalDateTime orario = LocalDateTime.of(2025, 1, 1, 11, 0);
+        LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 11, 0);
 
         Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 0, 45.5, 9.1);
         parcheggio.setId("p2");
         when(parcheggioRepository.findById("p2")).thenReturn(Optional.of(parcheggio));
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p2", orario);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p2", dataCreazione);
 
         assertThrows(IllegalStateException.class, () -> service.effettuaPrenotazione(req));
         verify(parcheggioRepository).findById("p2");
@@ -91,11 +91,11 @@ class ParcheggioServiceImplTest {
 
     @Test
     void effettuaPrenotazioneParcheggioNonTrovatoTest() {
-        LocalDateTime orario = LocalDateTime.of(2025, 1, 1, 12, 0);
+        LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 12, 0);
 
         when(parcheggioRepository.findById("missing")).thenReturn(Optional.empty());
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "missing", orario);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "missing", dataCreazione);
 
         assertThrows(IllegalArgumentException.class, () -> service.effettuaPrenotazione(req));
         verify(parcheggioRepository).findById("missing");

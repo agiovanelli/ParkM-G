@@ -40,7 +40,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         LocalDateTime limite = LocalDateTime.now().minusMinutes(10);
         
         // Trova le prenotazioni ancora ATTIVE fatte più di 10 minuti fa
-        List<Prenotazione> scadute = prenotazioneRepository.findByStatoAndOrarioBefore(
+        List<Prenotazione> scadute = prenotazioneRepository.findByStatoAndDataCreazioneBefore(
             StatoPrenotazione.ATTIVA, limite
         );
         
