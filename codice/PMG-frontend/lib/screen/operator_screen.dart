@@ -5,6 +5,9 @@ import 'package:park_mg/widgets/parking_map.dart' as sch;
 import '../models/operatore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'qr_scanner_screen.dart';
+import 'package:park_mg/api/api_client.dart';
+import '../models/prenotazione.dart';
 
 enum LogCategory { allarme, evento, history }
 
@@ -123,8 +126,11 @@ List<ParkingSpot> mockSpotsForFloor(int floor) {
 
 class OperatorScreen extends StatefulWidget {
   final Operatore operatore;
+  
+  
 
-  const OperatorScreen({super.key, required this.operatore});
+  const OperatorScreen({super.key, required this.operatore, });
+
 
   @override
   State<OperatorScreen> createState() => _OperatorScreenState();
@@ -132,6 +138,7 @@ class OperatorScreen extends StatefulWidget {
 
 class _OperatorScreenState extends State<OperatorScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  late ApiClient _apiClient;
 
   // --- Side menu navigation ---
   int _pageIndex = 0;
@@ -167,6 +174,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
   @override
   void initState() {
     super.initState();
+    _apiClient = ApiClient();
     _items = [];
     _loadLogs();
     _stats = _buildMockStats();
@@ -588,6 +596,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             _parkingStatsPage(
                               isWide: MediaQuery.of(context).size.width > 700,
                             ),
+                            QrScannerPage(
+                              onQrScanned: _handleQrScan,
+                            ),
                           ],
                         ),
                       ),
@@ -653,6 +664,13 @@ class _OperatorScreenState extends State<OperatorScreen> {
           label: 'Stato parcheggio',
           selected: _pageIndex == 1,
           onTap: () => _selectPage(1, closeDrawer: isDrawer),
+        ),
+        const SizedBox(height: 8),
+        _navItem(
+          icon: Icons.qr_code_scanner,
+          label: 'Scansione QR',
+          selected: _pageIndex == 2,
+          onTap: () => _selectPage(2, closeDrawer: isDrawer),
         ),
 
         const Spacer(),
@@ -1585,4 +1603,127 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
   }
+
+
+//scan codice Qr e aggiorna stato prenotazione
+Future<void> _handleQrScan(String qrCode) async {
+  try {
+    final response = await _apiClient.validaIngresso(qrCode);
+    
+    // Mostra un dialogo di successo
+    if (mounted) {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Ingresso Validato',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('Prenotazione', response.id),
+              const SizedBox(height: 8),
+              _infoRow('Codice QR', response.codiceQr ?? qrCode),
+              const SizedBox(height: 8),
+              _infoRow('Stato', _formatStato(response.stato)),
+              const SizedBox(height: 8),
+              _infoRow(
+                'Data ingresso',
+                response.dataIngresso != null 
+                  ? _formatTime(response.dataIngresso!)
+                  : 'Ora',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.accentCyan,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      
+      // Aggiorna i dati dopo la validazione
+      _refresh();
+    }
+  } catch (e) {
+    // L'errore viene già gestito nella QrScannerPage
+    throw Exception(e.toString());
+  }
+}
+
+String _formatStato(StatoPrenotazione stato) {
+  switch (stato) {
+    case StatoPrenotazione.ATTIVA:
+      return 'Attiva';
+    case StatoPrenotazione.IN_CORSO:
+      return 'In Corso';
+    case StatoPrenotazione.PAGATO:
+      return 'Pagato';
+    case StatoPrenotazione.CONCLUSA:
+      return 'Conclusa';
+    case StatoPrenotazione.SCADUTA:
+      return 'Scaduta';
+  }
+}
+
+Widget _infoRow(String label, String value) {
+  return Row(
+    children: [
+      Text(
+        '$label: ',
+        style: const TextStyle(
+          color: AppColors.textMuted,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      Text(
+        value,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ],
+  );
+}
+
+
+
+
+
+
+
 }
