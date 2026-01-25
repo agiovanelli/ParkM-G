@@ -5,7 +5,6 @@ import '../models/utente.dart';
 import '../utils/theme.dart';
 import '../widgets/prenotazione_dialog.dart';
 
-
 class HistoryScreen extends StatefulWidget {
   final Utente utente;
   final ApiClient apiClient;
@@ -22,7 +21,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _storicoFuture = widget.apiClient.getStoricoPrenotazioni(widget.utente.id);
+    _storicoFuture = _caricaEOrdinaStorico();
+  }
+
+  Future<List<PrenotazioneResponse>> _caricaEOrdinaStorico() async {
+    final storico = await widget.apiClient.getStoricoPrenotazioni(widget.utente.id);
+    
+    // Ordina dalla più recente alla più vecchia (più vicina a oggi in alto)
+    storico.sort((a, b) {
+      if (a.dataCreazione == null && b.dataCreazione == null) return 0;
+      if (a.dataCreazione == null) return 1;
+      if (b.dataCreazione == null) return -1;
+      return b.dataCreazione!.compareTo(a.dataCreazione!); // Decrescente: più recente prima
+    });
+    
+    return storico;
   }
 
   @override
@@ -48,6 +61,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           }
 
           final storico = snapshot.data!;
+          
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: storico.length,
@@ -60,10 +74,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   leading: const Icon(Icons.directions_car, color: AppColors.accentCyan),
-                  title: Text("Parcheggio: ${p.parcheggioId}", style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                  subtitle: Text("Data: ${p.orario.substring(8, 10)}/${p.orario.substring(5, 7)}/${p.orario.substring(0, 4)} ore ${p.orario.substring(11, 16)}",
-                  style: const TextStyle(color: AppColors.textMuted),
-    ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Parcheggio: ${p.parcheggioId}",
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)
+                        ),
+                      ),
+                      _coloreStato(p.stato),
+                    ],
+                  ),
+                  subtitle: Text("Data: ${formatDT(p.dataCreazione)}"),
                   trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
                   onTap: () {
                     PrenotazioneDialog.mostra(context, p);
@@ -73,6 +95,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  String formatDT(DateTime? dt) {
+    if (dt == null) return "Data non disponibile";
+    final dd = dt.day.toString().padLeft(2, '0');
+    final mm = dt.month.toString().padLeft(2, '0');
+    final yyyy = dt.year.toString();
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return "$dd/$mm/$yyyy ore $hh:$min";
+  }
+
+  Widget _coloreStato(StatoPrenotazione stato) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: stato.color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: stato.color),
+      ),
+      child: Text(
+        stato.label,
+        style: TextStyle(color: stato.color, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }

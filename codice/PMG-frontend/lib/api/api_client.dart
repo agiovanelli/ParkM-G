@@ -39,7 +39,7 @@ class ApiClient {
       body: body,
     );
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Utente.fromJson(json);
     } else if (resp.statusCode == 400 || resp.statusCode == 401) {
@@ -74,7 +74,7 @@ class ApiClient {
       body: body,
     );
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Utente.fromJson(json);
     } else if (resp.statusCode == 400 || resp.statusCode == 409) {
@@ -129,7 +129,7 @@ class ApiClient {
       body: body,
     );
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Operatore.fromJson(json);
     } else if (resp.statusCode == 400 ||
@@ -152,7 +152,7 @@ class ApiClient {
 
     final resp = await _client.get(uri);
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
       return jsonList
           .map((json) => Log.fromJson(json as Map<String, dynamic>))
@@ -163,20 +163,20 @@ class ApiClient {
         resp.statusCode,
       );
     }
-  }
+  }  
 
   //-------------------- PRENOTAZIONI --------------------
   /// Prenota un parcheggio: POST /api/parcheggi/prenota
   Future<PrenotazioneResponse> prenotaParcheggio(
     String utenteId,
     String parcheggioId,
-    String orario,
+    String dataCreazione,
   ) async {
     final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
     final body = jsonEncode({
       'utenteId': utenteId,
       'parcheggioId': parcheggioId,
-      'orario': orario,
+      'dataCreazione': dataCreazione,
     });
 
     final resp = await _client.post(
@@ -185,7 +185,7 @@ class ApiClient {
       body: body,
     );
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return PrenotazioneResponse.fromJson(json);
     } else if (resp.statusCode == 400) {
@@ -215,7 +215,7 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
     );
 
-    if (resp.statusCode == 200) {
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
       final List<dynamic> jsonList = jsonDecode(resp.body);
       // Trasformiamo ogni elemento della lista JSON in un oggetto PrenotazioneResponse
       return jsonList.map((json) => PrenotazioneResponse.fromJson(json)).toList();
@@ -229,4 +229,17 @@ class ApiClient {
       );
     }
   }
+
+// Valida codice QR: POST /api/prenotazioni/valida-ingresso/{codiceQr}
+  Future<PrenotazioneResponse> validaIngresso(String codiceQr) async {
+  final response = await http.post(
+    Uri.parse('$_baseUrl/prenotazioni/valida-ingresso/$codiceQr'),
+  );
+
+  if (response.statusCode == 200) {
+    return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+  } else {
+    throw Exception(response.body); // Messaggio di errore dal backend
+  }
+}
 }
