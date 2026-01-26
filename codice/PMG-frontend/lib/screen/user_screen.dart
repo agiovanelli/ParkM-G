@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:park_mg/utils/theme.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../api/api_client.dart';
 import '../models/utente.dart';
 import '../widgets/prenotazione_dialog.dart';
@@ -42,6 +42,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   String? _hoveredParkingId;
   Map<String, dynamic>? _selectedParkingData;
 
+  List<_DirectionsRoute> _routes = [];
+  int _selectedRouteIndex = 0;
+
+  final Set<Polyline> _polylines = {};
+  bool _isLoadingRoute = false;
+  String? _routeSummary;
+
+  bool _isLocating = false;
+  LatLng?
+  _pendingCenter;
+
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://localhost:8080/api',
@@ -57,10 +68,78 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY',
   );
 
+  void _checkPolylineChars(String poly) {
+    for (int i = 0; i < poly.length; i++) {
+      final c = poly.codeUnitAt(i);
+      if (c < 63 || c > 126) {
+        debugPrint('BAD CHAR in polyline at i=$i code=$c char="${poly[i]}"');
+        // opzionale: stampa un intorno
+        final start = (i - 10).clamp(0, poly.length);
+        final end = (i + 10).clamp(0, poly.length);
+        debugPrint('CONTEXT: "${poly.substring(start, end)}"');
+        return;
+      }
+    }
+    debugPrint('Polyline chars OK (all in 63..126)');
+  }
+
+  String _stripHtml(String input) {
+    // rimuove tag HTML e decodifica le entità più comuni
+    final noTags = input.replaceAll(RegExp(r'<[^>]*>'), ' ');
+    return noTags
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  void _showStepsSheet() {
+    if (_routes.isEmpty) return;
+    final steps = _routes[_selectedRouteIndex].steps;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: steps.length,
+        separatorBuilder: (_, __) =>
+            Divider(color: AppColors.borderField.withOpacity(0.6)),
+        itemBuilder: (_, i) {
+          final s = steps[i] as Map<String, dynamic>;
+          final html = (s['htmlInstructions'] ?? '') as String;
+          final dist = (s['distanceText'] ?? '') as String;
+          final dur = (s['durationText'] ?? '') as String;
+
+          return ListTile(
+            title: Text(
+              _stripHtml(html),
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+            subtitle: Text(
+              '$dist • $dur',
+              style: const TextStyle(color: AppColors.textMuted),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _initLocationPermission();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bootstrapMyLocation();
+    });
 
     _bitmapDescriptorFromIcon(Icons.local_parking, size: 64, iconSize: 34).then(
       (v) {
@@ -109,23 +188,76 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _initLocationPermission() async {
-    if (kIsWeb) {
-      // Su Web il permesso lo chiede il browser quando richiedi la posizione.
-      // Molti browser richiedono che sia attivato da un gesto utente (click).
-      setState(() => _locationGranted = false);
-      return;
-    }
+  Future<void> _bootstrapMyLocation() async {
+    if (_isLocating) return;
 
-    final status = await Permission.locationWhenInUse.request();
-    if (!mounted) return;
+    setState(() => _isLocating = true);
 
-    setState(() => _locationGranted = status.isGranted);
+    try {
+      // Nota: su Web spesso serve un gesto utente per far comparire il prompt.
+      // Qui ci proviamo comunque: se il browser lo blocca, mostriamo un toast.
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showToast('Servizi di localizzazione disattivati.');
+        return;
+      }
 
-    if (!status.isGranted) {
-      _showToast(
-        'Permesso posizione non concesso: il pallino blu non verrà mostrato.',
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        setState(() => _locationGranted = false);
+        _showToast('Permesso posizione negato.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
+
+      final me = LatLng(pos.latitude, pos.longitude);
+
+      setState(() {
+        _locationGranted = true;
+
+        // Cerchi: pulse + dot (attenzione all’ordine: dot deve essere l’ultimo)
+        _circles
+          ..clear()
+          ..addAll([
+            Circle(
+              circleId: const CircleId('pulse'),
+              center: me,
+              radius: 25,
+              fillColor: Colors.blue.withOpacity(0.25),
+              strokeColor: Colors.blue.withOpacity(0.1),
+              strokeWidth: 1,
+            ),
+            Circle(
+              circleId: const CircleId('dot'),
+              center: me,
+              radius: 6,
+              fillColor: const Color(0xFF4285F4),
+              strokeColor: Colors.white,
+              strokeWidth: 2,
+            ),
+          ]);
+      });
+
+      // centra la camera: se la mappa non è pronta, lo facciamo dopo in onMapCreated
+      if (_mapController != null) {
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
+        );
+      } else {
+        _pendingCenter = me;
+      }
+    } catch (_) {
+      _showToast('Impossibile ottenere la posizione.');
+    } finally {
+      if (mounted) setState(() => _isLocating = false);
     }
   }
 
@@ -168,53 +300,28 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
-  Future<void> _goToMyLocation() async {
-    try {
-      // Su Web/desktop: richiesta permesso + posizione via geolocator
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        _showToast('Permesso posizione negato.');
-        return;
-      }
+  void _applySelectedRoute() {
+    if (_routes.isEmpty) return;
+    final route = _routes[_selectedRouteIndex];
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+    setState(() {
+      _polylines
+        ..removeWhere((p) => p.polylineId.value == 'route')
+        ..add(
+          Polyline(
+            polylineId: const PolylineId('route'),
+            points: route.points,
+            width: 6,
+            color: AppColors.accentCyan,
+            geodesic: true,
+          ),
+        );
 
-      final me = LatLng(pos.latitude, pos.longitude);
+      _routeSummary = route.summary;
+    });
 
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
-      );
-
-      setState(() {
-        _circles
-          ..clear()
-          ..addAll([
-            Circle(
-              circleId: const CircleId('pulse'),
-              center: me,
-              radius: 25,
-              fillColor: Colors.blue.withOpacity(0.25),
-              strokeColor: Colors.blue.withOpacity(0.1),
-              strokeWidth: 1,
-            ),
-            Circle(
-              circleId: const CircleId('dot'),
-              center: me,
-              radius: 6,
-              fillColor: const Color(0xFF4285F4),
-              strokeColor: Colors.white,
-              strokeWidth: 2,
-            ),
-          ]);
-      });
-    } catch (e) {
-      _showToast('Impossibile ottenere la posizione.');
+    if (route.points.isNotEmpty) {
+      _fitCameraToPoints(route.points);
     }
   }
 
@@ -286,14 +393,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             ],
           ),
         ),
-          // STORICO
+        // STORICO
         PopupMenuItem<String>(
           value: 'history',
           child: Row(
             children: const [
               Icon(Icons.history, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text('Le mie prenotazioni', style: TextStyle(color: AppColors.textPrimary)),
+              Text(
+                'Le mie prenotazioni',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
             ],
           ),
         ),
@@ -321,10 +431,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
     if (selected == 'prefs') {
       _showPreferenzeDialog();
-      
-    }else if (selected == 'history') {
+    } else if (selected == 'history') {
       _vaiAlloStorico();
-    
     } else if (selected == 'logout') {
       _logout();
     }
@@ -539,7 +647,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                           GoogleMap(
                             onCameraMove: (pos) => _cameraTarget = pos.target,
                             initialCameraPosition: _initialCamera,
-                            onMapCreated: (c) => _mapController = c,
+                            onMapCreated: (c) async {
+                              _mapController = c;
+
+                              if (_pendingCenter != null) {
+                                final me = _pendingCenter!;
+                                _pendingCenter = null;
+                                await _mapController!.animateCamera(
+                                  CameraUpdate.newCameraPosition(
+                                    CameraPosition(target: me, zoom: 16),
+                                  ),
+                                );
+                              }
+                            },
                             markers: _markers,
                             circles: _circles,
                             myLocationEnabled: !kIsWeb && _locationGranted,
@@ -547,7 +667,80 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                 !kIsWeb && _locationGranted,
                             zoomControlsEnabled: false,
                             mapToolbarEnabled: false,
+                            polylines: _polylines,
                           ),
+                          if (_routeSummary != null)
+                            Positioned(
+                              top: 14,
+                              left: 16,
+                              right: 16,
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: _showStepsSheet, // <-- aggiunto
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.70),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: AppColors.accentCyan.withOpacity(
+                                          0.9,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.directions_car,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _routeSummary!,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Icon(
+                                          Icons.list_alt,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          if (_routes.length > 1)
+                            Positioned(
+                              top: 60,
+                              left: 16,
+                              right: 16,
+                              child: Wrap(
+                                spacing: 8,
+                                children: List.generate(_routes.length, (i) {
+                                  final selected = i == _selectedRouteIndex;
+                                  return ChoiceChip(
+                                    label: Text('Route ${i + 1}'),
+                                    selected: selected,
+                                    onSelected: (_) {
+                                      setState(() => _selectedRouteIndex = i);
+                                      _applySelectedRoute();
+                                    },
+                                  );
+                                }),
+                              ),
+                            ),
+
                           if (_isLoadingParkings)
                             Container(
                               color: Colors.black54,
@@ -557,6 +750,25 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                 ),
                               ),
                             ),
+                          if (_isLoadingRoute)
+                            Container(
+                              color: Colors.black54,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.accentCyan,
+                                ),
+                              ),
+                            ),
+                          if (_isLocating)
+                            Container(
+                              color: Colors.black54,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.accentCyan,
+                                ),
+                              ),
+                            ),
+
                           Align(
                             alignment: Alignment.topRight,
                             child: Padding(
@@ -567,22 +779,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  GMapsControlButton(
-                                    icon: Icons.my_location,
-                                    onPressed: _goToMyLocation,
-                                    tooltip: 'La mia posizione',
-                                  ),
                                   const SizedBox(height: 10),
                                   GMapsControlButton(
                                     icon: Icons.local_parking,
                                     onPressed: _toggleParkings,
                                     tooltip: 'Parcheggi vicino',
+                                    selected: _showParkings,
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          // Mostra info "hover" o popup
                           if (_hoveredParkingId != null ||
                               _selectedParkingData != null)
                             Positioned(
@@ -680,11 +887,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              // Chiude il popup informativo e avvia la prenotazione
               final pId = p['id'].toString();
+              final destLat = (p['latitudine'] as num).toDouble();
+              final destLng = (p['longitudine'] as num).toDouble();
+
               setState(() => _selectedParkingData = null);
-              _effettuaPrenotazione(pId);
+
+              _effettuaPrenotazione(pId, destLat: destLat, destLng: destLng);
             },
+
             icon: const Icon(Icons.qr_code),
             label: const Text('Prenota parcheggio'),
             style: ElevatedButton.styleFrom(
@@ -770,56 +981,193 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _effettuaPrenotazione(String parcheggioId) async {
-    // 1. Mostra caricamento (usando lo stile del tuo progetto)
+  Future<void> _showRouteToParking({
+    required double destLat,
+    required double destLng,
+  }) async {
+    setState(() {
+      _isLoadingRoute = true;
+      _routeSummary = null;
+    });
+
+    try {
+      // Permessi + posizione attuale
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        _showToast(
+          'Permesso posizione negato: impossibile calcolare il percorso.',
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final origin = LatLng(pos.latitude, pos.longitude);
+      final destination = LatLng(destLat, destLng);
+
+      final routes = await _fetchDirectionsRoutes(
+        origin: origin,
+        destination: destination,
+      );
+
+      setState(() {
+        _routes = routes;
+        _selectedRouteIndex = 0;
+      });
+
+      _applySelectedRoute();
+    } catch (e, st) {
+      debugPrint('Errore calcolo percorso: $e');
+      debugPrintStack(stackTrace: st);
+      _showToast('Errore calcolo percorso.');
+    } finally {
+      if (mounted) setState(() => _isLoadingRoute = false);
+    }
+  }
+
+  Future<List<_DirectionsRoute>> _fetchDirectionsRoutes({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final data = await widget.apiClient.getDirections(
+      oLat: origin.latitude,
+      oLng: origin.longitude,
+      dLat: destination.latitude,
+      dLng: destination.longitude,
+    );
+
+    final routesJson = (data['routes'] as List).cast<Map<String, dynamic>>();
+    if (routesJson.isEmpty)
+      throw Exception('Nessun percorso dalla Directions API');
+
+    return routesJson.map((r) {
+      final poly = (r['polyline'] ?? '') as String;
+      if (poly.isEmpty) throw Exception('Polyline vuota dal backend');
+
+      _checkPolylineChars(poly);
+
+      final decoded = PolylinePoints.decodePolyline(poly);
+      final points = decoded
+          .map((p) => LatLng(p.latitude, p.longitude))
+          .toList();
+
+      final dist = (r['distanceText'] ?? '') as String;
+      final durTraffic = (r['durationInTrafficText'] ?? '') as String;
+      final dur = (r['durationText'] ?? '') as String;
+
+      // Preferisci traffico se presente
+      final summary = (durTraffic.isNotEmpty ? durTraffic : dur);
+      final summaryFull = (summary.isNotEmpty && dist.isNotEmpty)
+          ? '$summary • $dist'
+          : ((r['summary'] ?? 'Percorso pronto') as String);
+
+      final steps = (r['steps'] ?? []) as List<dynamic>;
+
+      return _DirectionsRoute(
+        points: points,
+        summary: summaryFull,
+        steps: steps,
+      );
+    }).toList();
+  }
+
+  void _fitCameraToPoints(List<LatLng> pts) {
+    if (_mapController == null || pts.isEmpty) return;
+
+    double minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    double minLng = pts.first.longitude, maxLng = pts.first.longitude;
+
+    for (final p in pts) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        ),
+        70,
+      ),
+    );
+  }
+
+  Future<void> _effettuaPrenotazione(
+    String parcheggioId, {
+    required double destLat,
+    required double destLng,
+  }) async {
+    // 0) prendi posizione subito
+    LatLng? origin;
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied)
+        perm = await Geolocator.requestPermission();
+      if (perm != LocationPermission.denied &&
+          perm != LocationPermission.deniedForever) {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        origin = LatLng(pos.latitude, pos.longitude);
+      }
+    } catch (_) {}
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (_) => const Center(
         child: CircularProgressIndicator(color: AppColors.accentCyan),
       ),
     );
 
     try {
-      // 2. Chiamata API con dati REALI dal widget e dall'orario corrente
       final risposta = await widget.apiClient.prenotaParcheggio(
-        widget.utente.id, // ID reale dell'utente loggato
+        widget.utente.id,
         parcheggioId,
         DateTime.now().toIso8601String(),
       );
 
-      // 3. Chiudi il caricamento
-      if (!mounted) return;
-      Navigator.of(context).pop();
+      // 1) disegna route se ho origin
+      if (origin != null) {
+        await _showRouteToParking(destLat: destLat, destLng: destLng);
+        // oppure crea una versione che usa "origin" senza richiamare geolocator
+      }
 
-      // 4. Mostra il dialogo di successo con il QR Code
+      if (!mounted) return;
+      Navigator.of(context).pop(); // chiude loader
+
       PrenotazioneDialog.mostra(context, risposta);
     } on ApiException catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      _showToast(e.message); // Usa il tuo metodo _showToast esistente
-    } catch (e) {
+      _showToast(e.message);
+    } catch (_) {
       if (!mounted) return;
       Navigator.of(context).pop();
       _showToast("Errore di connessione o del server");
     }
-    // 5. AGGIORNAMENTO POSTI: ricarica i parcheggi sulla mappa
+
     _loadParkingsNearby(_cameraTarget);
   }
 
   void _vaiAlloStorico() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => HistoryScreen(
-        utente: widget.utente,
-        apiClient: widget.apiClient,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
       ),
-    ),
-  );
-}
-
-      
+    );
+  }
 }
 
 class PreferenzeDialog extends StatefulWidget {
@@ -1123,22 +1471,31 @@ class GMapsControlButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final IconData icon;
   final String? tooltip;
+  final bool selected;
 
   const GMapsControlButton({
     super.key,
     required this.icon,
     required this.onPressed,
     this.tooltip,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Color iconColor = onPressed == null
+        ? const Color(0xFFB0B0B0)
+        : (selected ? const Color(0xFF4285F4) : const Color(0xFF666666));
+
     final child = Material(
       color: Colors.white,
       elevation: 2.5,
       shadowColor: Colors.black.withOpacity(0.22),
-      shape: const CircleBorder(
-        side: BorderSide(color: Color(0x1F000000), width: 1),
+      shape: CircleBorder(
+        side: BorderSide(
+          color: selected ? const Color(0x334285F4) : const Color(0x1F000000),
+          width: 1,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1146,19 +1503,23 @@ class GMapsControlButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(
-            icon,
-            size: 22,
-            color: onPressed == null
-                ? const Color(0xFFB0B0B0)
-                : const Color(0xFF666666),
-          ),
+          child: Icon(icon, size: 22, color: iconColor),
         ),
       ),
     );
 
     if (tooltip == null) return child;
-
     return Tooltip(message: tooltip!, child: child);
   }
+}
+
+class _DirectionsRoute {
+  final List<LatLng> points;
+  final String summary;
+  final List<dynamic> steps;
+  _DirectionsRoute({
+    required this.points,
+    required this.summary,
+    required this.steps,
+  });
 }

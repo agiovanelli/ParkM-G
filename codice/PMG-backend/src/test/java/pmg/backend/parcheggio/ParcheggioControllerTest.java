@@ -46,7 +46,7 @@ class ParcheggioControllerTest {
     void prenotaTest() throws Exception {
         LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
-        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", dataCreazione, "QR123");
+        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", dataCreazione, "QR123", null, dataCreazione, dataCreazione);
 
         when(parcheggioService.effettuaPrenotazione(any(PrenotazioneRequest.class))).thenReturn(resp);
 

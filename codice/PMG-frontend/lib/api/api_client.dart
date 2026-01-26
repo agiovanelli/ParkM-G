@@ -163,7 +163,7 @@ class ApiClient {
         resp.statusCode,
       );
     }
-  }  
+  }
 
   //-------------------- PRENOTAZIONI --------------------
   /// Prenota un parcheggio: POST /api/parcheggi/prenota
@@ -204,10 +204,12 @@ class ApiClient {
     }
   }
 
-//API recupero storico prenotazioni per utente
-// GET /api/prenotazioni/utente/{utenteId}
+  //API recupero storico prenotazioni per utente
+  // GET /api/prenotazioni/utente/{utenteId}
 
-  Future<List<PrenotazioneResponse>> getStoricoPrenotazioni(String utenteId) async {
+  Future<List<PrenotazioneResponse>> getStoricoPrenotazioni(
+    String utenteId,
+  ) async {
     final uri = Uri.parse('$_baseUrl/prenotazioni/utente/$utenteId');
 
     final resp = await _client.get(
@@ -218,7 +220,9 @@ class ApiClient {
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       final List<dynamic> jsonList = jsonDecode(resp.body);
       // Trasformiamo ogni elemento della lista JSON in un oggetto PrenotazioneResponse
-      return jsonList.map((json) => PrenotazioneResponse.fromJson(json)).toList();
+      return jsonList
+          .map((json) => PrenotazioneResponse.fromJson(json))
+          .toList();
     } else if (resp.statusCode == 204) {
       // Se il backend restituisce 204 No Content, restituiamo una lista vuota
       return [];
@@ -230,16 +234,39 @@ class ApiClient {
     }
   }
 
-// Valida codice QR: POST /api/prenotazioni/valida-ingresso/{codiceQr}
+  // Valida codice QR: POST /api/prenotazioni/valida-ingresso/{codiceQr}
   Future<PrenotazioneResponse> validaIngresso(String codiceQr) async {
-  final response = await http.post(
-    Uri.parse('$_baseUrl/prenotazioni/valida-ingresso/$codiceQr'),
-  );
+    final response = await http.post(
+      Uri.parse('$_baseUrl/prenotazioni/valida-ingresso/$codiceQr'),
+    );
 
-  if (response.statusCode == 200) {
-    return PrenotazioneResponse.fromJson(jsonDecode(response.body));
-  } else {
-    throw Exception(response.body); // Messaggio di errore dal backend
+    if (response.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception(response.body); // Messaggio di errore dal backend
+    }
   }
-}
+
+  // RECUPERO DIREZIONI E PERCORSO
+  Future<Map<String, dynamic>> getDirections({
+    required double oLat,
+    required double oLng,
+    required double dLat,
+    required double dLng,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/maps/directions'
+      '?oLat=$oLat&oLng=$oLng&dLat=$dLat&dLng=$dLng',
+    );
+
+    final resp = await _client.get(uri);
+
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body) as Map<String, dynamic>;
+    }
+    throw ApiException(
+      'Errore directions: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
+  }
 }
