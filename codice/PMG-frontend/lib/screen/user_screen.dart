@@ -37,9 +37,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   LatLng _cameraTarget = _initialCamera.target;
   bool _showParkings = false;
   bool _isLoadingParkings = false;
-  BitmapDescriptor? _parkingIcon;
 
-  String? _hoveredParkingId;
   Map<String, dynamic>? _selectedParkingData;
 
   List<_DirectionsRoute> _routes = [];
@@ -50,8 +48,18 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   String? _routeSummary;
 
   bool _isLocating = false;
-  LatLng?
-  _pendingCenter;
+  LatLng? _pendingCenter;
+
+  static const Color _baseBlue = Color(0xFF4285F4);
+
+  late final Color _selectedGreen = () {
+    final hsl = HSLColor.fromColor(_baseBlue);
+    return hsl.withHue(120).toColor();
+  }();
+
+  BitmapDescriptor? _parkingIcon;
+  BitmapDescriptor? _parkingIconSelected;
+  String? _selectedParkingMarkerId;
 
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -137,15 +145,27 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
+    _bitmapDescriptorFromIcon(
+      Icons.local_parking,
+      size: 64,
+      iconSize: 34,
+      backgroundColor: _baseBlue,
+    ).then((v) {
+      if (mounted) setState(() => _parkingIcon = v);
+    });
+
+    _bitmapDescriptorFromIcon(
+      Icons.local_parking,
+      size: 64,
+      iconSize: 34,
+      backgroundColor: _selectedGreen,
+    ).then((v) {
+      if (mounted) setState(() => _parkingIconSelected = v);
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bootstrapMyLocation();
     });
-
-    _bitmapDescriptorFromIcon(Icons.local_parking, size: 64, iconSize: 34).then(
-      (v) {
-        if (mounted) setState(() => _parkingIcon = v);
-      },
-    );
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -265,15 +285,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     IconData icon, {
     double size = 96,
     double iconSize = 56,
+    Color backgroundColor = const Color(0xFF4285F4),
+    Color iconColor = Colors.white,
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // sfondo (stile “pallino”)
-    final paint = Paint()..color = const Color(0xFF4285F4);
+    final paint = Paint()..color = backgroundColor;
     canvas.drawCircle(Offset(size / 2, size / 2), size / 2, paint);
 
-    // disegna il glifo Material (la P del parking)
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -282,7 +302,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           fontSize: iconSize,
           fontFamily: icon.fontFamily,
           package: icon.fontPackage,
-          color: Colors.white,
+          color: iconColor,
         ),
       ),
     );
@@ -790,18 +810,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                               ),
                             ),
                           ),
-                          if (_hoveredParkingId != null ||
-                              _selectedParkingData != null)
+                          if (_selectedParkingData != null)
                             Positioned(
-                              bottom: _selectedParkingData != null ? 40 : 80,
+                              bottom: 40,
                               left: 20,
                               right: 20,
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: _selectedParkingData != null
-                                    ? _buildParkingPopup(_selectedParkingData!)
-                                    : _buildHoverCard(),
-                              ),
+                              child: _buildParkingPopup(_selectedParkingData!),
                             ),
                         ],
                       ),
@@ -812,28 +826,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHoverCard() {
-    return Container(
-      key: const ValueKey('hover'),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.65),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.info_outline, color: Colors.white, size: 20),
-          SizedBox(width: 8),
-          Text(
-            'Sposta il cursore sopra un parcheggio per maggiori dettagli',
-            style: TextStyle(color: Colors.white),
-          ),
-        ],
       ),
     );
   }
@@ -871,7 +863,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               ),
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.textPrimary),
-                onPressed: () => setState(() => _selectedParkingData = null),
+                onPressed: () => setState(() {
+                  _selectedParkingData = null;
+                  _selectedParkingMarkerId = null;
+                }),
               ),
             ],
           ),
@@ -947,24 +942,31 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       for (final p in data) {
         final markerId = 'p_${p['id']}';
+        final isSelected = _selectedParkingMarkerId == markerId;
+
         newMarkers.add(
           Marker(
             markerId: MarkerId(markerId),
-            position: LatLng(p['latitudine'], p['longitudine']),
-            icon:
-                _parkingIcon ??
-                BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueAzure,
-                ),
-            infoWindow: InfoWindow(
-              title: p['nome'],
-              snippet:
-                  '${p['postiDisponibili']}/${p['postiTotali']} posti disponibili',
+            position: LatLng(
+              (p['latitudine'] as num).toDouble(),
+              (p['longitudine'] as num).toDouble(),
             ),
+            icon: isSelected
+                ? (_parkingIconSelected ??
+                      _parkingIcon ??
+                      BitmapDescriptor.defaultMarker)
+                : (_parkingIcon ?? BitmapDescriptor.defaultMarker),
+
+            // se vuoi eliminare del tutto la “finestrina” bianca nativa
+            infoWindow: const InfoWindow(title: ''),
+
             onTap: () {
               setState(() {
+                _selectedParkingMarkerId = markerId;
                 _selectedParkingData = p;
               });
+
+              _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
             },
           ),
         );
