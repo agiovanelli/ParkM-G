@@ -35,53 +35,37 @@ class UserScreen extends StatefulWidget {
 class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
-
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   final Set<Circle> _circles = {};
   final Set<Polyline> _polylines = {};
-
   bool _locationGranted = false;
-
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-
   LatLng _cameraTarget = _initialCamera.target;
-
   bool _showParkings = false;
   bool _isLoadingParkings = false;
-
   Map<String, dynamic>? _selectedParkingData;
   String? _selectedParkingMarkerId;
-
   List<DirectionsRoute> _routes = [];
   int _selectedRouteIndex = 0;
-
   bool _isLoadingRoute = false;
-
   bool _isLocating = false;
   LatLng? _pendingCenter;
-
   bool _showRoutePanel = false;
-
   bool _lockMapGestures = false;
-
   StreamSubscription<Position>? _posSub;
-
   bool _navActive = false;
   int _navStepIndex = 0;
-
   List<LatLng>? _navRoutePts;
   int? _navRouteIndexCached;
-
   String? _bookedParkingMarkerId;
-
   static const double _stepArriveThresholdM = 25;
-
   bool _isStartingNav = false;
   bool _gotFirstNavFix = false;
-
   bool _navPending = false;
+  bool _bookedMarkerLocked = false;
+  BitmapDescriptor? _parkingIconFull;
 
   void _setMapGesturesLocked(bool v) {
     if (_lockMapGestures == v) return;
@@ -102,17 +86,21 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           _parkingIcon ??
           BitmapDescriptor.defaultMarker,
       infoWindow: const InfoWindow(title: ''),
-      onTap: () {
-        setState(() {
-          _selectedParkingMarkerId = markerId;
-          _selectedParkingData = p;
-        });
-      },
+
+      onTap: _bookedMarkerLocked
+          ? null
+          : () {
+              setState(() {
+                _selectedParkingMarkerId = markerId;
+                _selectedParkingData = p;
+              });
+            },
+
+      consumeTapEvents: true,
     );
 
     setState(() {
       _bookedParkingMarkerId = markerId;
-
       _showParkings = false;
 
       _selectedParkingData = null;
@@ -157,6 +145,55 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       }
     }
     debugPrint('Polyline chars OK (all in 63..126)');
+  }
+
+  static const String _mapStyleNoPoi = '''
+    [
+      { "featureType": "poi", "stylers": [ { "visibility": "off" } ] },
+      { "featureType": "transit", "stylers": [ { "visibility": "off" } ] }
+    ]
+  ''';
+
+  String _formatDistanceKm(String distanceText) {
+    final t = distanceText.trim().toLowerCase().replaceAll(',', '.');
+
+    final m = RegExp(r'([\d.]+)\s*(km|m)\b').firstMatch(t);
+    if (m == null) return distanceText;
+
+    final value = double.tryParse(m.group(1)!) ?? 0.0;
+    final unit = m.group(2)!;
+
+    final km = (unit == 'm') ? (value / 1000.0) : value;
+
+    if (km >= 10) return '${km.toStringAsFixed(0)} km';
+    return '${km.toStringAsFixed(1)} km';
+  }
+
+  String _formatDurationHm(String durationText) {
+    final t = durationText.trim().toLowerCase();
+
+    int hours = 0;
+    int mins = 0;
+
+    final hMatch = RegExp(r'(\d+)\s*(h|hour|hours|ora|ore)\b').firstMatch(t);
+    if (hMatch != null) hours = int.tryParse(hMatch.group(1)!) ?? 0;
+
+    final mMatch = RegExp(
+      r'(\d+)\s*(m|min|mins|minute|minutes|minuto|minuti)\b',
+    ).firstMatch(t);
+    if (mMatch != null) mins = int.tryParse(mMatch.group(1)!) ?? 0;
+
+    if (hours == 0 && mins == 0) return durationText;
+
+    if (hours == 0) return '$mins min';
+    if (mins == 0) return '${hours} h';
+    return '${hours} h ${mins} min';
+  }
+
+  String _routeMeta(DirectionsRoute r) {
+    final dist = _formatDistanceKm(r.distanceText);
+    final dur = _formatDurationHm(r.durationText);
+    return '$dist • $dur';
   }
 
   String _stripHtml(String input) {
@@ -212,6 +249,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       backgroundColor: _selectedGreen,
     ).then((v) {
       if (mounted) setState(() => _parkingIconSelected = v);
+    });
+
+    _bitmapDescriptorFromIcon(
+      Icons.local_parking,
+      size: 64,
+      iconSize: 34,
+      backgroundColor: Colors.redAccent,
+    ).then((v) {
+      if (mounted) setState(() => _parkingIconFull = v);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapMyLocation());
@@ -634,12 +680,22 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       );
       return;
     }
-    setState(() => _showParkings = !_showParkings);
 
-    if (!_showParkings) {
-      setState(
-        () => _markers.removeWhere((m) => m.markerId.value.startsWith('p_')),
-      );
+    final bool turningOff = _showParkings;
+
+    setState(() {
+      _showParkings = !_showParkings;
+
+      if (turningOff) {
+        _selectedParkingData = null;
+        _selectedParkingMarkerId = null;
+      }
+    });
+
+    if (turningOff) {
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      });
       return;
     }
 
@@ -670,6 +726,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         final markerId = 'p_${p['id']}';
         final isSelected = _selectedParkingMarkerId == markerId;
 
+        final int postiDisp =
+            (p['postiDisponibili'] as num?)?.toInt() ??
+            (p['posti_disponibili'] as num?)?.toInt() ??
+            0;
+
+        final bool isFull = postiDisp <= 0;
+
         newMarkers.add(
           Marker(
             markerId: MarkerId(markerId),
@@ -677,18 +740,21 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               (p['latitudine'] as num).toDouble(),
               (p['longitudine'] as num).toDouble(),
             ),
-            icon: isSelected
-                ? (_parkingIconSelected ??
-                      _parkingIcon ??
-                      BitmapDescriptor.defaultMarker)
-                : (_parkingIcon ?? BitmapDescriptor.defaultMarker),
+            icon: isFull
+                ? (_parkingIconFull ?? BitmapDescriptor.defaultMarker)
+                : (isSelected
+                      ? (_parkingIconSelected ??
+                            _parkingIcon ??
+                            BitmapDescriptor.defaultMarker)
+                      : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
+
             infoWindow: const InfoWindow(title: ''),
-            onTap: () {
+            onTap: () async {
               setState(() {
                 _selectedParkingMarkerId = markerId;
                 _selectedParkingData = p;
               });
-              _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+              await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
             },
           ),
         );
@@ -757,6 +823,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           destLat: destLat,
           destLng: destLng,
         );
+
+        if (!mounted) return;
+        setState(() => _bookedMarkerLocked = true);
+        _showOnlyBookedParking(parkingData);
       } else {
         _showToast(
           'Posizione non disponibile: impossibile calcolare il percorso.',
@@ -916,6 +986,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
     final int stepsTotal = _routes.isEmpty ? 0 : _routes[safeIdx].steps.length;
     (_navStepIndex + 1).clamp(1, stepsTotal == 0 ? 1 : stepsTotal);
+    final selected = _selectedParkingData;
+    final int postiDispSelected =
+        (selected?['postiDisponibili'] as num?)?.toInt() ??
+        (selected?['posti_disponibili'] as num?)?.toInt() ??
+        0;
+
+    final bool isFullSelected = postiDispSelected <= 0;
 
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
@@ -1062,6 +1139,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             initialCameraPosition: _initialCamera,
                             onMapCreated: (c) async {
                               _mapController = c;
+                              await _mapController!.setMapStyle(_mapStyleNoPoi);
 
                               if (_pendingCenter != null) {
                                 final me = _pendingCenter!;
@@ -1085,6 +1163,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             zoomGesturesEnabled: !_lockMapGestures,
                             rotateGesturesEnabled: !_lockMapGestures,
                             tiltGesturesEnabled: !_lockMapGestures,
+                            onTap: (_) async {
+                              setState(() {
+                                _selectedParkingData = null;
+                                _selectedParkingMarkerId = null;
+                              });
+                              if (_showParkings &&
+                                  _bookedParkingMarkerId == null) {
+                                await _loadParkingsNearby(
+                                  _cameraTarget,
+                                  radiusMeters: 1200,
+                                );
+                              }
+                            },
                           ),
 
                           if (_isLoadingParkings ||
@@ -1131,7 +1222,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             ),
                           ),
 
-                          if (_showRoutePanel && _routes.isNotEmpty && !_isStartingNav)
+                          if (_showRoutePanel &&
+                              _routes.isNotEmpty &&
+                              !_isStartingNav)
                             _navActive
                                 ? Align(
                                     alignment: Alignment.bottomCenter,
@@ -1178,7 +1271,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                                 routes: _routes
                                                     .map(
                                                       (r) => RoutePanelRoute(
-                                                        summary: r.summary,
+                                                        summary: _routeMeta(r),
                                                         steps: r.steps,
                                                       ),
                                                     )
@@ -1249,7 +1342,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                               routes: _routes
                                                   .map(
                                                     (r) => RoutePanelRoute(
-                                                      summary: r.summary,
+                                                      summary: _routeMeta(r),
                                                       steps: r.steps,
                                                     ),
                                                   )
@@ -1286,10 +1379,21 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                               right: 20,
                               child: ParkingPopup(
                                 parking: _selectedParkingData!,
-                                onClose: () => setState(() {
-                                  _selectedParkingData = null;
-                                  _selectedParkingMarkerId = null;
-                                }),
+                                canBook: !isFullSelected,
+                                onClose: () async {
+                                  setState(() {
+                                    _selectedParkingData = null;
+                                    _selectedParkingMarkerId = null;
+                                  });
+
+                                  if (_showParkings &&
+                                      _bookedParkingMarkerId == null) {
+                                    await _loadParkingsNearby(
+                                      _cameraTarget,
+                                      radiusMeters: 1200,
+                                    );
+                                  }
+                                },
                                 onBook: () {
                                   final p = _selectedParkingData!;
                                   final pId = p['id'].toString();

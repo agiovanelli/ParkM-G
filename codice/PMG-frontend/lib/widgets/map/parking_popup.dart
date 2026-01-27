@@ -4,13 +4,15 @@ import 'package:park_mg/utils/theme.dart';
 class ParkingPopup extends StatelessWidget {
   final Map<String, dynamic> parking;
   final VoidCallback onClose;
-  final VoidCallback onBook;
+  final VoidCallback? onBook;
+  final bool canBook;
 
   const ParkingPopup({
     super.key,
     required this.parking,
     required this.onClose,
     required this.onBook,
+    required this.canBook,
   });
 
   @override
@@ -62,11 +64,15 @@ class ParkingPopup extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ElevatedButton.icon(
-            onPressed: onBook,
+            onPressed: canBook ? onBook : null,
             icon: const Icon(Icons.qr_code),
-            label: const Text('Prenota parcheggio'),
+            label: Text(
+              canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile',
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accentCyan,
+              backgroundColor: canBook
+                  ? AppColors.accentCyan
+                  : Colors.redAccent,
               foregroundColor: AppColors.textPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
