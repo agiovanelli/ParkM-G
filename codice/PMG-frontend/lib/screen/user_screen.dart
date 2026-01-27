@@ -1,14 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:park_mg/models/directions.dart';
+import 'package:park_mg/widgets/map/nav_math.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:park_mg/utils/theme.dart';
 
@@ -53,26 +54,73 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   Map<String, dynamic>? _selectedParkingData;
   String? _selectedParkingMarkerId;
 
-  List<_DirectionsRoute> _routes = [];
+  List<DirectionsRoute> _routes = [];
   int _selectedRouteIndex = 0;
 
   bool _isLoadingRoute = false;
-  String? _routeSummary;
 
   bool _isLocating = false;
   LatLng? _pendingCenter;
 
-  LatLng? _activeDestination;
-  LatLng? _activeOriginAtBooking;
-
-  bool _routeSheetOpen = false;
   bool _showRoutePanel = false;
 
   bool _lockMapGestures = false;
 
+  StreamSubscription<Position>? _posSub;
+
+  bool _navActive = false;
+  int _navStepIndex = 0;
+
+  List<LatLng>? _navRoutePts;
+  int? _navRouteIndexCached;
+
+  String? _bookedParkingMarkerId;
+
+  static const double _stepArriveThresholdM = 25;
+
+  bool _isStartingNav = false;
+  bool _gotFirstNavFix = false;
+
+  bool _navPending = false;
+
   void _setMapGesturesLocked(bool v) {
     if (_lockMapGestures == v) return;
     setState(() => _lockMapGestures = v);
+  }
+
+  void _showOnlyBookedParking(Map<String, dynamic> p) {
+    final markerId = 'p_${p['id']}';
+
+    final lat = (p['latitudine'] as num).toDouble();
+    final lng = (p['longitudine'] as num).toDouble();
+
+    final bookedMarker = Marker(
+      markerId: MarkerId(markerId),
+      position: LatLng(lat, lng),
+      icon:
+          _parkingIconSelected ??
+          _parkingIcon ??
+          BitmapDescriptor.defaultMarker,
+      infoWindow: const InfoWindow(title: ''),
+      onTap: () {
+        setState(() {
+          _selectedParkingMarkerId = markerId;
+          _selectedParkingData = p;
+        });
+      },
+    );
+
+    setState(() {
+      _bookedParkingMarkerId = markerId;
+
+      _showParkings = false;
+
+      _selectedParkingData = null;
+      _selectedParkingMarkerId = markerId;
+
+      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      _markers.add(bookedMarker);
+    });
   }
 
   static const Color _baseBlue = Color(0xFF4285F4);
@@ -131,8 +179,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          content: Text(
+            msg,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
         ),
       );
   }
@@ -164,7 +217,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapMyLocation());
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showPreferenzeDialog());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _showPreferenzeDialog(),
+      );
     }
 
     _pulseController = AnimationController(
@@ -172,30 +227,32 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 15, end: 35).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    )..addListener(() {
-        if (_circles.isNotEmpty && mounted) {
-          final old = _circles.last.center;
-          setState(() {
-            _circles.removeWhere((c) => c.circleId.value == 'pulse');
-            _circles.add(
-              Circle(
-                circleId: const CircleId('pulse'),
-                center: old,
-                radius: _pulseAnimation.value,
-                fillColor: Colors.blue.withOpacity(0.25),
-                strokeColor: Colors.blue.withOpacity(0.1),
-                strokeWidth: 1,
-              ),
-            );
-          });
-        }
-      });
+    _pulseAnimation =
+        Tween<double>(begin: 15, end: 35).animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+        )..addListener(() {
+          if (_circles.isNotEmpty && mounted) {
+            final old = _circles.last.center;
+            setState(() {
+              _circles.removeWhere((c) => c.circleId.value == 'pulse');
+              _circles.add(
+                Circle(
+                  circleId: const CircleId('pulse'),
+                  center: old,
+                  radius: _pulseAnimation.value,
+                  fillColor: Colors.blue.withOpacity(0.25),
+                  strokeColor: Colors.blue.withOpacity(0.1),
+                  strokeWidth: 1,
+                ),
+              );
+            });
+          }
+        });
   }
 
   @override
   void dispose() {
+    _posSub?.cancel();
     _searchController.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -215,15 +272,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       }
 
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied)
+        perm = await Geolocator.requestPermission();
 
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         setState(() => _locationGranted = false);
         _showToast('Permesso posizione negato.');
         return;
       }
 
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       final me = LatLng(pos.latitude, pos.longitude);
 
       setState(() {
@@ -264,6 +325,134 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _startInAppNavigation() async {
+    if (_routes.isEmpty) return;
+    if (_isStartingNav || _navPending) return; // evita doppi tap
+
+    setState(() {
+      _navPending = true;
+      _isStartingNav = true;
+      _gotFirstNavFix = false;
+
+      _navActive = false; // ✅ IMPORTANTISSIMO: non attivare ancora
+      _navStepIndex = 0;
+      _lockMapGestures = true;
+    });
+
+    _posSub?.cancel();
+
+    const settings = LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 3,
+    );
+
+    _posSub = Geolocator.getPositionStream(locationSettings: settings).listen(
+      (pos) {
+        if (!mounted) return;
+
+        if (_navPending && !_gotFirstNavFix) {
+          _gotFirstNavFix = true;
+          setState(() {
+            _navPending = false;
+            _isStartingNav = false;
+            _navActive = true;
+          });
+        }
+
+        if (!_navActive) return;
+
+        final me = LatLng(pos.latitude, pos.longitude);
+
+        final routePts = _getNavRoutePts();
+        nearestPointOnPolyline(routePts, me);
+
+        final route = _routes[_selectedRouteIndex];
+        final step =
+            (route.steps.isNotEmpty && _navStepIndex < route.steps.length)
+            ? route.steps[_navStepIndex]
+            : null;
+
+        final stepDone =
+            (step != null) &&
+            (distanceMeters(me, step.end) <= _stepArriveThresholdM);
+
+        _followCamera(me, bearing: pos.heading.isFinite ? pos.heading : null);
+
+        if (stepDone) _advanceStep();
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          _navPending = false;
+          _isStartingNav = false;
+          _navActive = false;
+        });
+        _showToast('Errore avvio navigazione: $e');
+      },
+    );
+  }
+
+  void _followCamera(LatLng me, {double? bearing}) {
+    final c = _mapController;
+    if (c == null) return;
+
+    c.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: me,
+          zoom: 18,
+          bearing: (bearing ?? 0).clamp(0, 360),
+          tilt: 55,
+        ),
+      ),
+    );
+  }
+
+  List<LatLng> _getNavRoutePts() {
+    final idx = _selectedRouteIndex;
+    if (_navRoutePts == null || _navRouteIndexCached != idx) {
+      _navRoutePts = decodePolylineToLatLngs(_routes[idx].polyline);
+      _navRouteIndexCached = idx;
+    }
+    return _navRoutePts!;
+  }
+
+  String _currentInstruction() {
+    if (_routes.isEmpty) return '';
+    final steps = _routes[_selectedRouteIndex].steps;
+    if (steps.isEmpty) return '';
+    if (_navStepIndex < 0 || _navStepIndex >= steps.length) return '';
+    return _stripHtml(steps[_navStepIndex].htmlInstructions);
+  }
+
+  void _advanceStep() {
+    if (_routes.isEmpty) return;
+    final route = _routes[_selectedRouteIndex];
+
+    setState(() {
+      _navStepIndex++;
+      if (_navStepIndex >= route.steps.length) {
+        _navStepIndex = route.steps.length - 1;
+        _showToast('Sei arrivato a destinazione.');
+        _stopInAppNavigation();
+      }
+    });
+  }
+
+  void _stopInAppNavigation() {
+    _posSub?.cancel();
+    _posSub = null;
+
+    setState(() {
+      _navActive = false;
+      _navPending = false;
+      _isStartingNav = false;
+      _gotFirstNavFix = false;
+
+      _lockMapGestures = false;
+    });
+  }
+
   Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
     IconData icon, {
     double size = 96,
@@ -291,7 +480,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
 
     textPainter.layout();
-    final offset = Offset((size - textPainter.width) / 2, (size - textPainter.height) / 2);
+    final offset = Offset(
+      (size - textPainter.width) / 2,
+      (size - textPainter.height) / 2,
+    );
     textPainter.paint(canvas, offset);
 
     final picture = recorder.endRecording();
@@ -303,8 +495,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   // -------------------- routes --------------------
 
   void _applySelectedRoute() {
+    _navRoutePts = null;
+    _navRouteIndexCached = null;
     if (_routes.isEmpty) return;
     final route = _routes[_selectedRouteIndex];
+
+    final pts = decodePolylineToLatLngs(route.polyline);
 
     setState(() {
       _polylines
@@ -312,56 +508,30 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         ..add(
           Polyline(
             polylineId: const PolylineId('route'),
-            points: route.points,
+            points: pts,
             width: 6,
             color: AppColors.accentCyan,
             geodesic: true,
           ),
         );
-
-      _routeSummary = route.summary;
     });
 
-    if (route.points.isNotEmpty) _fitCameraToPoints(route.points);
+    if (pts.isNotEmpty) _fitCameraToPoints(pts);
   }
 
   void _showRouteChoiceSheet() {
     if (_routes.isEmpty) return;
     setState(() {
       _showRoutePanel = true;
-      _routeSheetOpen = true;
     });
   }
 
   void _closeRoutePanel() {
+    if (_navActive) _stopInAppNavigation();
     setState(() {
       _showRoutePanel = false;
-      _routeSheetOpen = false;
       _lockMapGestures = false;
     });
-  }
-
-  Future<void> _startExternalNavigation() async {
-    final dest = _activeDestination;
-    if (dest == null) {
-      _showToast('Destinazione non disponibile.');
-      return;
-    }
-
-    final origin = _activeOriginAtBooking;
-
-    final qp = <String, String>{
-      'api': '1',
-      'destination': '${dest.latitude},${dest.longitude}',
-      'travelmode': 'driving',
-    };
-
-    if (origin != null) qp['origin'] = '${origin.latitude},${origin.longitude}';
-
-    final uri = Uri.https('www.google.com', '/maps/dir/', qp);
-
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) _showToast('Impossibile aprire il navigatore.');
   }
 
   Future<void> _showRouteToParking({
@@ -371,24 +541,29 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   }) async {
     setState(() {
       _isLoadingRoute = true;
-      _routeSummary = null;
     });
 
     try {
       final destination = LatLng(destLat, destLng);
 
-      final routes = await _fetchDirectionsRoutes(origin: origin, destination: destination);
+      final routes = await _fetchDirectionsRoutes(
+        origin: origin,
+        destination: destination,
+      );
 
       setState(() {
         _routes = routes;
         _selectedRouteIndex = 0;
       });
 
+      _navRoutePts = null;
+      _navRouteIndexCached = null;
+      _navStepIndex = 0;
+
       _applySelectedRoute();
 
       setState(() {
         _showRoutePanel = true;
-        _routeSheetOpen = true;
       });
     } catch (e, st) {
       debugPrint('Errore calcolo percorso: $e');
@@ -399,7 +574,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<List<_DirectionsRoute>> _fetchDirectionsRoutes({
+  Future<List<DirectionsRoute>> _fetchDirectionsRoutes({
     required LatLng origin,
     required LatLng destination,
   }) async {
@@ -411,29 +586,18 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
 
     final routesJson = (data['routes'] as List).cast<Map<String, dynamic>>();
-    if (routesJson.isEmpty) throw Exception('Nessun percorso dalla Directions API');
+    if (routesJson.isEmpty)
+      throw Exception('Nessun percorso dalla Directions API');
 
     return routesJson.map((r) {
-      final poly = (r['polyline'] ?? '') as String;
-      if (poly.isEmpty) throw Exception('Polyline vuota dal backend');
+      final route = DirectionsRoute.fromJson(r);
 
-      _checkPolylineChars(poly);
+      if (route.polyline.isEmpty) {
+        throw Exception('Polyline overview vuota dal backend');
+      }
+      _checkPolylineChars(route.polyline);
 
-      final decoded = PolylinePoints.decodePolyline(poly);
-      final points = decoded.map((p) => LatLng(p.latitude, p.longitude)).toList();
-
-      final dist = (r['distanceText'] ?? '') as String;
-      final durTraffic = (r['durationInTrafficText'] ?? '') as String;
-      final dur = (r['durationText'] ?? '') as String;
-
-      final summary = (durTraffic.isNotEmpty ? durTraffic : dur);
-      final summaryFull = (summary.isNotEmpty && dist.isNotEmpty)
-          ? '$summary • $dist'
-          : ((r['summary'] ?? 'Percorso pronto') as String);
-
-      final steps = (r['steps'] ?? []) as List<dynamic>;
-
-      return _DirectionsRoute(points: points, summary: summaryFull, steps: steps);
+      return route;
     }).toList();
   }
 
@@ -464,10 +628,18 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   // -------------------- parkings --------------------
 
   Future<void> _toggleParkings() async {
+    if (_bookedParkingMarkerId != null) {
+      _showToast(
+        'Hai già una prenotazione attiva: mostro solo il parcheggio prenotato.',
+      );
+      return;
+    }
     setState(() => _showParkings = !_showParkings);
 
     if (!_showParkings) {
-      setState(() => _markers.removeWhere((m) => m.markerId.value.startsWith('p_')));
+      setState(
+        () => _markers.removeWhere((m) => m.markerId.value.startsWith('p_')),
+      );
       return;
     }
 
@@ -506,7 +678,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               (p['longitudine'] as num).toDouble(),
             ),
             icon: isSelected
-                ? (_parkingIconSelected ?? _parkingIcon ?? BitmapDescriptor.defaultMarker)
+                ? (_parkingIconSelected ??
+                      _parkingIcon ??
+                      BitmapDescriptor.defaultMarker)
                 : (_parkingIcon ?? BitmapDescriptor.defaultMarker),
             infoWindow: const InfoWindow(title: ''),
             onTap: () {
@@ -537,14 +711,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     String parcheggioId, {
     required double destLat,
     required double destLng,
+    required Map<String, dynamic> parkingData,
   }) async {
     LatLng? origin;
     try {
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied)
+        perm = await Geolocator.requestPermission();
 
-      if (perm != LocationPermission.denied && perm != LocationPermission.deniedForever) {
-        final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (perm != LocationPermission.denied &&
+          perm != LocationPermission.deniedForever) {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
         origin = LatLng(pos.latitude, pos.longitude);
       }
     } catch (_) {}
@@ -564,10 +743,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         DateTime.now().toIso8601String(),
       );
 
-      setState(() {
-        _activeDestination = LatLng(destLat, destLng);
-        _activeOriginAtBooking = origin;
-      });
+      setState(() {});
 
       if (!mounted) return;
 
@@ -576,9 +752,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       await PrenotazioneDialog.mostra(context, risposta);
 
       if (origin != null) {
-        await _showRouteToParking(origin: origin, destLat: destLat, destLng: destLng);
+        await _showRouteToParking(
+          origin: origin,
+          destLat: destLat,
+          destLng: destLng,
+        );
       } else {
-        _showToast('Posizione non disponibile: impossibile calcolare il percorso.');
+        _showToast(
+          'Posizione non disponibile: impossibile calcolare il percorso.',
+        );
       }
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -589,8 +771,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       Navigator.of(context, rootNavigator: true).pop();
       _showToast('Errore di connessione o del server');
     }
-
-    _loadParkingsNearby(_cameraTarget);
   }
 
   // -------------------- menu / navigation --------------------
@@ -599,7 +779,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     final updatedPrefs = await showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
+      builder: (_) =>
+          PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
     );
 
     if (updatedPrefs != null) {
@@ -615,7 +796,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
+        builder: (context) =>
+            HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
       ),
     );
   }
@@ -641,8 +823,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             children: const [
               Icon(Icons.tune, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text('Preferences',
-                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              Text(
+                'Preferences',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -652,7 +839,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             children: const [
               Icon(Icons.history, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text('Le mie prenotazioni', style: TextStyle(color: AppColors.textPrimary)),
+              Text(
+                'Le mie prenotazioni',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
             ],
           ),
         ),
@@ -663,8 +853,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             children: const [
               Icon(Icons.logout, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text('Logout',
-                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -701,7 +896,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       final target = LatLng(lat, lng);
       _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: 15)),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: target, zoom: 15),
+        ),
       );
     } catch (_) {
       _showToast('Errore durante la ricerca.');
@@ -713,6 +910,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final fullName = '${widget.utente.nome} ${widget.utente.cognome}'.trim();
+    final int safeIdx = _selectedRouteIndex.clamp(
+      0,
+      _routes.isEmpty ? 0 : _routes.length - 1,
+    );
+    final int stepsTotal = _routes.isEmpty ? 0 : _routes[safeIdx].steps.length;
+    (_navStepIndex + 1).clamp(1, stepsTotal == 0 ? 1 : stepsTotal);
 
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
@@ -771,9 +974,16 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                           decoration: BoxDecoration(
                             color: AppColors.bgDark,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: AppColors.borderField, width: 1),
+                            border: Border.all(
+                              color: AppColors.borderField,
+                              width: 1,
+                            ),
                           ),
-                          child: const Icon(Icons.settings, color: AppColors.textPrimary, size: 18),
+                          child: const Icon(
+                            Icons.settings,
+                            color: AppColors.textPrimary,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],
@@ -787,22 +997,39 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                   cursorColor: AppColors.accentCyan,
                   decoration: InputDecoration(
                     hintText: 'Search your Park',
-                    hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.9)),
-                    prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+                    hintStyle: TextStyle(
+                      color: AppColors.textMuted.withOpacity(0.9),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMuted,
+                    ),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: AppColors.accentCyan),
+                      icon: const Icon(
+                        Icons.arrow_forward,
+                        color: AppColors.accentCyan,
+                      ),
                       onPressed: () => _searchAndGo(_searchController.text),
                     ),
                     filled: true,
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: AppColors.borderField, width: 1),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(color: AppColors.accentCyan, width: 1.2),
+                      borderSide: const BorderSide(
+                        color: AppColors.accentCyan,
+                        width: 1.2,
+                      ),
                     ),
                   ),
                   onSubmitted: _searchAndGo,
@@ -814,7 +1041,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderField, width: 1),
+                      border: Border.all(
+                        color: AppColors.borderField,
+                        width: 1,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.35),
@@ -846,7 +1076,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             markers: _markers,
                             circles: _circles,
                             myLocationEnabled: !kIsWeb && _locationGranted,
-                            myLocationButtonEnabled: !kIsWeb && _locationGranted,
+                            myLocationButtonEnabled:
+                                !kIsWeb && _locationGranted,
                             zoomControlsEnabled: false,
                             mapToolbarEnabled: false,
                             polylines: _polylines,
@@ -856,18 +1087,26 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             tiltGesturesEnabled: !_lockMapGestures,
                           ),
 
-                          if (_isLoadingParkings || _isLoadingRoute || _isLocating)
+                          if (_isLoadingParkings ||
+                              _isLoadingRoute ||
+                              _isLocating ||
+                              _isStartingNav)
                             Container(
                               color: Colors.black54,
                               child: const Center(
-                                child: CircularProgressIndicator(color: AppColors.accentCyan),
+                                child: CircularProgressIndicator(
+                                  color: AppColors.accentCyan,
+                                ),
                               ),
                             ),
 
                           Align(
                             alignment: Alignment.topRight,
                             child: Padding(
-                              padding: const EdgeInsets.only(top: 14, right: 14),
+                              padding: const EdgeInsets.only(
+                                top: 14,
+                                right: 14,
+                              ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -881,7 +1120,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                   const SizedBox(height: 10),
                                   GMapsControlButton(
                                     icon: Icons.route,
-                                    onPressed: _routes.isEmpty ? null : _showRouteChoiceSheet,
+                                    onPressed: _routes.isEmpty
+                                        ? null
+                                        : _showRouteChoiceSheet,
                                     tooltip: 'Percorso / Navigazione',
                                     selected: _showRoutePanel,
                                   ),
@@ -890,59 +1131,159 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             ),
                           ),
 
-                          if (_showRoutePanel && _routes.isNotEmpty)
-                            Positioned(
-                              left: 16,
-                              top: 16,
-                              bottom: 16,
-                              child: SafeArea(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 420),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: Container(
-                                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(18),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.18),
-                                            blurRadius: 24,
-                                            offset: const Offset(0, 10),
+                          if (_showRoutePanel && _routes.isNotEmpty && !_isStartingNav)
+                            _navActive
+                                ? Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: SafeArea(
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 16,
+                                        ),
+                                        child: SizedBox(
+                                          width: 520,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    16,
+                                                    14,
+                                                    16,
+                                                    16,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.18),
+                                                    blurRadius: 24,
+                                                    offset: const Offset(0, 10),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: RoutePanel(
+                                                compact: true,
+                                                currentInstruction:
+                                                    _currentInstruction(),
+                                                stepNow: (_navStepIndex + 1),
+                                                stepsTotal:
+                                                    _routes[_selectedRouteIndex]
+                                                        .steps
+                                                        .length,
+
+                                                routes: _routes
+                                                    .map(
+                                                      (r) => RoutePanelRoute(
+                                                        summary: r.summary,
+                                                        steps: r.steps,
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                                selectedIndex:
+                                                    _selectedRouteIndex,
+                                                onSelectIndex: (i) {
+                                                  setState(
+                                                    () =>
+                                                        _selectedRouteIndex = i,
+                                                  );
+                                                  _navRoutePts = null;
+                                                  _navRouteIndexCached = null;
+                                                  _navStepIndex = 0;
+                                                  _applySelectedRoute();
+                                                },
+                                                onClose: _closeRoutePanel,
+                                                onStart: _startInAppNavigation,
+                                                onStop: _stopInAppNavigation,
+                                                navActive: _navActive,
+                                                stripHtml: _stripHtml,
+                                                setMapGesturesLocked:
+                                                    _setMapGesturesLocked,
+                                              ),
+                                            ),
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                      // ✅ widget esterno
-                                      child: RoutePanel(
-                                        routes: _routes
-                                            .map((r) => RoutePanelRoute(
-                                                  summary: r.summary,
-                                                  steps: r.steps,
-                                                ))
-                                            .toList(),
-                                        selectedIndex: _selectedRouteIndex,
-                                        onSelectIndex: (i) {
-                                          setState(() => _selectedRouteIndex = i);
-                                          _applySelectedRoute();
-                                        },
-                                        onClose: _closeRoutePanel,
-                                        onStart: _startExternalNavigation,
-                                        stripHtml: _stripHtml,
-                                        setMapGesturesLocked: _setMapGesturesLocked,
+                                    ),
+                                  )
+                                : Positioned(
+                                    left: 16,
+                                    top: 16,
+                                    bottom: 16,
+                                    child: SafeArea(
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 420,
+                                        ),
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: Container(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              16,
+                                              14,
+                                              16,
+                                              16,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.18),
+                                                  blurRadius: 24,
+                                                  offset: const Offset(0, 10),
+                                                ),
+                                              ],
+                                            ),
+                                            child: RoutePanel(
+                                              compact: false,
+                                              currentInstruction: '',
+                                              stepNow: 0,
+                                              stepsTotal: 0,
+
+                                              routes: _routes
+                                                  .map(
+                                                    (r) => RoutePanelRoute(
+                                                      summary: r.summary,
+                                                      steps: r.steps,
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                              selectedIndex:
+                                                  _selectedRouteIndex,
+                                              onSelectIndex: (i) {
+                                                setState(
+                                                  () => _selectedRouteIndex = i,
+                                                );
+                                                _navRoutePts = null;
+                                                _navRouteIndexCached = null;
+                                                _navStepIndex = 0;
+                                                _applySelectedRoute();
+                                              },
+                                              onClose: _closeRoutePanel,
+                                              onStart: _startInAppNavigation,
+                                              onStop: _stopInAppNavigation,
+                                              navActive: _navActive,
+                                              stripHtml: _stripHtml,
+                                              setMapGesturesLocked:
+                                                  _setMapGesturesLocked,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
 
                           if (_selectedParkingData != null)
                             Positioned(
                               bottom: 40,
                               left: 20,
                               right: 20,
-                              // ✅ widget esterno
                               child: ParkingPopup(
                                 parking: _selectedParkingData!,
                                 onClose: () => setState(() {
@@ -952,11 +1293,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                 onBook: () {
                                   final p = _selectedParkingData!;
                                   final pId = p['id'].toString();
-                                  final destLat = (p['latitudine'] as num).toDouble();
-                                  final destLng = (p['longitudine'] as num).toDouble();
+                                  final destLat = (p['latitudine'] as num)
+                                      .toDouble();
+                                  final destLng = (p['longitudine'] as num)
+                                      .toDouble();
 
-                                  setState(() => _selectedParkingData = null);
-                                  _effettuaPrenotazione(pId, destLat: destLat, destLng: destLng);
+                                  _showOnlyBookedParking(p);
+
+                                  _effettuaPrenotazione(
+                                    pId,
+                                    destLat: destLat,
+                                    destLng: destLng,
+                                    parkingData: p,
+                                  );
                                 },
                               ),
                             ),
@@ -972,16 +1321,4 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       ),
     );
   }
-}
-
-class _DirectionsRoute {
-  final List<LatLng> points;
-  final String summary;
-  final List<dynamic> steps;
-
-  _DirectionsRoute({
-    required this.points,
-    required this.summary,
-    required this.steps,
-  });
 }
