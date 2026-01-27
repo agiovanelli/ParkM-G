@@ -35,22 +35,28 @@ class ApiClient {
 
     final resp = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: body,
     );
 
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Utente.fromJson(json);
-    } else if (resp.statusCode == 400 || resp.statusCode == 401) {
-      // mappa ai tuoi IllegalArgumentException lato backend
-      throw ApiException('Credenziali non valide', resp.statusCode);
-    } else {
-      throw ApiException(
-        'Errore backend utenti: HTTP ${resp.statusCode}',
-        resp.statusCode,
-      );
     }
+
+    if (resp.statusCode == 400 ||
+        resp.statusCode == 401 ||
+        resp.statusCode == 500) {
+      throw ApiException('Credenziali non valide', resp.statusCode);
+    }
+
+    throw ApiException(
+      'Errore backend utenti: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
   }
 
   /// Registrazione utente: POST /api/utenti/registrazione
@@ -125,26 +131,33 @@ class ApiClient {
 
     final resp = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: body,
     );
 
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Operatore.fromJson(json);
-    } else if (resp.statusCode == 400 ||
+    }
+
+    if (resp.statusCode == 400 ||
         resp.statusCode == 401 ||
-        resp.statusCode == 404) {
+        resp.statusCode == 403 ||
+        resp.statusCode == 404 ||
+        resp.statusCode == 500) {
       throw ApiException(
         'Operatore non registrato o credenziali errate',
         resp.statusCode,
       );
-    } else {
-      throw ApiException(
-        'Errore backend operatori: HTTP ${resp.statusCode}',
-        resp.statusCode,
-      );
     }
+
+    throw ApiException(
+      'Errore backend operatori: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
   }
 
   Future<List<Log>> getLogByAnaliticaId(String analiticaId) async {
@@ -236,15 +249,28 @@ class ApiClient {
 
   // Valida codice QR: POST /api/prenotazioni/valida-ingresso/{codiceQr}
   Future<PrenotazioneResponse> validaIngresso(String codiceQr) async {
-    final response = await http.post(
+    final resp = await _client.post(
       Uri.parse('$_baseUrl/prenotazioni/valida-ingresso/$codiceQr'),
+      headers: {'Accept': 'application/json'},
     );
 
-    if (response.statusCode == 200) {
-      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception(response.body); // Messaggio di errore dal backend
+    if (resp.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(resp.body));
     }
+
+    String msg = 'Errore validazione ingresso (HTTP ${resp.statusCode})';
+    try {
+      final decoded = jsonDecode(resp.body);
+      if (decoded is Map && decoded['message'] is String) {
+        msg = decoded['message'] as String;
+      } else if (decoded is String && decoded.trim().isNotEmpty) {
+        msg = decoded.trim();
+      }
+    } catch (_) {
+      if (resp.body.trim().isNotEmpty) msg = resp.body.trim();
+    }
+
+    throw ApiException(msg, resp.statusCode);
   }
 
   // RECUPERO DIREZIONI E PERCORSO
