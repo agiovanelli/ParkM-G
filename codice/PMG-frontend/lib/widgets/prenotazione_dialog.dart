@@ -5,13 +5,14 @@ import '../models/prenotazione.dart';
 import '../utils/theme.dart';
 
 class PrenotazioneDialog {
-  static void mostra(BuildContext context, PrenotazioneResponse prenotazione) {
-    showDialog(
+  static Future<void> mostra(BuildContext context, PrenotazioneResponse prenotazione) {
+    return showDialog<void>(
       context: context,
-      builder: (context) => _PrenotazioneDialogContent(prenotazione: prenotazione),
+      builder: (_) => _PrenotazioneDialogContent(prenotazione: prenotazione),
     );
   }
 }
+
 
 class _PrenotazioneDialogContent extends StatefulWidget {
   final PrenotazioneResponse prenotazione;

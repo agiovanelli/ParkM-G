@@ -15,16 +15,23 @@ import java.util.List;
 public class MapsService {
 
   private final RestTemplate restTemplate;
-  private final String googleKey;
+  private final String googleDirectionsKey;
+  private final String googleGeocodingKey;
 
-  public MapsService(RestTemplateBuilder builder,
-                     @Value("${google.directions.key}") String googleKey) {
+  public MapsService(
+      RestTemplateBuilder builder,
+      @Value("${google.directions.key}") String googleDirectionsKey,
+      @Value("${google.geocoding.key:}") String googleGeocodingKey
+  ) {
     this.restTemplate = builder.build();
-    this.googleKey = googleKey;
+    this.googleDirectionsKey = googleDirectionsKey;
+    this.googleGeocodingKey = (googleGeocodingKey != null && !googleGeocodingKey.isBlank())
+        ? googleGeocodingKey
+        : googleDirectionsKey; // fallback
   }
 
   public DirectionsResponseDto getDirections(double oLat, double oLng, double dLat, double dLng) {
-    if (googleKey == null || googleKey.isBlank()) {
+    if (googleDirectionsKey == null || googleDirectionsKey.isBlank()) {
       throw new RuntimeException("google.directions.key mancante");
     }
 
@@ -33,10 +40,12 @@ public class MapsService {
         .queryParam("origin", oLat + "," + oLng)
         .queryParam("destination", dLat + "," + dLng)
         .queryParam("mode", "driving")
-        .queryParam("departure_time", "now")        // abilita duration_in_traffic
-        .queryParam("traffic_model", "best_guess")  // opzionale
-        .queryParam("alternatives", "true")         // più percorsi
-        .queryParam("key", googleKey)
+        .queryParam("departure_time", "now")
+        .queryParam("traffic_model", "best_guess")
+        .queryParam("alternatives", "true")
+        .queryParam("language", "it")
+        .queryParam("region", "IT")
+        .queryParam("key", googleDirectionsKey)
         .toUriString();
 
     ResponseEntity<JsonNode> resp = restTemplate.getForEntity(url, JsonNode.class);
@@ -74,22 +83,16 @@ public class MapsService {
           String html = s.path("html_instructions").asText("");
           String sDist = s.path("distance").path("text").asText("");
           String sDur = s.path("duration").path("text").asText("");
-          String man = s.path("maneuver").asText(""); // spesso non c'è
+          String man = s.path("maneuver").asText("");
           String sPoly = s.path("polyline").path("points").asText("");
 
           JsonNode st = s.path("start_location");
           JsonNode en = s.path("end_location");
 
           steps.add(new StepDto(
-              html,
-              sDist,
-              sDur,
-              man,
-              sPoly,
-              st.path("lat").asDouble(),
-              st.path("lng").asDouble(),
-              en.path("lat").asDouble(),
-              en.path("lng").asDouble()
+              html, sDist, sDur, man, sPoly,
+              st.path("lat").asDouble(), st.path("lng").asDouble(),
+              en.path("lat").asDouble(), en.path("lng").asDouble()
           ));
         }
       }
@@ -105,5 +108,50 @@ public class MapsService {
     }
 
     return new DirectionsResponseDto(out);
+  }
+
+  public GeocodeResponseDto geocode(String address) {
+    if (address == null || address.isBlank()) {
+      throw new RuntimeException("address mancante");
+    }
+    if (googleGeocodingKey == null || googleGeocodingKey.isBlank()) {
+      throw new RuntimeException("google.geocoding.key (o directions.key) mancante");
+    }
+
+    String url = UriComponentsBuilder
+        .fromHttpUrl("https://maps.googleapis.com/maps/api/geocode/json")
+        .queryParam("address", address) // UriComponentsBuilder fa encoding
+        .queryParam("key", googleGeocodingKey)
+        .toUriString();
+
+    ResponseEntity<JsonNode> resp = restTemplate.getForEntity(url, JsonNode.class);
+
+    if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+      throw new RuntimeException("Geocode HTTP " + resp.getStatusCode());
+    }
+
+    JsonNode root = resp.getBody();
+    String status = root.path("status").asText();
+    if (!"OK".equals(status)) {
+      // esempio: ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED, INVALID_REQUEST...
+      String msg = root.path("error_message").asText(status);
+      throw new RuntimeException("Geocode status=" + status + " msg=" + msg);
+    }
+
+    List<GeocodeResultDto> out = new ArrayList<>();
+    for (JsonNode r : root.path("results")) {
+      JsonNode loc = r.path("geometry").path("location");
+      double lat = loc.path("lat").asDouble();
+      double lng = loc.path("lng").asDouble();
+      String formatted = r.path("formatted_address").asText("");
+      String placeId = r.path("place_id").asText("");
+
+      List<String> types = new ArrayList<>();
+      for (JsonNode t : r.path("types")) types.add(t.asText());
+
+      out.add(new GeocodeResultDto(lat, lng, formatted, placeId, types));
+    }
+
+    return new GeocodeResponseDto(out);
   }
 }

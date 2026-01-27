@@ -1,17 +1,25 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:park_mg/widgets/preferenze_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:park_mg/utils/theme.dart';
+
 import '../api/api_client.dart';
 import '../models/utente.dart';
 import '../widgets/prenotazione_dialog.dart';
 import 'history_screen.dart';
+
+import '../widgets/map/gmaps_control_button.dart';
+import '../widgets/map/parking_popup.dart';
+import '../widgets/map/route_panel.dart';
 
 class UserScreen extends StatefulWidget {
   final Utente utente;
@@ -26,29 +34,46 @@ class UserScreen extends StatefulWidget {
 class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
-  final Set<Circle> _circles = {};
-  bool _locationGranted = false;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
 
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
+  final Set<Circle> _circles = {};
+  final Set<Polyline> _polylines = {};
+
+  bool _locationGranted = false;
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   LatLng _cameraTarget = _initialCamera.target;
+
   bool _showParkings = false;
   bool _isLoadingParkings = false;
 
   Map<String, dynamic>? _selectedParkingData;
+  String? _selectedParkingMarkerId;
 
   List<_DirectionsRoute> _routes = [];
   int _selectedRouteIndex = 0;
 
-  final Set<Polyline> _polylines = {};
   bool _isLoadingRoute = false;
   String? _routeSummary;
 
   bool _isLocating = false;
   LatLng? _pendingCenter;
+
+  LatLng? _activeDestination;
+  LatLng? _activeOriginAtBooking;
+
+  bool _routeSheetOpen = false;
+  bool _showRoutePanel = false;
+
+  bool _lockMapGestures = false;
+
+  void _setMapGesturesLocked(bool v) {
+    if (_lockMapGestures == v) return;
+    setState(() => _lockMapGestures = v);
+  }
 
   static const Color _baseBlue = Color(0xFF4285F4);
 
@@ -59,7 +84,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
   BitmapDescriptor? _parkingIcon;
   BitmapDescriptor? _parkingIconSelected;
-  String? _selectedParkingMarkerId;
 
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -71,17 +95,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     zoom: 6,
   );
 
-  static const String _geocodingKey = String.fromEnvironment(
-    'GOOGLE_GEOCODING_KEY',
-    defaultValue: 'AIzaSyCRAbggpHBwIhmP8iNExxc98UBkrDo_OGY',
-  );
+  // -------------------- utils --------------------
 
   void _checkPolylineChars(String poly) {
     for (int i = 0; i < poly.length; i++) {
       final c = poly.codeUnitAt(i);
       if (c < 63 || c > 126) {
         debugPrint('BAD CHAR in polyline at i=$i code=$c char="${poly[i]}"');
-        // opzionale: stampa un intorno
         final start = (i - 10).clamp(0, poly.length);
         final end = (i + 10).clamp(0, poly.length);
         debugPrint('CONTEXT: "${poly.substring(start, end)}"');
@@ -92,7 +112,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   }
 
   String _stripHtml(String input) {
-    // rimuove tag HTML e decodifica le entità più comuni
     final noTags = input.replaceAll(RegExp(r'<[^>]*>'), ' ');
     return noTags
         .replaceAll('&nbsp;', ' ')
@@ -105,41 +124,20 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         .trim();
   }
 
-  void _showStepsSheet() {
-    if (_routes.isEmpty) return;
-    final steps = _routes[_selectedRouteIndex].steps;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: steps.length,
-        separatorBuilder: (_, __) =>
-            Divider(color: AppColors.borderField.withOpacity(0.6)),
-        itemBuilder: (_, i) {
-          final s = steps[i] as Map<String, dynamic>;
-          final html = (s['htmlInstructions'] ?? '') as String;
-          final dist = (s['distanceText'] ?? '') as String;
-          final dur = (s['durationText'] ?? '') as String;
-
-          return ListTile(
-            title: Text(
-              _stripHtml(html),
-              style: const TextStyle(color: AppColors.textPrimary),
-            ),
-            subtitle: Text(
-              '$dist • $dur',
-              style: const TextStyle(color: AppColors.textMuted),
-            ),
-          );
-        },
-      ),
-    );
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary)),
+        ),
+      );
   }
+
+  // -------------------- lifecycle --------------------
 
   @override
   void initState() {
@@ -163,14 +161,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       if (mounted) setState(() => _parkingIconSelected = v);
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _bootstrapMyLocation();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapMyLocation());
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showPreferenzeDialog();
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showPreferenzeDialog());
     }
 
     _pulseController = AnimationController(
@@ -178,27 +172,26 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _pulseAnimation =
-        Tween<double>(begin: 15, end: 35).animate(
-          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-        )..addListener(() {
-          if (_circles.isNotEmpty && mounted) {
-            final old = _circles.last.center;
-            setState(() {
-              _circles.removeWhere((c) => c.circleId.value == 'pulse');
-              _circles.add(
-                Circle(
-                  circleId: const CircleId('pulse'),
-                  center: old,
-                  radius: _pulseAnimation.value,
-                  fillColor: Colors.blue.withOpacity(0.25),
-                  strokeColor: Colors.blue.withOpacity(0.1),
-                  strokeWidth: 1,
-                ),
-              );
-            });
-          }
-        });
+    _pulseAnimation = Tween<double>(begin: 15, end: 35).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    )..addListener(() {
+        if (_circles.isNotEmpty && mounted) {
+          final old = _circles.last.center;
+          setState(() {
+            _circles.removeWhere((c) => c.circleId.value == 'pulse');
+            _circles.add(
+              Circle(
+                circleId: const CircleId('pulse'),
+                center: old,
+                radius: _pulseAnimation.value,
+                fillColor: Colors.blue.withOpacity(0.25),
+                strokeColor: Colors.blue.withOpacity(0.1),
+                strokeWidth: 1,
+              ),
+            );
+          });
+        }
+      });
   }
 
   @override
@@ -208,14 +201,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  // -------------------- location / icons --------------------
+
   Future<void> _bootstrapMyLocation() async {
     if (_isLocating) return;
-
     setState(() => _isLocating = true);
 
     try {
-      // Nota: su Web spesso serve un gesto utente per far comparire il prompt.
-      // Qui ci proviamo comunque: se il browser lo blocca, mostriamo un toast.
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         _showToast('Servizi di localizzazione disattivati.');
@@ -223,27 +215,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       }
 
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
+      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
 
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
         setState(() => _locationGranted = false);
         _showToast('Permesso posizione negato.');
         return;
       }
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       final me = LatLng(pos.latitude, pos.longitude);
 
       setState(() {
         _locationGranted = true;
-
-        // Cerchi: pulse + dot (attenzione all’ordine: dot deve essere l’ultimo)
         _circles
           ..clear()
           ..addAll([
@@ -266,7 +250,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           ]);
       });
 
-      // centra la camera: se la mappa non è pronta, lo facciamo dopo in onMapCreated
       if (_mapController != null) {
         await _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
@@ -308,10 +291,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
 
     textPainter.layout();
-    final offset = Offset(
-      (size - textPainter.width) / 2,
-      (size - textPainter.height) / 2,
-    );
+    final offset = Offset((size - textPainter.width) / 2, (size - textPainter.height) / 2);
     textPainter.paint(canvas, offset);
 
     final picture = recorder.endRecording();
@@ -319,6 +299,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
+
+  // -------------------- routes --------------------
 
   void _applySelectedRoute() {
     if (_routes.isEmpty) return;
@@ -340,23 +322,288 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       _routeSummary = route.summary;
     });
 
-    if (route.points.isNotEmpty) {
-      _fitCameraToPoints(route.points);
+    if (route.points.isNotEmpty) _fitCameraToPoints(route.points);
+  }
+
+  void _showRouteChoiceSheet() {
+    if (_routes.isEmpty) return;
+    setState(() {
+      _showRoutePanel = true;
+      _routeSheetOpen = true;
+    });
+  }
+
+  void _closeRoutePanel() {
+    setState(() {
+      _showRoutePanel = false;
+      _routeSheetOpen = false;
+      _lockMapGestures = false;
+    });
+  }
+
+  Future<void> _startExternalNavigation() async {
+    final dest = _activeDestination;
+    if (dest == null) {
+      _showToast('Destinazione non disponibile.');
+      return;
+    }
+
+    final origin = _activeOriginAtBooking;
+
+    final qp = <String, String>{
+      'api': '1',
+      'destination': '${dest.latitude},${dest.longitude}',
+      'travelmode': 'driving',
+    };
+
+    if (origin != null) qp['origin'] = '${origin.latitude},${origin.longitude}';
+
+    final uri = Uri.https('www.google.com', '/maps/dir/', qp);
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) _showToast('Impossibile aprire il navigatore.');
+  }
+
+  Future<void> _showRouteToParking({
+    required LatLng origin,
+    required double destLat,
+    required double destLng,
+  }) async {
+    setState(() {
+      _isLoadingRoute = true;
+      _routeSummary = null;
+    });
+
+    try {
+      final destination = LatLng(destLat, destLng);
+
+      final routes = await _fetchDirectionsRoutes(origin: origin, destination: destination);
+
+      setState(() {
+        _routes = routes;
+        _selectedRouteIndex = 0;
+      });
+
+      _applySelectedRoute();
+
+      setState(() {
+        _showRoutePanel = true;
+        _routeSheetOpen = true;
+      });
+    } catch (e, st) {
+      debugPrint('Errore calcolo percorso: $e');
+      debugPrintStack(stackTrace: st);
+      _showToast('Errore calcolo percorso.');
+    } finally {
+      if (mounted) setState(() => _isLoadingRoute = false);
     }
   }
+
+  Future<List<_DirectionsRoute>> _fetchDirectionsRoutes({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final data = await widget.apiClient.getDirections(
+      oLat: origin.latitude,
+      oLng: origin.longitude,
+      dLat: destination.latitude,
+      dLng: destination.longitude,
+    );
+
+    final routesJson = (data['routes'] as List).cast<Map<String, dynamic>>();
+    if (routesJson.isEmpty) throw Exception('Nessun percorso dalla Directions API');
+
+    return routesJson.map((r) {
+      final poly = (r['polyline'] ?? '') as String;
+      if (poly.isEmpty) throw Exception('Polyline vuota dal backend');
+
+      _checkPolylineChars(poly);
+
+      final decoded = PolylinePoints.decodePolyline(poly);
+      final points = decoded.map((p) => LatLng(p.latitude, p.longitude)).toList();
+
+      final dist = (r['distanceText'] ?? '') as String;
+      final durTraffic = (r['durationInTrafficText'] ?? '') as String;
+      final dur = (r['durationText'] ?? '') as String;
+
+      final summary = (durTraffic.isNotEmpty ? durTraffic : dur);
+      final summaryFull = (summary.isNotEmpty && dist.isNotEmpty)
+          ? '$summary • $dist'
+          : ((r['summary'] ?? 'Percorso pronto') as String);
+
+      final steps = (r['steps'] ?? []) as List<dynamic>;
+
+      return _DirectionsRoute(points: points, summary: summaryFull, steps: steps);
+    }).toList();
+  }
+
+  void _fitCameraToPoints(List<LatLng> pts) {
+    if (_mapController == null || pts.isEmpty) return;
+
+    double minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    double minLng = pts.first.longitude, maxLng = pts.first.longitude;
+
+    for (final p in pts) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        ),
+        70,
+      ),
+    );
+  }
+
+  // -------------------- parkings --------------------
+
+  Future<void> _toggleParkings() async {
+    setState(() => _showParkings = !_showParkings);
+
+    if (!_showParkings) {
+      setState(() => _markers.removeWhere((m) => m.markerId.value.startsWith('p_')));
+      return;
+    }
+
+    await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+  }
+
+  Future<void> _loadParkingsNearby(
+    LatLng center, {
+    double radiusMeters = 1200,
+  }) async {
+    setState(() => _isLoadingParkings = true);
+
+    try {
+      final uri = Uri.parse(
+        '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
+      );
+
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        _showToast('Errore caricamento parcheggi (${res.statusCode})');
+        return;
+      }
+
+      final data = jsonDecode(res.body) as List<dynamic>;
+      final newMarkers = <Marker>{};
+
+      for (final p in data) {
+        final markerId = 'p_${p['id']}';
+        final isSelected = _selectedParkingMarkerId == markerId;
+
+        newMarkers.add(
+          Marker(
+            markerId: MarkerId(markerId),
+            position: LatLng(
+              (p['latitudine'] as num).toDouble(),
+              (p['longitudine'] as num).toDouble(),
+            ),
+            icon: isSelected
+                ? (_parkingIconSelected ?? _parkingIcon ?? BitmapDescriptor.defaultMarker)
+                : (_parkingIcon ?? BitmapDescriptor.defaultMarker),
+            infoWindow: const InfoWindow(title: ''),
+            onTap: () {
+              setState(() {
+                _selectedParkingMarkerId = markerId;
+                _selectedParkingData = p;
+              });
+              _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+            },
+          ),
+        );
+      }
+
+      setState(() {
+        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+        _markers.addAll(newMarkers);
+      });
+    } catch (_) {
+      _showToast('Errore durante il caricamento dei parcheggi.');
+    } finally {
+      if (mounted) setState(() => _isLoadingParkings = false);
+    }
+  }
+
+  // -------------------- booking --------------------
+
+  Future<void> _effettuaPrenotazione(
+    String parcheggioId, {
+    required double destLat,
+    required double destLng,
+  }) async {
+    LatLng? origin;
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+
+      if (perm != LocationPermission.denied && perm != LocationPermission.deniedForever) {
+        final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+        origin = LatLng(pos.latitude, pos.longitude);
+      }
+    } catch (_) {}
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accentCyan),
+      ),
+    );
+
+    try {
+      final risposta = await widget.apiClient.prenotaParcheggio(
+        widget.utente.id,
+        parcheggioId,
+        DateTime.now().toIso8601String(),
+      );
+
+      setState(() {
+        _activeDestination = LatLng(destLat, destLng);
+        _activeOriginAtBooking = origin;
+      });
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      await PrenotazioneDialog.mostra(context, risposta);
+
+      if (origin != null) {
+        await _showRouteToParking(origin: origin, destLat: destLat, destLng: destLng);
+      } else {
+        _showToast('Posizione non disponibile: impossibile calcolare il percorso.');
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showToast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showToast('Errore di connessione o del server');
+    }
+
+    _loadParkingsNearby(_cameraTarget);
+  }
+
+  // -------------------- menu / navigation --------------------
 
   Future<void> _showPreferenzeDialog() async {
     final updatedPrefs = await showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
+      builder: (_) => PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
     );
 
     if (updatedPrefs != null) {
-      setState(() {
-        widget.utente.preferenze = updatedPrefs;
-      });
+      setState(() => widget.utente.preferenze = updatedPrefs);
     }
   }
 
@@ -364,22 +611,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     Navigator.of(context).pop();
   }
 
-  void _showToast(String msg) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          content: Text(
-            msg,
-            style: const TextStyle(color: AppColors.textPrimary),
-          ),
-        ),
-      );
+  void _vaiAlloStorico() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
+      ),
+    );
   }
 
   Future<void> _openUserMenu() async {
@@ -403,27 +641,18 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             children: const [
               Icon(Icons.tune, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text(
-                'Preferences',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Preferences',
+                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
-        // STORICO
         PopupMenuItem<String>(
           value: 'history',
           child: Row(
             children: const [
               Icon(Icons.history, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text(
-                'Le mie prenotazioni',
-                style: TextStyle(color: AppColors.textPrimary),
-              ),
+              Text('Le mie prenotazioni', style: TextStyle(color: AppColors.textPrimary)),
             ],
           ),
         ),
@@ -434,13 +663,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             children: const [
               Icon(Icons.logout, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
-              Text(
-                'Logout',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Logout',
+                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -462,31 +686,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     final q = query.trim();
     if (q.isEmpty) return;
 
-    if (_geocodingKey.isEmpty) {
-      _showToast('Manca GOOGLE_GEOCODING_KEY (usa --dart-define).');
-      return;
-    }
-
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
-        'address': q,
-        'key': _geocodingKey,
-      });
-
-      final res = await http.get(uri);
-      if (res.statusCode != 200) {
-        _showToast('Errore Geocoding (${res.statusCode}).');
-        return;
-      }
-
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final status = (data['status'] ?? '') as String;
-
-      if (status != 'OK') {
-        final err = (data['error_message'] ?? 'Nessun risultato') as String;
-        _showToast(err);
-        return;
-      }
+      final data = await widget.apiClient.geocode(address: q);
 
       final results = (data['results'] as List).cast<Map<String, dynamic>>();
       if (results.isEmpty) {
@@ -494,27 +695,20 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         return;
       }
 
-      final loc = results.first['geometry']['location'] as Map<String, dynamic>;
-      final lat = (loc['lat'] as num).toDouble();
-      final lng = (loc['lng'] as num).toDouble();
+      final first = results.first;
+      final lat = (first['lat'] as num).toDouble();
+      final lng = (first['lng'] as num).toDouble();
+
       final target = LatLng(lat, lng);
-
       _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: target, zoom: 15),
-        ),
-      );
-
-      // Non aggiungo marker, solo sposto la camera
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: target, zoom: 15),
-        ),
+        CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: 15)),
       );
     } catch (_) {
       _showToast('Errore durante la ricerca.');
     }
   }
+
+  // -------------------- UI --------------------
 
   @override
   Widget build(BuildContext context) {
@@ -577,81 +771,50 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                           decoration: BoxDecoration(
                             color: AppColors.bgDark,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: AppColors.borderField,
-                              width: 1,
-                            ),
+                            border: Border.all(color: AppColors.borderField, width: 1),
                           ),
-                          child: const Icon(
-                            Icons.settings,
-                            color: AppColors.textPrimary,
-                            size: 18,
-                          ),
+                          child: const Icon(Icons.settings, color: AppColors.textPrimary, size: 18),
                         ),
                       ),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 14),
 
-                // SEARCH BAR
                 TextField(
                   controller: _searchController,
                   style: const TextStyle(color: AppColors.textPrimary),
                   cursorColor: AppColors.accentCyan,
                   decoration: InputDecoration(
                     hintText: 'Search your Park',
-                    hintStyle: TextStyle(
-                      color: AppColors.textMuted.withOpacity(0.9),
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: AppColors.textMuted,
-                    ),
+                    hintStyle: TextStyle(color: AppColors.textMuted.withOpacity(0.9)),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
                     suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward,
-                        color: AppColors.accentCyan,
-                      ),
+                      icon: const Icon(Icons.arrow_forward, color: AppColors.accentCyan),
                       onPressed: () => _searchAndGo(_searchController.text),
                     ),
                     filled: true,
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(
-                        color: AppColors.borderField,
-                        width: 1,
-                      ),
+                      borderSide: const BorderSide(color: AppColors.borderField, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(
-                        color: AppColors.accentCyan,
-                        width: 1.2,
-                      ),
+                      borderSide: const BorderSide(color: AppColors.accentCyan, width: 1.2),
                     ),
                   ),
                   onSubmitted: _searchAndGo,
                 ),
-
                 const SizedBox(height: 14),
 
-                // MAP AREA
                 Expanded(
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: AppColors.borderField,
-                        width: 1,
-                      ),
+                      border: Border.all(color: AppColors.borderField, width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.35),
@@ -683,119 +846,28 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                             markers: _markers,
                             circles: _circles,
                             myLocationEnabled: !kIsWeb && _locationGranted,
-                            myLocationButtonEnabled:
-                                !kIsWeb && _locationGranted,
+                            myLocationButtonEnabled: !kIsWeb && _locationGranted,
                             zoomControlsEnabled: false,
                             mapToolbarEnabled: false,
                             polylines: _polylines,
+                            scrollGesturesEnabled: !_lockMapGestures,
+                            zoomGesturesEnabled: !_lockMapGestures,
+                            rotateGesturesEnabled: !_lockMapGestures,
+                            tiltGesturesEnabled: !_lockMapGestures,
                           ),
-                          if (_routeSummary != null)
-                            Positioned(
-                              top: 14,
-                              left: 16,
-                              right: 16,
-                              child: Center(
-                                child: GestureDetector(
-                                  onTap: _showStepsSheet, // <-- aggiunto
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.70),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: AppColors.accentCyan.withOpacity(
-                                          0.9,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.directions_car,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _routeSummary!,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Icon(
-                                          Icons.list_alt,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
 
-                          if (_routes.length > 1)
-                            Positioned(
-                              top: 60,
-                              left: 16,
-                              right: 16,
-                              child: Wrap(
-                                spacing: 8,
-                                children: List.generate(_routes.length, (i) {
-                                  final selected = i == _selectedRouteIndex;
-                                  return ChoiceChip(
-                                    label: Text('Route ${i + 1}'),
-                                    selected: selected,
-                                    onSelected: (_) {
-                                      setState(() => _selectedRouteIndex = i);
-                                      _applySelectedRoute();
-                                    },
-                                  );
-                                }),
-                              ),
-                            ),
-
-                          if (_isLoadingParkings)
+                          if (_isLoadingParkings || _isLoadingRoute || _isLocating)
                             Container(
                               color: Colors.black54,
                               child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.accentCyan,
-                                ),
-                              ),
-                            ),
-                          if (_isLoadingRoute)
-                            Container(
-                              color: Colors.black54,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.accentCyan,
-                                ),
-                              ),
-                            ),
-                          if (_isLocating)
-                            Container(
-                              color: Colors.black54,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.accentCyan,
-                                ),
+                                child: CircularProgressIndicator(color: AppColors.accentCyan),
                               ),
                             ),
 
                           Align(
                             alignment: Alignment.topRight,
                             child: Padding(
-                              padding: const EdgeInsets.only(
-                                top: 14,
-                                right: 14,
-                              ),
+                              padding: const EdgeInsets.only(top: 14, right: 14),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -806,16 +878,87 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                     tooltip: 'Parcheggi vicino',
                                     selected: _showParkings,
                                   ),
+                                  const SizedBox(height: 10),
+                                  GMapsControlButton(
+                                    icon: Icons.route,
+                                    onPressed: _routes.isEmpty ? null : _showRouteChoiceSheet,
+                                    tooltip: 'Percorso / Navigazione',
+                                    selected: _showRoutePanel,
+                                  ),
                                 ],
                               ),
                             ),
                           ),
+
+                          if (_showRoutePanel && _routes.isNotEmpty)
+                            Positioned(
+                              left: 16,
+                              top: 16,
+                              bottom: 16,
+                              child: SafeArea(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 420),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: Container(
+                                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(18),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.18),
+                                            blurRadius: 24,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                        ],
+                                      ),
+                                      // ✅ widget esterno
+                                      child: RoutePanel(
+                                        routes: _routes
+                                            .map((r) => RoutePanelRoute(
+                                                  summary: r.summary,
+                                                  steps: r.steps,
+                                                ))
+                                            .toList(),
+                                        selectedIndex: _selectedRouteIndex,
+                                        onSelectIndex: (i) {
+                                          setState(() => _selectedRouteIndex = i);
+                                          _applySelectedRoute();
+                                        },
+                                        onClose: _closeRoutePanel,
+                                        onStart: _startExternalNavigation,
+                                        stripHtml: _stripHtml,
+                                        setMapGesturesLocked: _setMapGesturesLocked,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
                           if (_selectedParkingData != null)
                             Positioned(
                               bottom: 40,
                               left: 20,
                               right: 20,
-                              child: _buildParkingPopup(_selectedParkingData!),
+                              // ✅ widget esterno
+                              child: ParkingPopup(
+                                parking: _selectedParkingData!,
+                                onClose: () => setState(() {
+                                  _selectedParkingData = null;
+                                  _selectedParkingMarkerId = null;
+                                }),
+                                onBook: () {
+                                  final p = _selectedParkingData!;
+                                  final pId = p['id'].toString();
+                                  final destLat = (p['latitudine'] as num).toDouble();
+                                  final destLng = (p['longitudine'] as num).toDouble();
+
+                                  setState(() => _selectedParkingData = null);
+                                  _effettuaPrenotazione(pId, destLat: destLat, destLng: destLng);
+                                },
+                              ),
                             ),
                         ],
                       ),
@@ -829,696 +972,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       ),
     );
   }
-
-  Widget _buildParkingPopup(Map<String, dynamic> p) {
-    return Container(
-      key: const ValueKey('popup'),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.bgDark,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.accentCyan, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                p['nome'] ?? 'Parcheggio',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: AppColors.textPrimary),
-                onPressed: () => setState(() {
-                  _selectedParkingData = null;
-                  _selectedParkingMarkerId = null;
-                }),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Area: ${p['area'] ?? 'N/D'}',
-            style: const TextStyle(color: AppColors.textMuted),
-          ),
-          Text(
-            'Posti disponibili: ${p['postiDisponibili']}/${p['postiTotali']}',
-            style: const TextStyle(color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: () {
-              final pId = p['id'].toString();
-              final destLat = (p['latitudine'] as num).toDouble();
-              final destLng = (p['longitudine'] as num).toDouble();
-
-              setState(() => _selectedParkingData = null);
-
-              _effettuaPrenotazione(pId, destLat: destLat, destLng: destLng);
-            },
-
-            icon: const Icon(Icons.qr_code),
-            label: const Text('Prenota parcheggio'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accentCyan,
-              foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _toggleParkings() async {
-    setState(() => _showParkings = !_showParkings);
-
-    if (!_showParkings) {
-      setState(() {
-        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
-      });
-      return;
-    }
-
-    await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
-  }
-
-  Future<void> _loadParkingsNearby(
-    LatLng center, {
-    double radiusMeters = 1200,
-  }) async {
-    setState(() => _isLoadingParkings = true);
-
-    try {
-      final uri = Uri.parse(
-        '$_baseUrl/parcheggi/nearby'
-        '?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
-      );
-
-      final res = await http.get(uri);
-      if (res.statusCode != 200) {
-        _showToast('Errore caricamento parcheggi (${res.statusCode})');
-        return;
-      }
-
-      final data = jsonDecode(res.body) as List<dynamic>;
-      final newMarkers = <Marker>{};
-
-      for (final p in data) {
-        final markerId = 'p_${p['id']}';
-        final isSelected = _selectedParkingMarkerId == markerId;
-
-        newMarkers.add(
-          Marker(
-            markerId: MarkerId(markerId),
-            position: LatLng(
-              (p['latitudine'] as num).toDouble(),
-              (p['longitudine'] as num).toDouble(),
-            ),
-            icon: isSelected
-                ? (_parkingIconSelected ??
-                      _parkingIcon ??
-                      BitmapDescriptor.defaultMarker)
-                : (_parkingIcon ?? BitmapDescriptor.defaultMarker),
-
-            // se vuoi eliminare del tutto la “finestrina” bianca nativa
-            infoWindow: const InfoWindow(title: ''),
-
-            onTap: () {
-              setState(() {
-                _selectedParkingMarkerId = markerId;
-                _selectedParkingData = p;
-              });
-
-              _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
-            },
-          ),
-        );
-      }
-
-      setState(() {
-        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
-        _markers.addAll(newMarkers);
-      });
-    } catch (e) {
-      _showToast('Errore durante il caricamento dei parcheggi.');
-    } finally {
-      setState(() => _isLoadingParkings = false);
-    }
-  }
-
-  Future<void> _showRouteToParking({
-    required double destLat,
-    required double destLng,
-  }) async {
-    setState(() {
-      _isLoadingRoute = true;
-      _routeSummary = null;
-    });
-
-    try {
-      // Permessi + posizione attuale
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        _showToast(
-          'Permesso posizione negato: impossibile calcolare il percorso.',
-        );
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      final origin = LatLng(pos.latitude, pos.longitude);
-      final destination = LatLng(destLat, destLng);
-
-      final routes = await _fetchDirectionsRoutes(
-        origin: origin,
-        destination: destination,
-      );
-
-      setState(() {
-        _routes = routes;
-        _selectedRouteIndex = 0;
-      });
-
-      _applySelectedRoute();
-    } catch (e, st) {
-      debugPrint('Errore calcolo percorso: $e');
-      debugPrintStack(stackTrace: st);
-      _showToast('Errore calcolo percorso.');
-    } finally {
-      if (mounted) setState(() => _isLoadingRoute = false);
-    }
-  }
-
-  Future<List<_DirectionsRoute>> _fetchDirectionsRoutes({
-    required LatLng origin,
-    required LatLng destination,
-  }) async {
-    final data = await widget.apiClient.getDirections(
-      oLat: origin.latitude,
-      oLng: origin.longitude,
-      dLat: destination.latitude,
-      dLng: destination.longitude,
-    );
-
-    final routesJson = (data['routes'] as List).cast<Map<String, dynamic>>();
-    if (routesJson.isEmpty)
-      throw Exception('Nessun percorso dalla Directions API');
-
-    return routesJson.map((r) {
-      final poly = (r['polyline'] ?? '') as String;
-      if (poly.isEmpty) throw Exception('Polyline vuota dal backend');
-
-      _checkPolylineChars(poly);
-
-      final decoded = PolylinePoints.decodePolyline(poly);
-      final points = decoded
-          .map((p) => LatLng(p.latitude, p.longitude))
-          .toList();
-
-      final dist = (r['distanceText'] ?? '') as String;
-      final durTraffic = (r['durationInTrafficText'] ?? '') as String;
-      final dur = (r['durationText'] ?? '') as String;
-
-      // Preferisci traffico se presente
-      final summary = (durTraffic.isNotEmpty ? durTraffic : dur);
-      final summaryFull = (summary.isNotEmpty && dist.isNotEmpty)
-          ? '$summary • $dist'
-          : ((r['summary'] ?? 'Percorso pronto') as String);
-
-      final steps = (r['steps'] ?? []) as List<dynamic>;
-
-      return _DirectionsRoute(
-        points: points,
-        summary: summaryFull,
-        steps: steps,
-      );
-    }).toList();
-  }
-
-  void _fitCameraToPoints(List<LatLng> pts) {
-    if (_mapController == null || pts.isEmpty) return;
-
-    double minLat = pts.first.latitude, maxLat = pts.first.latitude;
-    double minLng = pts.first.longitude, maxLng = pts.first.longitude;
-
-    for (final p in pts) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        70,
-      ),
-    );
-  }
-
-  Future<void> _effettuaPrenotazione(
-    String parcheggioId, {
-    required double destLat,
-    required double destLng,
-  }) async {
-    // 0) prendi posizione subito
-    LatLng? origin;
-    try {
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied)
-        perm = await Geolocator.requestPermission();
-      if (perm != LocationPermission.denied &&
-          perm != LocationPermission.deniedForever) {
-        final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-        origin = LatLng(pos.latitude, pos.longitude);
-      }
-    } catch (_) {}
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: AppColors.accentCyan),
-      ),
-    );
-
-    try {
-      final risposta = await widget.apiClient.prenotaParcheggio(
-        widget.utente.id,
-        parcheggioId,
-        DateTime.now().toIso8601String(),
-      );
-
-      // 1) disegna route se ho origin
-      if (origin != null) {
-        await _showRouteToParking(destLat: destLat, destLng: destLng);
-        // oppure crea una versione che usa "origin" senza richiamare geolocator
-      }
-
-      if (!mounted) return;
-      Navigator.of(context).pop(); // chiude loader
-
-      PrenotazioneDialog.mostra(context, risposta);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      _showToast(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      _showToast("Errore di connessione o del server");
-    }
-
-    _loadParkingsNearby(_cameraTarget);
-  }
-
-  void _vaiAlloStorico() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
-      ),
-    );
-  }
-}
-
-class PreferenzeDialog extends StatefulWidget {
-  final Utente utente;
-  final ApiClient apiClient;
-
-  const PreferenzeDialog({
-    super.key,
-    required this.utente,
-    required this.apiClient,
-  });
-
-  @override
-  State<PreferenzeDialog> createState() => _PreferenzeDialogState();
-}
-
-class _PreferenzeDialogState extends State<PreferenzeDialog> {
-  String _eta = 'under30';
-  String _piano = 'piano_terra';
-  double _distanza = 30;
-  bool _disabile = false;
-  bool _donnaIncinta = false;
-  String _occupazione = 'Studente';
-
-  bool _isSaving = false;
-
-  final List<String> _occupazioni = const [
-    'Studente',
-    'Lavoratore dipendente',
-    'Libero professionista',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-
-    final prefs = widget.utente.preferenze;
-    if (prefs != null && prefs.isNotEmpty) {
-      _eta = prefs['età'] ?? _eta;
-      _piano = prefs['piano'] ?? _piano;
-      _distanza = double.tryParse(prefs['distanza'] ?? '') ?? _distanza;
-      _disabile = (prefs['disabile'] ?? 'No') == 'Sì';
-      _donnaIncinta = (prefs['donnaIncinta'] ?? 'No') == 'Sì';
-      _occupazione = prefs['occupazione'] ?? _occupazione;
-      if (!_occupazioni.contains(_occupazione)) _occupazione = 'Studente';
-    }
-  }
-
-  Future<void> _onSalva() async {
-    final prefs = <String, String>{
-      'età': _eta,
-      'piano': _piano,
-      'distanza': _distanza.toStringAsFixed(2),
-      'disabile': _disabile ? 'Sì' : 'No',
-      'donnaIncinta': _donnaIncinta ? 'Sì' : 'No',
-      'occupazione': _occupazione,
-    };
-
-    setState(() => _isSaving = true);
-    try {
-      await widget.apiClient.aggiornaPreferenze(widget.utente.id, prefs);
-      if (!mounted) return;
-      Navigator.of(context).pop(prefs);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.bgDark,
-          content: Text(
-            e is ApiException
-                ? e.message
-                : 'Errore nel salvataggio delle preferenze',
-            style: const TextStyle(color: AppColors.textPrimary),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  void _onAnnulla() => Navigator.of(context).pop();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.bgDark,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      title: const Text(
-        'Imposta preferenze',
-        style: TextStyle(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      content: SingleChildScrollView(
-        child: Theme(
-          data: Theme.of(context).copyWith(
-            radioTheme: RadioThemeData(
-              fillColor: WidgetStateProperty.all(AppColors.accentCyan),
-            ),
-            checkboxTheme: CheckboxThemeData(
-              fillColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected))
-                  return AppColors.accentCyan;
-                return AppColors.borderField;
-              }),
-              checkColor: WidgetStateProperty.all(AppColors.textPrimary),
-            ),
-            sliderTheme: Theme.of(context).sliderTheme.copyWith(
-              activeTrackColor: AppColors.accentCyan,
-              thumbColor: AppColors.accentCyan,
-              overlayColor: AppColors.accentCyan.withOpacity(0.15),
-              inactiveTrackColor: AppColors.borderField,
-              valueIndicatorColor: AppColors.brandTop,
-              valueIndicatorTextStyle: const TextStyle(
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          child: DefaultTextStyle(
-            style: const TextStyle(color: AppColors.textPrimary),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Età',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Under 30'),
-                        value: 'under30',
-                        groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Over 60'),
-                        value: 'over60',
-                        groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Piano',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Piano terra'),
-                        value: 'piano_terra',
-                        groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Altri piani'),
-                        value: 'altri_piani',
-                        groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Distanza massima (m)',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Slider(
-                  value: _distanza,
-                  min: 0,
-                  max: 200,
-                  divisions: 40,
-                  label: _distanza.toStringAsFixed(0),
-                  onChanged: (v) => setState(() => _distanza = v),
-                ),
-                Text(
-                  'Valore: ${_distanza.toStringAsFixed(0)} m',
-                  style: TextStyle(
-                    color: AppColors.textMuted.withOpacity(0.95),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Condizioni speciali',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                CheckboxListTile(
-                  value: _disabile,
-                  onChanged: (v) => setState(() => _disabile = v ?? false),
-                  title: const Text('Disabile'),
-                  dense: true,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  value: _donnaIncinta,
-                  onChanged: (v) => setState(() => _donnaIncinta = v ?? false),
-                  title: const Text('Donna incinta'),
-                  dense: true,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Occupazione',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                DropdownButtonFormField<String>(
-                  value: _occupazione,
-                  dropdownColor: AppColors.bgDark,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: AppColors.borderField,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.accentCyan),
-                    ),
-                  ),
-                  items: _occupazioni
-                      .map(
-                        (o) =>
-                            DropdownMenuItem<String>(value: o, child: Text(o)),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _occupazione = v);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : _onAnnulla,
-          style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
-          child: const Text('Annulla'),
-        ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _onSalva,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accentCyan,
-            foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: _isSaving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.textPrimary,
-                  ),
-                )
-              : const Text(
-                  'Salva',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class GMapsControlButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String? tooltip;
-  final bool selected;
-
-  const GMapsControlButton({
-    super.key,
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Color iconColor = onPressed == null
-        ? const Color(0xFFB0B0B0)
-        : (selected ? const Color(0xFF4285F4) : const Color(0xFF666666));
-
-    final child = Material(
-      color: Colors.white,
-      elevation: 2.5,
-      shadowColor: Colors.black.withOpacity(0.22),
-      shape: CircleBorder(
-        side: BorderSide(
-          color: selected ? const Color(0x334285F4) : const Color(0x1F000000),
-          width: 1,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, size: 22, color: iconColor),
-        ),
-      ),
-    );
-
-    if (tooltip == null) return child;
-    return Tooltip(message: tooltip!, child: child);
-  }
 }
 
 class _DirectionsRoute {
   final List<LatLng> points;
   final String summary;
   final List<dynamic> steps;
+
   _DirectionsRoute({
     required this.points,
     required this.summary,

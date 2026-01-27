@@ -269,4 +269,17 @@ class ApiClient {
       resp.statusCode,
     );
   }
+
+  //LOCALIZZAZIONE GPS
+  Future<Map<String, dynamic>> geocode({required String address}) async {
+    final uri = Uri.parse(
+      '$_baseUrl/maps/geocode',
+    ).replace(queryParameters: {'address': address});
+
+    final res = await http.get(uri);
+    if (res.statusCode != 200) {
+      throw ApiException('Geocode failed (${res.statusCode})');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 }

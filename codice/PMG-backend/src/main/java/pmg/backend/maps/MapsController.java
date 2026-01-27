@@ -21,4 +21,9 @@ public class MapsController {
   ) {
     return mapsService.getDirections(oLat, oLng, dLat, dLng);
   }
+
+  @GetMapping("/geocode")
+  public GeocodeResponseDto geocode(@RequestParam String address) {
+    return mapsService.geocode(address);
+  }
 }

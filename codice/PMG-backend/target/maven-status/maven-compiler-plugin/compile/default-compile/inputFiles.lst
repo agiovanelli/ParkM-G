@@ -17,6 +17,8 @@ C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\ba
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogSeverità.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsDto.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsResponseDto.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResponseDto.java
+C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResultDto.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsController.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsService.java
 C:\Users\maffe\Downloads\Park-MG\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\RouteDto.java
