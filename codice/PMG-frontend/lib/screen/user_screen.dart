@@ -759,11 +759,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         final markerId = 'p_${p['id']}';
         final isSelected = _selectedParkingMarkerId == markerId;
 
-        final int postiDisp =
-            (p['postiDisponibili'] as num?)?.toInt() ??
-            (p['posti_disponibili'] as num?)?.toInt() ??
-            0;
-
+        // 1. Estrazione dei dati dal JSON (Risolve l'errore 'inEmergenza' non definito)
+        final bool inEmergenza = p['inEmergenza'] as bool? ?? false;
+        final int postiDisp = (p['postiDisponibili'] as num?)?.toInt() ?? 0;
         final bool isFull = postiDisp <= 0;
 
         newMarkers.add(
@@ -773,14 +771,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               (p['latitudine'] as num).toDouble(),
               (p['longitudine'] as num).toDouble(),
             ),
-            icon: isFull
+            // 2. Logica Icona Unificata (Risolve l'errore del parametro duplicato)
+            icon: inEmergenza || isFull
                 ? (_parkingIconFull ?? BitmapDescriptor.defaultMarker)
                 : (isSelected
-                      ? (_parkingIconSelected ??
-                            _parkingIcon ??
-                            BitmapDescriptor.defaultMarker)
-                      : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
-
+                    ? (_parkingIconSelected ?? _parkingIcon ?? BitmapDescriptor.defaultMarker)
+                    : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
+            
             infoWindow: const InfoWindow(title: ''),
             onTap: () async {
               setState(() {

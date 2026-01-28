@@ -458,6 +458,20 @@ class _OperatorScreenState extends State<OperatorScreen> {
     });
   }
 
+    void _showToast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.bgDark,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
   // ---- UI ----
 
   @override
@@ -775,6 +789,27 @@ class _OperatorScreenState extends State<OperatorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // EMERGENZA
+          InkWell(
+              onTap: _triggerEmergenza,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red, width: 2),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red),
+                    SizedBox(width: 12),
+                    Text("ATTIVA BLOCCO EMERGENZA", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
           // KPI CARDS
           isWide
               ? Row(
@@ -1605,84 +1640,84 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
 
-//scan codice Qr e aggiorna stato prenotazione
-Future<void> _handleQrScan(String qrCode) async {
-  try {
-    final response = await _apiClient.validaIngresso(qrCode);
-    
-    // Mostra un dialogo di successo
-    if (mounted) {
-      await showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF10B981),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Ingresso Validato',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
+  //scan codice Qr e aggiorna stato prenotazione
+  Future<void> _handleQrScan(String qrCode) async {
+    try {
+      final response = await _apiClient.validaIngresso(qrCode);
+      
+      // Mostra un dialogo di successo
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.bgDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF10B981),
+                    size: 28,
                   ),
                 ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoRow('Prenotazione', response.id),
-              const SizedBox(height: 8),
-              _infoRow('Codice QR', response.codiceQr ?? qrCode),
-              const SizedBox(height: 8),
-              _infoRow('Stato', _formatStato(response.stato)),
-              const SizedBox(height: 8),
-              _infoRow(
-                'Data ingresso',
-                response.dataIngresso != null 
-                  ? _formatTime(response.dataIngresso!)
-                  : 'Ora',
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.accentCyan,
-              ),
-              child: const Text('OK'),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Ingresso Validato',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-      
-      // Aggiorna i dati dopo la validazione
-      _refresh();
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow('Prenotazione', response.id),
+                const SizedBox(height: 8),
+                _infoRow('Codice QR', response.codiceQr ?? qrCode),
+                const SizedBox(height: 8),
+                _infoRow('Stato', _formatStato(response.stato)),
+                const SizedBox(height: 8),
+                _infoRow(
+                  'Data ingresso',
+                  response.dataIngresso != null 
+                    ? _formatTime(response.dataIngresso!)
+                    : 'Ora',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accentCyan,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        
+        // Aggiorna i dati dopo la validazione
+        _refresh();
+      }
+    } catch (e) {
+      // L'errore viene già gestito nella QrScannerPage
+      throw Exception(e.toString());
     }
-  } catch (e) {
-    // L'errore viene già gestito nella QrScannerPage
-    throw Exception(e.toString());
   }
-}
 
 String _formatStato(StatoPrenotazione stato) {
   switch (stato) {
@@ -1701,28 +1736,68 @@ String _formatStato(StatoPrenotazione stato) {
   }
 }
 
-Widget _infoRow(String label, String value) {
-  return Row(
-    children: [
-      Text(
-        '$label: ',
-        style: const TextStyle(
-          color: AppColors.textMuted,
-          fontWeight: FontWeight.w600,
+  Widget _infoRow(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
-      Text(
-        value,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w800,
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
         ),
+      ],
+    );
+  }
+
+  Future<void> _triggerEmergenza() async {
+  String motivo = "";
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppColors.bgDark,
+      title: const Text('ATTIVAZIONE EMERGENZA', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Il parcheggio verrà chiuso istantaneamente.', style: TextStyle(color: Colors.white)),
+          const SizedBox(height: 10),
+          TextField(
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(labelText: 'Motivo (opzionale)', labelStyle: TextStyle(color: Colors.grey)),
+            onChanged: (v) => motivo = v,
+          ),
+        ],
       ),
-    ],
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('CONFERMA BLOCCO'),
+        ),
+      ],
+    ),
   );
+
+  if (confirm == true) {
+    try {
+      // Usiamo l'ID parcheggio associato all'operatore (già presente nel widget)
+      await _apiClient.impostaEmergenza(widget.operatore.parcheggioId, true, motivo);
+      _refresh(); // Ricarica per vedere il nuovo log di allarme
+      _showToast("EMERGENZA ATTIVATA");
+    } catch (e) {
+      _showToast("Errore: $e");
+    }
+  }
 }
-
-
 
 
 

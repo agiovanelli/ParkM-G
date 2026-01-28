@@ -64,19 +64,21 @@ class ParkingPopup extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ElevatedButton.icon(
-            onPressed: canBook ? onBook : null,
+            onPressed: (parking['inEmergenza'] == true || !canBook) ? null : onBook,
             icon: const Icon(Icons.qr_code),
             label: Text(
-              canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile',
+              parking['inEmergenza'] == true 
+                ? 'CHIUSO PER EMERGENZA' 
+                : (canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile'),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: canBook
-                  ? AppColors.accentCyan
-                  : Colors.redAccent,
-              foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              backgroundColor: parking['inEmergenza'] == true || !canBook
+                  ? Colors.redAccent
+                  : AppColors.accentCyan,
+            foregroundColor: AppColors.textPrimary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             ),
           ),
         ],

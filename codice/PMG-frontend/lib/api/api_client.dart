@@ -202,6 +202,27 @@ class ApiClient {
     }
   }
 
+  //BLOCCO DI EMERGENZA PARCHEGGIO
+  Future<void> impostaEmergenza(String parcheggioId, bool attiva, String motivo) async {
+    final url = Uri.parse('$_baseUrl/parcheggi/$parcheggioId/emergenza').replace(
+      queryParameters: {
+        'attiva': attiva.toString(),
+        'motivo': motivo,
+      },
+    );
+
+    final resp = await _client.patch(
+      url,
+      headers: {
+        // Rimuovi Content-Type se non mandi un JSON nel body, lascia solo Accept
+        'Accept': 'application/json',
+      },
+    );
+
+    if (resp.statusCode != 200) {
+      throw ApiException('Errore attivazione emergenza', resp.statusCode);
+    }
+  }
   //-------------------- PRENOTAZIONI --------------------
   /// Prenota un parcheggio: POST /api/parcheggi/prenota
   Future<PrenotazioneResponse> prenotaParcheggio(
