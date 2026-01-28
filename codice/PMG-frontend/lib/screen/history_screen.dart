@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:park_mg/utils/ui_feedback.dart';
 import '../api/api_client.dart';
 import '../models/prenotazione.dart';
 import '../models/utente.dart';
@@ -68,12 +69,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: CircularProgressIndicator(color: AppColors.accentCyan),
             );
           } else if (snapshot.hasError) {
-            return Center(
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              UiFeedback.showError(context, "Errore: ${snapshot.error}");
+            });
+
+            return const Center(
               child: Text(
-                "Errore: ${snapshot.error}",
-                style: const TextStyle(color: Colors.redAccent),
+                "Errore nel caricamento dello storico.",
+                style: TextStyle(color: AppColors.textMuted),
               ),
             );
+            
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Text(

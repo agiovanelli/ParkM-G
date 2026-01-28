@@ -29,8 +29,8 @@ class ParcheggioControllerTest {
 
     @Test
     void cercaTest() throws Exception {
-        ParcheggioResponse p1 = new ParcheggioResponse("1", "Parcheggio A", "Centro", 100, 20, 45.5, 9.1);
-        ParcheggioResponse p2 = new ParcheggioResponse("2", "Parcheggio B", "Centro", 50, 10, 45.51, 9.11);
+        ParcheggioResponse p1 = new ParcheggioResponse("1", "Parcheggio A", "Centro", 100, 20, 45.5, 9.1, false);
+        ParcheggioResponse p2 = new ParcheggioResponse("2", "Parcheggio B", "Centro", 50, 10, 45.51, 9.11, false);
 
         when(parcheggioService.cercaPerArea("Centro")).thenReturn(List.of(p1, p2));
 
@@ -69,7 +69,7 @@ class ParcheggioControllerTest {
 
     @Test
     void getNearbyTest() throws Exception {
-        ParcheggioResponse vicino = new ParcheggioResponse("3", "Vicino", "Nord", 10, 2, 45.50, 9.20);
+        ParcheggioResponse vicino = new ParcheggioResponse("3", "Vicino", "Nord", 10, 2, 45.50, 9.20, false);
         when(parcheggioService.cercaVicini(45.50, 9.20, 500.0)).thenReturn(List.of(vicino));
 
         mockMvc.perform(get("/api/parcheggi/nearby")

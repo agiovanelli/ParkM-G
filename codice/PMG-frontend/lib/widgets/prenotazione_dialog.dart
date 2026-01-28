@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:park_mg/api/api_client.dart';
+import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/prenotazione.dart';
 import '../utils/theme.dart';
@@ -85,20 +86,28 @@ class _PrenotazioneDialogContentState
           style: TextStyle(color: AppColors.textPrimary),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              "No",
-              style: TextStyle(color: AppColors.textMuted),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text(
+                    "No",
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("Sì, annulla"),
+                ),
+              ],
             ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Sì, annulla"),
           ),
         ],
       ),
@@ -113,54 +122,18 @@ class _PrenotazioneDialogContentState
         prenotazioneId: widget.prenotazione.id,
         utenteId: widget.utenteId,
       );
-
       if (!mounted) return;
-
       widget.onCancelled();
-
       Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Prenotazione annullata."),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      );
+      UiFeedback.showSuccess(context, "Prenotazione annullata.");
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isCancelling = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      );
+      UiFeedback.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isCancelling = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Errore inatteso durante l'annullamento."),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      );
+      UiFeedback.showError(context, "Errore inatteso durante l'annullamento.");
     }
   }
 
@@ -187,117 +160,121 @@ class _PrenotazioneDialogContentState
 
   @override
   Widget build(BuildContext context) {
+    // WEB: stringhe lunghe (es. parcheggioId) allargano il dialog -> maxWidth stretta
+    const double maxDialogWidth = 300.0;
+
     return Dialog(
       backgroundColor: AppColors.bgDark2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(50, 20, 50, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Badge dello stato
-              _buildStatoBadge(),
-              const SizedBox(height: 16),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: maxDialogWidth),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildStatoBadge(),
+                const SizedBox(height: 12),
 
-              // Timer (solo se prenotazione ATTIVA)
-              if (widget.prenotazione.stato == StatoPrenotazione.ATTIVA)
-                _buildTimer(),
+                if (widget.prenotazione.stato == StatoPrenotazione.ATTIVA)
+                  _buildTimer(),
 
-              // Dettagli prenotazione
-              _buildDettaglio(
-                Icons.directions_car,
-                "Parcheggio",
-                widget.prenotazione.parcheggioId,
-              ),
-              _buildDettaglio(
-                Icons.event,
-                "Creazione",
-                _formatDT(widget.prenotazione.dataCreazione),
-              ),
-              if (widget.prenotazione.dataIngresso != null)
                 _buildDettaglio(
-                  Icons.login,
-                  "Ingresso",
-                  _formatDT(widget.prenotazione.dataIngresso),
+                  Icons.directions_car,
+                  "Parcheggio",
+                  widget.prenotazione.parcheggioId,
                 ),
-              if (widget.prenotazione.dataUscita != null)
                 _buildDettaglio(
-                  Icons.logout,
-                  "Uscita",
-                  _formatDT(widget.prenotazione.dataUscita),
+                  Icons.event,
+                  "Creazione",
+                  _formatDT(widget.prenotazione.dataCreazione),
                 ),
+                if (widget.prenotazione.dataIngresso != null)
+                  _buildDettaglio(
+                    Icons.login,
+                    "Ingresso",
+                    _formatDT(widget.prenotazione.dataIngresso),
+                  ),
+                if (widget.prenotazione.dataUscita != null)
+                  _buildDettaglio(
+                    Icons.logout,
+                    "Uscita",
+                    _formatDT(widget.prenotazione.dataUscita),
+                  ),
 
-              const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-              // QR Code (se disponibile)
-              if (widget.prenotazione.codiceQr != null &&
-                  widget.prenotazione.codiceQr!.isNotEmpty)
-                _buildQrCode(),
+                if (widget.prenotazione.codiceQr != null &&
+                    widget.prenotazione.codiceQr!.isNotEmpty)
+                  _buildQrCode(),
 
-              if (widget.prenotazione.codiceQr != null &&
-                  widget.prenotazione.codiceQr!.isNotEmpty)
-                const SizedBox(height: 16),
+                if (widget.prenotazione.codiceQr != null &&
+                    widget.prenotazione.codiceQr!.isNotEmpty)
+                  const SizedBox(height: 12),
 
-              // Bottone chiudi
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (widget.prenotazione.stato ==
-                      StatoPrenotazione.ATTIVA) ...[
-                    OutlinedButton(
-                      onPressed: _isCancelling ? null : _annullaPrenotazione,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(
-                          color: Colors.redAccent,
-                          width: 1.6,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (widget.prenotazione.stato ==
+                        StatoPrenotazione.ATTIVA) ...[
+                      OutlinedButton(
+                        onPressed: _isCancelling ? null : _annullaPrenotazione,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(
+                            color: Colors.redAccent,
+                            width: 1.6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
                         ),
+                        child: _isCancelling
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "Annulla",
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    ElevatedButton(
+                      onPressed: _isCancelling
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentCyan,
+                        foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
+                          horizontal: 22,
+                          vertical: 10,
                         ),
                       ),
-                      child: _isCancelling
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text(
-                              "Annulla",
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                      child: const Text(
+                        "Chiudi",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    const SizedBox(width: 12),
                   ],
-                  ElevatedButton(
-                    onPressed: _isCancelling
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentCyan,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text(
-                      "Chiudi",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -428,6 +405,8 @@ class _PrenotazioneDialogContentState
           const SizedBox(height: 2),
           Text(
             value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
@@ -459,7 +438,7 @@ class _PrenotazioneDialogContentState
 
   Widget _buildQrCode() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -476,11 +455,11 @@ class _PrenotazioneDialogContentState
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           QrImageView(
             data: widget.prenotazione.codiceQr!,
             version: QrVersions.auto,
-            size: 180.0,
+            size: 200.0,
             backgroundColor: Colors.white,
             eyeStyle: const QrEyeStyle(
               eyeShape: QrEyeShape.square,

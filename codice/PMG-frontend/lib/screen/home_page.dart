@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
+import 'package:park_mg/utils/ui_feedback.dart';
 import '../api/api_client.dart';
 import 'user_screen.dart';
 import 'operator_screen.dart';
@@ -124,37 +125,6 @@ class _HomePageState extends State<HomePage>
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
-  void _showError(String msg) {
-    final snackBar = SnackBar(
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      elevation: 10,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      backgroundColor: Colors.white, // card-like
-      content: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              msg,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      duration: const Duration(seconds: 4),
-    );
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(snackBar);
-  }
-
   // ------------------ AZIONI CLIENTI ------------------
 
   Future<void> _handleUserLogin() async {
@@ -162,19 +132,19 @@ class _HomePageState extends State<HomePage>
     final password = _userLoginPasswordController.text;
 
     if (email.isEmpty && password.isEmpty) {
-      _showError('Inserisci email e password.');
+      UiFeedback.showError(context, 'Inserisci email e password.');
       return;
     }
     if (email.isEmpty) {
-      _showError('Inserisci email.');
+      UiFeedback.showError(context, 'Inserisci email.');
       return;
     }
     if (password.isEmpty) {
-      _showError('Inserisci password.');
+      UiFeedback.showError(context, 'Inserisci password.');
       return;
     }
     if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      _showError('Formato email non valido.');
+      UiFeedback.showError(context, 'Formato email non valido.');
       return;
     }
 
@@ -191,10 +161,8 @@ class _HomePageState extends State<HomePage>
         ),
       );
     } catch (e) {
-      _showError(
-        e is ApiException
-            ? e.message
-            : 'Errore di connessione al server utenti',
+      UiFeedback.showError( context,
+            e is ApiException ? e.message : 'Errore di connessione al server utenti',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -208,15 +176,16 @@ class _HomePageState extends State<HomePage>
     final pwd = _userRegisterPasswordController.text;
 
     if (nome.isEmpty || cognome.isEmpty || email.isEmpty || pwd.isEmpty) {
-      _showError('Compila tutti i campi.');
+      UiFeedback.showError(context, 'Compila tutti i campi.');
       return;
     }
     if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      _showError('Email non valida.');
+      UiFeedback.showError(context, 'Email non valida.');
       return;
     }
     if (!_passwordValida(pwd)) {
-      _showError(
+      UiFeedback.showError(
+        context,
         'La password deve contenere almeno:\n'
         '- 6 caratteri\n'
         '- 1 lettera maiuscola\n'
@@ -237,9 +206,10 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _isLoginMode = true;
       });
-      _showError('Registrazione completata. Ora effettua il login.');
+      UiFeedback.showError(context, 'Registrazione completata. Ora effettua il login.');
     } catch (e) {
-      _showError(
+      UiFeedback.showError(
+        context,
         e is ApiException
             ? e.message
             : 'Errore di connessione al server utenti',
@@ -250,7 +220,7 @@ class _HomePageState extends State<HomePage>
   }
 
   void _handleUserForgotPassword() {
-    _showError('Funzionalità "Password dimenticata?" non ancora disponibile.');
+    UiFeedback.showError(context, 'Funzionalità "Password dimenticata?" non ancora disponibile.');
   }
 
   // ------------------ AZIONI OPERATORI ------------------
@@ -260,15 +230,15 @@ class _HomePageState extends State<HomePage>
     final username = _operatorUsernameController.text.trim();
 
     if (nomeStruttura.isEmpty && username.isEmpty) {
-      _showError('Inserisci il nome della struttura e l\'username.');
+      UiFeedback.showError(context, 'Inserisci il nome della struttura e l\'username.');
       return;
     }
     if (nomeStruttura.isEmpty) {
-      _showError('Inserisci il nome della struttura.');
+      UiFeedback.showError(context, 'Inserisci il nome della struttura.');
       return;
     }
     if (username.isEmpty) {
-      _showError('Inserisci l\'username.');
+      UiFeedback.showError(context, 'Inserisci l\'username.');
       return;
     }
 
@@ -286,7 +256,8 @@ class _HomePageState extends State<HomePage>
         MaterialPageRoute(builder: (_) => OperatorScreen(operatore: operatore)),
       );
     } catch (e) {
-      _showError(
+      UiFeedback.showError(
+        context,
         e is ApiException
             ? e.message
             : 'Errore di connessione al server operatori',
