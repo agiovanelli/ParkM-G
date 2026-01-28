@@ -4,6 +4,11 @@ import java.util.List;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import pmg.backend.parcheggio.Parcheggio;
+import pmg.backend.parcheggio.ParcheggioRepository;
+
 import java.time.LocalDateTime;
 
 
@@ -11,10 +16,12 @@ import java.time.LocalDateTime;
 public class PrenotazioneServiceImpl implements PrenotazioneService {
 
     private final PrenotazioneRepository prenotazioneRepository;
+    private final ParcheggioRepository parcheggioRepository;
 
-    public PrenotazioneServiceImpl(PrenotazioneRepository prenotazioneRepository) {
-        this.prenotazioneRepository = prenotazioneRepository;
-    }
+    public PrenotazioneServiceImpl(PrenotazioneRepository prenotazioneRepository, ParcheggioRepository parcheggioRepository) {
+		this.prenotazioneRepository = prenotazioneRepository;
+		this.parcheggioRepository = parcheggioRepository;
+	}
 
     @Override
     public List<PrenotazioneResponse> getStoricoUtente(String utenteId) {
@@ -84,5 +91,32 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             p.getDataIngresso(),
             p.getDataUscita()
         );
+    }
+    
+    @Transactional
+    public PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId) {
+        Prenotazione p = prenotazioneRepository
+            .findByIdAndUtenteId(prenotazioneId, utenteId)
+            .orElseThrow(() -> new RuntimeException("Prenotazione non trovata"));
+
+        if (p.getStato() != StatoPrenotazione.ATTIVA) {
+            throw new IllegalStateException(
+                "Puoi annullare solo prenotazioni ATTIVE (stato attuale: " + p.getStato() + ")"
+            );
+        }
+
+        // 1) cambia stato
+        p.setStato(StatoPrenotazione.ANNULLATA);
+        Prenotazione salvata = prenotazioneRepository.save(p);
+
+        // 2) libera posto nel parcheggio (con clamp a postiTotali)
+        Parcheggio park = parcheggioRepository.findById(p.getParcheggioId())
+            .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
+
+        int nuoviDisp = Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1);
+        park.setPostiDisponibili(nuoviDisp);
+        parcheggioRepository.save(park);
+
+        return convertiInResponse(salvata);
     }
 }

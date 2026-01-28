@@ -116,6 +116,30 @@ class ApiClient {
     }
   }
 
+  Future<PrenotazioneResponse> annullaPrenotazione({
+    required String prenotazioneId,
+    required String utenteId,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/prenotazioni/$prenotazioneId/utente/$utenteId',
+    );
+
+    final resp = await _client.delete(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(resp.body));
+    }
+
+    String msg = 'Errore annullamento (HTTP ${resp.statusCode})';
+    if (resp.body.trim().isNotEmpty) {
+      msg = resp.body.trim();
+    }
+    throw ApiException(msg, resp.statusCode);
+  }
+
   // -------------------- OPERATORI --------------------
 
   /// Login operatore: POST /api/operatori/login

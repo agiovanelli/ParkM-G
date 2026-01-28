@@ -66,6 +66,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   bool _navPending = false;
   bool _bookedMarkerLocked = false;
   BitmapDescriptor? _parkingIconFull;
+  bool _blockMapInteractions = false;
+  bool _bookingCancelledInDialog = false;
 
   void _setMapGesturesLocked(bool v) {
     if (_lockMapGestures == v) return;
@@ -207,6 +209,37 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         .replaceAll('&gt;', '>')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  Future<void> _handleBookingCancelledAndReload([
+    Map<String, dynamic>? _,
+  ]) async {
+    _stopInAppNavigation();
+
+    setState(() {
+      _bookedParkingMarkerId = null;
+      _bookedMarkerLocked = false;
+
+      _selectedParkingData = null;
+      _selectedParkingMarkerId = null;
+
+      _routes = [];
+      _selectedRouteIndex = 0;
+      _showRoutePanel = false;
+
+      _navRoutePts = null;
+      _navRouteIndexCached = null;
+      _navStepIndex = 0;
+
+      _polylines.removeWhere((p) => p.polylineId.value == 'route');
+
+      _showParkings = true;
+      _lockMapGestures = false;
+
+      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+    });
+
+    await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
   }
 
   void _showToast(String msg) {
@@ -699,12 +732,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       return;
     }
 
-    await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+    await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
   }
 
   Future<void> _loadParkingsNearby(
     LatLng center, {
-    double radiusMeters = 1200,
+    double radiusMeters = 2500,
   }) async {
     setState(() => _isLoadingParkings = true);
 
@@ -754,7 +787,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                 _selectedParkingMarkerId = markerId;
                 _selectedParkingData = p;
               });
-              await _loadParkingsNearby(_cameraTarget, radiusMeters: 1200);
+              await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
             },
           ),
         );
@@ -779,11 +812,16 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     required double destLng,
     required Map<String, dynamic> parkingData,
   }) async {
+    // reset flag annullo
+    _bookingCancelledInDialog = false;
+
+    // prova a ottenere origin (per route)
     LatLng? origin;
     try {
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied)
+      if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
+      }
 
       if (perm != LocationPermission.denied &&
           perm != LocationPermission.deniedForever) {
@@ -792,8 +830,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         );
         origin = LatLng(pos.latitude, pos.longitude);
       }
-    } catch (_) {}
+    } catch (_) {
+      // ok: origin rimane null
+    }
 
+    // loader blocking
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -803,42 +844,79 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
 
     try {
+      // 1) PRENOTA
       final risposta = await widget.apiClient.prenotaParcheggio(
         widget.utente.id,
         parcheggioId,
         DateTime.now().toIso8601String(),
       );
 
-      setState(() {});
+      if (!mounted) return;
+
+      // chiudi loader
+      Navigator.of(context, rootNavigator: true).pop();
+
+      // 2) DIALOG PRENOTAZIONE (può annullare davvero)
+      await _showMapLockedDialog<void>(
+        show: () => PrenotazioneDialog.mostra(
+          context,
+          prenotazione: risposta,
+          apiClient: widget.apiClient,
+          utenteId: widget.utente.id,
+          onCancelled: () {
+            _bookingCancelledInDialog = true;
+
+            Future.microtask(() async {
+              if (!mounted) return;
+              await _handleBookingCancelledAndReload(parkingData);
+            });
+          },
+        ),
+      );
 
       if (!mounted) return;
 
-      Navigator.of(context, rootNavigator: true).pop();
+      // 3) Se annullata nel dialog, STOP: non deve partire la route, né lock marker
+      if (_bookingCancelledInDialog) {
+        return;
+      }
 
-      await PrenotazioneDialog.mostra(context, risposta);
-
-      if (origin != null) {
-        await _showRouteToParking(
-          origin: origin,
-          destLat: destLat,
-          destLng: destLng,
-        );
-
-        if (!mounted) return;
-        setState(() => _bookedMarkerLocked = true);
-        _showOnlyBookedParking(parkingData);
-      } else {
+      // 4) Se non ho origin, non posso calcolare percorso -> (scelta UX)
+      if (origin == null) {
         _showToast(
           'Posizione non disponibile: impossibile calcolare il percorso.',
         );
+        // comunque posso considerare la prenotazione "attiva" e mostrare solo il booked parking:
+        setState(() => _bookedMarkerLocked = true);
+        _showOnlyBookedParking(parkingData);
+        return;
       }
+
+      // 5) ROUTE + pannello
+      await _showRouteToParking(
+        origin: origin,
+        destLat: destLat,
+        destLng: destLng,
+      );
+
+      if (!mounted) return;
+
+      // 6) LOCK e mostra solo parcheggio prenotato (verde)
+      setState(() => _bookedMarkerLocked = true);
+      _showOnlyBookedParking(parkingData);
     } on ApiException catch (e) {
       if (!mounted) return;
+
+      // chiudi loader se ancora aperto
       Navigator.of(context, rootNavigator: true).pop();
+
       _showToast(e.message);
     } catch (_) {
       if (!mounted) return;
+
+      // chiudi loader se ancora aperto
       Navigator.of(context, rootNavigator: true).pop();
+
       _showToast('Errore di connessione o del server');
     }
   }
@@ -846,16 +924,49 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   // -------------------- menu / navigation --------------------
 
   Future<void> _showPreferenzeDialog() async {
-    final updatedPrefs = await showDialog<Map<String, String>>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) =>
-          PreferenzeDialog(utente: widget.utente, apiClient: widget.apiClient),
+    final updatedPrefs = await _showMapLockedDialog<Map<String, String>>(
+      show: () => showDialog<Map<String, String>>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PreferenzeDialog(
+          utente: widget.utente,
+          apiClient: widget.apiClient,
+        ),
+      ),
     );
 
+    if (!mounted) return;
     if (updatedPrefs != null) {
       setState(() => widget.utente.preferenze = updatedPrefs);
     }
+  }
+
+  Future<T?> _showMapLockedDialog<T>({
+    required Future<T?> Function() show,
+  }) async {
+    final prevLock = _lockMapGestures;
+
+    setState(() {
+      _blockMapInteractions = true;
+      _lockMapGestures = true;
+    });
+
+    T? result;
+    try {
+      result = await show();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _blockMapInteractions = false;
+          _lockMapGestures = prevLock;
+        });
+      } else {
+        _blockMapInteractions = false;
+        _lockMapGestures = prevLock;
+      }
+    }
+
+    return result;
   }
 
   void _logout() {
@@ -866,8 +977,16 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            HistoryScreen(utente: widget.utente, apiClient: widget.apiClient),
+        builder: (context) => HistoryScreen(
+          utente: widget.utente,
+          apiClient: widget.apiClient,
+          onBookingCancelled: () {
+            Future.microtask(() async {
+              if (!mounted) return;
+              await _handleBookingCancelledAndReload();
+            });
+          },
+        ),
       ),
     );
   }
@@ -993,6 +1112,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         0;
 
     final bool isFullSelected = postiDispSelected <= 0;
+    final bool hasActiveBooking = _bookedParkingMarkerId != null;
 
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
@@ -1132,109 +1252,202 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: Stack(
-                        children: [
-                          GoogleMap(
-                            onCameraMove: (pos) => _cameraTarget = pos.target,
-                            initialCameraPosition: _initialCamera,
-                            onMapCreated: (c) async {
-                              _mapController = c;
-                              await _mapController!.setMapStyle(_mapStyleNoPoi);
+                      child: AbsorbPointer(
+                        absorbing: _blockMapInteractions,
+                        child: Stack(
+                          children: [
+                            GoogleMap(
+                              onCameraMove: (pos) => _cameraTarget = pos.target,
+                              initialCameraPosition: _initialCamera,
+                              onMapCreated: (c) async {
+                                _mapController = c;
+                                await _mapController!.setMapStyle(
+                                  _mapStyleNoPoi,
+                                );
 
-                              if (_pendingCenter != null) {
-                                final me = _pendingCenter!;
-                                _pendingCenter = null;
-                                await _mapController!.animateCamera(
-                                  CameraUpdate.newCameraPosition(
-                                    CameraPosition(target: me, zoom: 16),
+                                if (_pendingCenter != null) {
+                                  final me = _pendingCenter!;
+                                  _pendingCenter = null;
+                                  await _mapController!.animateCamera(
+                                    CameraUpdate.newCameraPosition(
+                                      CameraPosition(target: me, zoom: 16),
+                                    ),
+                                  );
+                                }
+                              },
+                              markers: _markers,
+                              circles: _circles,
+                              myLocationEnabled: !kIsWeb && _locationGranted,
+                              myLocationButtonEnabled:
+                                  !kIsWeb && _locationGranted,
+                              zoomControlsEnabled: false,
+                              mapToolbarEnabled: false,
+                              polylines: _polylines,
+                              scrollGesturesEnabled: !_lockMapGestures,
+                              zoomGesturesEnabled: !_lockMapGestures,
+                              rotateGesturesEnabled: !_lockMapGestures,
+                              tiltGesturesEnabled: !_lockMapGestures,
+                              onTap: (_) async {
+                                setState(() {
+                                  _selectedParkingData = null;
+                                  _selectedParkingMarkerId = null;
+                                });
+                                if (_showParkings &&
+                                    _bookedParkingMarkerId == null) {
+                                  await _loadParkingsNearby(
+                                    _cameraTarget,
+                                    radiusMeters: 2500,
+                                  );
+                                }
+                              },
+                            ),
+
+                            if (_isLoadingParkings ||
+                                _isLoadingRoute ||
+                                _isLocating ||
+                                _isStartingNav)
+                              Container(
+                                color: Colors.black54,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.accentCyan,
                                   ),
-                                );
-                              }
-                            },
-                            markers: _markers,
-                            circles: _circles,
-                            myLocationEnabled: !kIsWeb && _locationGranted,
-                            myLocationButtonEnabled:
-                                !kIsWeb && _locationGranted,
-                            zoomControlsEnabled: false,
-                            mapToolbarEnabled: false,
-                            polylines: _polylines,
-                            scrollGesturesEnabled: !_lockMapGestures,
-                            zoomGesturesEnabled: !_lockMapGestures,
-                            rotateGesturesEnabled: !_lockMapGestures,
-                            tiltGesturesEnabled: !_lockMapGestures,
-                            onTap: (_) async {
-                              setState(() {
-                                _selectedParkingData = null;
-                                _selectedParkingMarkerId = null;
-                              });
-                              if (_showParkings &&
-                                  _bookedParkingMarkerId == null) {
-                                await _loadParkingsNearby(
-                                  _cameraTarget,
-                                  radiusMeters: 1200,
-                                );
-                              }
-                            },
-                          ),
+                                ),
+                              ),
 
-                          if (_isLoadingParkings ||
-                              _isLoadingRoute ||
-                              _isLocating ||
-                              _isStartingNav)
-                            Container(
-                              color: Colors.black54,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.accentCyan,
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 14,
+                                  right: 14,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(height: 10),
+                                    GMapsControlButton(
+                                      icon: Icons.local_parking,
+                                      onPressed: hasActiveBooking
+                                          ? null
+                                          : _toggleParkings,
+                                      tooltip: hasActiveBooking
+                                          ? 'Hai già una prenotazione attiva'
+                                          : 'Parcheggi vicino',
+                                      selected: hasActiveBooking
+                                          ? false
+                                          : _showParkings,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    GMapsControlButton(
+                                      icon: Icons.route,
+                                      onPressed: _routes.isEmpty
+                                          ? null
+                                          : _showRouteChoiceSheet,
+                                      tooltip: 'Percorso / Navigazione',
+                                      selected: _showRoutePanel,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
 
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                top: 14,
-                                right: 14,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const SizedBox(height: 10),
-                                  GMapsControlButton(
-                                    icon: Icons.local_parking,
-                                    onPressed: _toggleParkings,
-                                    tooltip: 'Parcheggi vicino',
-                                    selected: _showParkings,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  GMapsControlButton(
-                                    icon: Icons.route,
-                                    onPressed: _routes.isEmpty
-                                        ? null
-                                        : _showRouteChoiceSheet,
-                                    tooltip: 'Percorso / Navigazione',
-                                    selected: _showRoutePanel,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                            if (_showRoutePanel &&
+                                _routes.isNotEmpty &&
+                                !_isStartingNav)
+                              _navActive
+                                  ? Align(
+                                      alignment: Alignment.bottomCenter,
+                                      child: SafeArea(
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 16,
+                                          ),
+                                          child: SizedBox(
+                                            width: 520,
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                      16,
+                                                      14,
+                                                      16,
+                                                      16,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(18),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withOpacity(0.18),
+                                                      blurRadius: 24,
+                                                      offset: const Offset(
+                                                        0,
+                                                        10,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: RoutePanel(
+                                                  compact: true,
+                                                  currentInstruction:
+                                                      _currentInstruction(),
+                                                  stepNow: (_navStepIndex + 1),
+                                                  stepsTotal:
+                                                      _routes[_selectedRouteIndex]
+                                                          .steps
+                                                          .length,
 
-                          if (_showRoutePanel &&
-                              _routes.isNotEmpty &&
-                              !_isStartingNav)
-                            _navActive
-                                ? Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: SafeArea(
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 16,
+                                                  routes: _routes
+                                                      .map(
+                                                        (r) => RoutePanelRoute(
+                                                          summary: _routeMeta(
+                                                            r,
+                                                          ),
+                                                          steps: r.steps,
+                                                        ),
+                                                      )
+                                                      .toList(),
+                                                  selectedIndex:
+                                                      _selectedRouteIndex,
+                                                  onSelectIndex: (i) {
+                                                    setState(
+                                                      () =>
+                                                          _selectedRouteIndex =
+                                                              i,
+                                                    );
+                                                    _navRoutePts = null;
+                                                    _navRouteIndexCached = null;
+                                                    _navStepIndex = 0;
+                                                    _applySelectedRoute();
+                                                  },
+                                                  onClose: _closeRoutePanel,
+                                                  onStart:
+                                                      _startInAppNavigation,
+                                                  onStop: _stopInAppNavigation,
+                                                  navActive: _navActive,
+                                                  stripHtml: _stripHtml,
+                                                  setMapGesturesLocked:
+                                                      _setMapGesturesLocked,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         ),
-                                        child: SizedBox(
-                                          width: 520,
+                                      ),
+                                    )
+                                  : Positioned(
+                                      left: 16,
+                                      top: 16,
+                                      bottom: 16,
+                                      child: SafeArea(
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 420,
+                                          ),
                                           child: Material(
                                             color: Colors.transparent,
                                             child: Container(
@@ -1259,14 +1472,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                                 ],
                                               ),
                                               child: RoutePanel(
-                                                compact: true,
-                                                currentInstruction:
-                                                    _currentInstruction(),
-                                                stepNow: (_navStepIndex + 1),
-                                                stepsTotal:
-                                                    _routes[_selectedRouteIndex]
-                                                        .steps
-                                                        .length,
+                                                compact: false,
+                                                currentInstruction: '',
+                                                stepNow: 0,
+                                                stepsTotal: 0,
 
                                                 routes: _routes
                                                     .map(
@@ -1301,119 +1510,48 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                         ),
                                       ),
                                     ),
-                                  )
-                                : Positioned(
-                                    left: 16,
-                                    top: 16,
-                                    bottom: 16,
-                                    child: SafeArea(
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 420,
-                                        ),
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: Container(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              16,
-                                              14,
-                                              16,
-                                              16,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.18),
-                                                  blurRadius: 24,
-                                                  offset: const Offset(0, 10),
-                                                ),
-                                              ],
-                                            ),
-                                            child: RoutePanel(
-                                              compact: false,
-                                              currentInstruction: '',
-                                              stepNow: 0,
-                                              stepsTotal: 0,
 
-                                              routes: _routes
-                                                  .map(
-                                                    (r) => RoutePanelRoute(
-                                                      summary: _routeMeta(r),
-                                                      steps: r.steps,
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                              selectedIndex:
-                                                  _selectedRouteIndex,
-                                              onSelectIndex: (i) {
-                                                setState(
-                                                  () => _selectedRouteIndex = i,
-                                                );
-                                                _navRoutePts = null;
-                                                _navRouteIndexCached = null;
-                                                _navStepIndex = 0;
-                                                _applySelectedRoute();
-                                              },
-                                              onClose: _closeRoutePanel,
-                                              onStart: _startInAppNavigation,
-                                              onStop: _stopInAppNavigation,
-                                              navActive: _navActive,
-                                              stripHtml: _stripHtml,
-                                              setMapGesturesLocked:
-                                                  _setMapGesturesLocked,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                            if (_selectedParkingData != null)
+                              Positioned(
+                                bottom: 40,
+                                left: 20,
+                                right: 20,
+                                child: ParkingPopup(
+                                  parking: _selectedParkingData!,
+                                  canBook: !isFullSelected,
+                                  onClose: () async {
+                                    setState(() {
+                                      _selectedParkingData = null;
+                                      _selectedParkingMarkerId = null;
+                                    });
 
-                          if (_selectedParkingData != null)
-                            Positioned(
-                              bottom: 40,
-                              left: 20,
-                              right: 20,
-                              child: ParkingPopup(
-                                parking: _selectedParkingData!,
-                                canBook: !isFullSelected,
-                                onClose: () async {
-                                  setState(() {
-                                    _selectedParkingData = null;
-                                    _selectedParkingMarkerId = null;
-                                  });
+                                    if (_showParkings &&
+                                        _bookedParkingMarkerId == null) {
+                                      await _loadParkingsNearby(
+                                        _cameraTarget,
+                                        radiusMeters: 2500,
+                                      );
+                                    }
+                                  },
+                                  onBook: () {
+                                    final p = _selectedParkingData!;
+                                    final pId = p['id'].toString();
+                                    final destLat = (p['latitudine'] as num)
+                                        .toDouble();
+                                    final destLng = (p['longitudine'] as num)
+                                        .toDouble();
 
-                                  if (_showParkings &&
-                                      _bookedParkingMarkerId == null) {
-                                    await _loadParkingsNearby(
-                                      _cameraTarget,
-                                      radiusMeters: 1200,
+                                    _effettuaPrenotazione(
+                                      pId,
+                                      destLat: destLat,
+                                      destLng: destLng,
+                                      parkingData: p,
                                     );
-                                  }
-                                },
-                                onBook: () {
-                                  final p = _selectedParkingData!;
-                                  final pId = p['id'].toString();
-                                  final destLat = (p['latitudine'] as num)
-                                      .toDouble();
-                                  final destLng = (p['longitudine'] as num)
-                                      .toDouble();
-
-                                  _showOnlyBookedParking(p);
-
-                                  _effettuaPrenotazione(
-                                    pId,
-                                    destLat: destLat,
-                                    destLng: destLng,
-                                    parkingData: p,
-                                  );
-                                },
+                                  },
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

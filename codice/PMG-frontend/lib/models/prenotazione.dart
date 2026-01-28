@@ -49,35 +49,47 @@ class PrenotazioneResponse {
   }
 }
 
-
-
 enum StatoPrenotazione {
-  ATTIVA,    // Prenotata (attesa entro 10 min)
-  IN_CORSO,  // Utente entrato (timer avviato)
-  PAGATO,    // Saldo effettuato (pronto per uscire)
-  CONCLUSA,  // Utente uscito (posto liberato)
-  SCADUTA    // Tempo per l'ingresso esaurito
+  ATTIVA, // Prenotata (attesa entro 10 min)
+  IN_CORSO, // Utente entrato (timer avviato)
+  PAGATO, // Saldo effettuato (pronto per uscire)
+  CONCLUSA, // Utente uscito (posto liberato)
+  SCADUTA, // Tempo per l'ingresso esaurito
+  ANNULLATA, // Cancellata dall'utente
 }
 
 extension StatoPrenotazioneExtension on StatoPrenotazione {
   String get label {
     switch (this) {
-      case StatoPrenotazione.ATTIVA: return 'Attiva';
-      case StatoPrenotazione.IN_CORSO: return 'In Corso';
-      case StatoPrenotazione.PAGATO: return 'Pagato';
-      case StatoPrenotazione.CONCLUSA: return 'Conclusa';
-      case StatoPrenotazione.SCADUTA: return 'Scaduta';
+      case StatoPrenotazione.ATTIVA:
+        return 'Attiva';
+      case StatoPrenotazione.IN_CORSO:
+        return 'In Corso';
+      case StatoPrenotazione.PAGATO:
+        return 'Pagato';
+      case StatoPrenotazione.CONCLUSA:
+        return 'Conclusa';
+      case StatoPrenotazione.SCADUTA:
+        return 'Scaduta';
+      case StatoPrenotazione.ANNULLATA:
+        return 'Annullata';
     }
   }
 
   Color get color {
     switch (this) {
-      case StatoPrenotazione.ATTIVA: return Colors.orange;
-      case StatoPrenotazione.IN_CORSO: return Colors.blue;
-      case StatoPrenotazione.PAGATO: return Colors.green;
-      case StatoPrenotazione.CONCLUSA: return Colors.grey;
-      case StatoPrenotazione.SCADUTA: return Colors.red;
+      case StatoPrenotazione.ATTIVA:
+        return Colors.orange;
+      case StatoPrenotazione.IN_CORSO:
+        return Colors.blue;
+      case StatoPrenotazione.PAGATO:
+        return Colors.green;
+      case StatoPrenotazione.CONCLUSA:
+        return Colors.grey;
+      case StatoPrenotazione.SCADUTA:
+        return Colors.red;
+      case StatoPrenotazione.ANNULLATA:
+        return Colors.deepOrange;
     }
   }
 }
-

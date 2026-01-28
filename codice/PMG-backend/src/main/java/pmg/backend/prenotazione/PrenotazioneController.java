@@ -2,7 +2,9 @@ package pmg.backend.prenotazione;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,4 +36,20 @@ public class PrenotazioneController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    
+    @DeleteMapping("/{prenotazioneId}/utente/{utenteId}")
+    public ResponseEntity<?> annullaPrenotazione(
+        @PathVariable String prenotazioneId,
+        @PathVariable String utenteId
+    ) {
+        try {
+            PrenotazioneResponse res = prenotazioneService.annullaPrenotazione(prenotazioneId, utenteId);
+            return ResponseEntity.ok(res);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage()); // 409
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); // 404
+        }
+    }
+
 }

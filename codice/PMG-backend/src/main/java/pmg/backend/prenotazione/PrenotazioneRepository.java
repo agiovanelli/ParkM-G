@@ -12,4 +12,6 @@ public interface PrenotazioneRepository extends MongoRepository<Prenotazione, St
     List<Prenotazione> findByStatoAndDataCreazioneBefore(StatoPrenotazione stato, LocalDateTime dataCreazione);
 
     Optional<Prenotazione> findByCodiceQr(String codiceQr);
+    
+    Optional<Prenotazione> findByIdAndUtenteId(String id, String utenteId);
 }

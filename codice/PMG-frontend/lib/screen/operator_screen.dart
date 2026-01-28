@@ -1696,6 +1696,8 @@ String _formatStato(StatoPrenotazione stato) {
       return 'Conclusa';
     case StatoPrenotazione.SCADUTA:
       return 'Scaduta';
+    case StatoPrenotazione.ANNULLATA:
+      return 'Annullata';
   }
 }
 

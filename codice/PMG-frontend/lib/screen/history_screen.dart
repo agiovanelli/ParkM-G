@@ -8,8 +8,14 @@ import '../widgets/prenotazione_dialog.dart';
 class HistoryScreen extends StatefulWidget {
   final Utente utente;
   final ApiClient apiClient;
+  final VoidCallback onBookingCancelled;
 
-  const HistoryScreen({super.key, required this.utente, required this.apiClient});
+  const HistoryScreen({
+    super.key,
+    required this.utente,
+    required this.apiClient,
+    required this.onBookingCancelled,
+  });
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -25,16 +31,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<List<PrenotazioneResponse>> _caricaEOrdinaStorico() async {
-    final storico = await widget.apiClient.getStoricoPrenotazioni(widget.utente.id);
-    
+    final storico = await widget.apiClient.getStoricoPrenotazioni(
+      widget.utente.id,
+    );
+
     // Ordina dalla più recente alla più vecchia (più vicina a oggi in alto)
     storico.sort((a, b) {
       if (a.dataCreazione == null && b.dataCreazione == null) return 0;
       if (a.dataCreazione == null) return 1;
       if (b.dataCreazione == null) return -1;
-      return b.dataCreazione!.compareTo(a.dataCreazione!); // Decrescente: più recente prima
+      return b.dataCreazione!.compareTo(
+        a.dataCreazione!,
+      ); // Decrescente: più recente prima
     });
-    
+
     return storico;
   }
 
@@ -43,7 +53,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       appBar: AppBar(
-        title: const Text("Le mie Prenotazioni", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Le mie Prenotazioni",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: AppColors.bgDark2,
         elevation: 0,
       ),
@@ -51,17 +64,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
         future: _storicoFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.accentCyan));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.accentCyan),
+            );
           } else if (snapshot.hasError) {
-            return Center(child: Text("Errore: ${snapshot.error}", style: const TextStyle(color: Colors.redAccent)));
+            return Center(
+              child: Text(
+                "Errore: ${snapshot.error}",
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            );
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
-              child: Text("Non hai ancora effettuato prenotazioni.", style: TextStyle(color: AppColors.textMuted))
+              child: Text(
+                "Non hai ancora effettuato prenotazioni.",
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             );
           }
 
           final storico = snapshot.data!;
-          
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: storico.length,
@@ -69,26 +92,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final p = storico[index];
               return Card(
                 color: AppColors.bgDark2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  leading: const Icon(Icons.directions_car, color: AppColors.accentCyan),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  leading: const Icon(
+                    Icons.directions_car,
+                    color: AppColors.accentCyan,
+                  ),
                   title: Row(
                     children: [
                       Expanded(
                         child: Text(
                           "Parcheggio: ${p.parcheggioId}",
-                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       _coloreStato(p.stato),
                     ],
                   ),
                   subtitle: Text("Data: ${formatDT(p.dataCreazione)}"),
-                  trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textMuted,
+                  ),
                   onTap: () {
-                    PrenotazioneDialog.mostra(context, p);
+                    PrenotazioneDialog.mostra(
+                      context,
+                      prenotazione: p,
+                      apiClient: widget.apiClient,
+                      utenteId: widget.utente.id,
+                      onCancelled: () {
+                        setState(() {
+                          _storicoFuture = _caricaEOrdinaStorico();
+                        });
+                        widget.onBookingCancelled();
+                      },
+                    );
                   },
                 ),
               );
@@ -119,7 +167,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       child: Text(
         stato.label,
-        style: TextStyle(color: stato.color, fontWeight: FontWeight.bold, fontSize: 12),
+        style: TextStyle(
+          color: stato.color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
       ),
     );
   }

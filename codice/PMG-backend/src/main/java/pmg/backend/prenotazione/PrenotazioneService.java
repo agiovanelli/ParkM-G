@@ -6,5 +6,7 @@ public interface PrenotazioneService {
     List<PrenotazioneResponse> getStoricoUtente(String utenteId);
 
 	PrenotazioneResponse validaIngresso(String codiceQr);
+
+	PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId);
     
 }
