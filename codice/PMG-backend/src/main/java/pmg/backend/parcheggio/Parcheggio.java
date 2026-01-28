@@ -15,6 +15,8 @@ public class Parcheggio {
 
     private double latitudine;
     private double longitudine;
+    
+    private boolean inEmergenza; // Default: false
 
     public Parcheggio() {}
 
@@ -43,4 +45,6 @@ public class Parcheggio {
     public void setLatitudine(double latitudine) { this.latitudine = latitudine; }
     public double getLongitudine() { return longitudine; }
     public void setLongitudine(double longitudine) { this.longitudine = longitudine; }
+    public boolean isInEmergenza() { return inEmergenza; }
+    public void setInEmergenza(boolean inEmergenza) { this.inEmergenza = inEmergenza; }
 }

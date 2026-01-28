@@ -11,6 +11,7 @@ import pmg.backend.prenotazione.PrenotazioneResponse;
 import java.util.List;
 
 @RestController
+
 @RequestMapping("/api/parcheggi")
 public class ParcheggioController {
 
@@ -46,6 +47,19 @@ public class ParcheggioController {
         LOGGER.info("HTTP GET /api/parcheggi/nearby?lat={}&lng={}&radius={}", lat, lng, radius);
         List<ParcheggioResponse> risultati = parcheggioService.cercaVicini(lat, lng, radius);
         return ResponseEntity.ok(risultati);
+    }
+    
+
+
+    @PatchMapping("/{id}/emergenza")
+    public ResponseEntity<Void> toggleEmergenza(
+            @PathVariable String id, 
+            @RequestParam boolean attiva,
+            @RequestParam(required = false) String motivo) {
+        
+        LOGGER.info("Richiesta cambio stato emergenza per parcheggio {}: {}", id, attiva);
+        parcheggioService.impostaStatoEmergenza(id, attiva, motivo);
+        return ResponseEntity.ok().build();
     }
 
 }

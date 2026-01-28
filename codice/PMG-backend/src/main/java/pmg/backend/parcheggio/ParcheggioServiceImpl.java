@@ -7,6 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import pmg.backend.log.LogCategoria;
+import pmg.backend.log.LogRequest;
+import pmg.backend.log.LogService;
+import pmg.backend.log.LogSeverità;
 import pmg.backend.prenotazione.Prenotazione;
 import pmg.backend.prenotazione.PrenotazioneRepository;
 import java.time.LocalDateTime;
@@ -20,11 +24,13 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     
     private final ParcheggioRepository parcheggioRepository;
     private final PrenotazioneRepository prenotazioneRepository;
+    private final LogService logService;
 
     // Aggiorna il costruttore per iniettare entrambi i repository
-    public ParcheggioServiceImpl(ParcheggioRepository parcheggioRepository, PrenotazioneRepository prenotazioneRepository) {
+    public ParcheggioServiceImpl(ParcheggioRepository parcheggioRepository, PrenotazioneRepository prenotazioneRepository, LogService logService) {
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
+        this.logService = logService;
     }
 
     @Override
@@ -43,6 +49,22 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         // 1. Recupero il parcheggio
         Parcheggio parcheggio = parcheggioRepository.findById(req.parcheggioId())
                 .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+        
+        
+        //controllo emergenza
+        if (parcheggio.isInEmergenza()) {
+            LOGGER.warn("Prenotazione negata: il parcheggio {} è in stato di emergenza", parcheggio.getNome());
+            throw new IllegalStateException("Parcheggio temporaneamente chiuso per emergenza");
+        }
+
+        // Controllo disponibilità standard
+        if (parcheggio.getPostiDisponibili() <= 0) {
+            throw new IllegalStateException("Posti esauriti");
+        }
+        
+        
+        
+        
 
         // 2. Controllo disponibilità 
         if (parcheggio.getPostiDisponibili() <= 0) {
@@ -80,6 +102,34 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         );
     }
 
+    
+    @Override
+    @Transactional
+    public void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo) {
+        Parcheggio p = parcheggioRepository.findById(parcheggioId)
+                .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+        
+        p.setInEmergenza(stato);
+        parcheggioRepository.save(p);
+
+        if (stato) {
+            // Adattamento al tuo record LogRequest specifico
+            LogRequest logReq = new LogRequest(
+                parcheggioId,                // analiticaId
+                LogCategoria.ALLARME,        // tipo (Enum)
+                LogSeverità.CRITICO,         // severita (Enum)
+                "BLOCCO EMERGENZA",          // titolo
+                "Parcheggio " + p.getNome() + " chiuso. Motivo: " + (motivo != null ? motivo : "N/D"), // descrizione
+                LocalDateTime.now()          // data
+            );
+            
+            logService.salvaLog(logReq); 
+            LOGGER.error("EMERGENZA ATTIVATA: {}", p.getNome());
+        } else {
+            LOGGER.info("Emergenza revocata: {}", p.getNome());
+        }
+    }
+    
     private ParcheggioResponse toResponse(Parcheggio p) {
         return new ParcheggioResponse(
             p.getId(),
@@ -88,7 +138,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             p.getPostiTotali(),
             p.getPostiDisponibili(),
             p.getLatitudine(),
-            p.getLongitudine()
+            p.getLongitudine(),
+            p.isInEmergenza()
         );
     }
     
@@ -122,4 +173,9 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
+    
+    
+    
+    
+    
 }

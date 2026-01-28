@@ -8,7 +8,7 @@ public class Operatore {
 
     @Id
     private String id; //ObjectId
-
+    private String parcheggioId;
     private String nomeStruttura;
     private String username;
 
@@ -16,9 +16,10 @@ public class Operatore {
     public Operatore() {
     }
 
-    public Operatore(String nomeStruttura, String username) {
+    public Operatore(String nomeStruttura, String username, String parcheggioId ) {
         this.nomeStruttura = nomeStruttura;
         this.username = username;
+        this.parcheggioId = parcheggioId;
     }
 
     // GETTER / SETTER
@@ -46,4 +47,6 @@ public class Operatore {
     public void setUsername(String username) {
         this.username = username;
     }
+    public String getParcheggioId() { return parcheggioId; }
+    public void setParcheggioId(String parcheggioId) { this.parcheggioId = parcheggioId; }
 }

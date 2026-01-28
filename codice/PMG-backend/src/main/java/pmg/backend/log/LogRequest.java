@@ -9,4 +9,5 @@ public record LogRequest(
         String titolo,
         String descrizione,
         LocalDateTime data
+       
 ) {}

@@ -11,4 +11,8 @@ public interface ParcheggioService {
     PrenotazioneResponse effettuaPrenotazione(PrenotazioneRequest req);
     
     List<ParcheggioResponse> cercaVicini(double lat, double lng, double radius);
+
+	void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo);
+    
+    
 }

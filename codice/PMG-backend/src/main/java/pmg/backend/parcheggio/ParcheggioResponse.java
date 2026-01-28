@@ -7,5 +7,6 @@ public record ParcheggioResponse(
 	    int postiTotali,
 	    int postiDisponibili,
 	    double latitudine,
-	    double longitudine
+	    double longitudine,
+	    boolean inEmergenza
 ) {}

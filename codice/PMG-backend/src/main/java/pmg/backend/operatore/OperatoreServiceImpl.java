@@ -38,7 +38,8 @@ public class OperatoreServiceImpl implements OperatoreService {
         return new OperatoreResponse(
                 e.getId(),
                 e.getUsername(),      
-                e.getNomeStruttura()   
+                e.getNomeStruttura(),
+                e.getParcheggioId()
         );
     }
 }
