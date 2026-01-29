@@ -6,6 +6,7 @@ class ParkingPopup extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback? onBook;
   final bool canBook;
+  final bool isLoading;
 
   const ParkingPopup({
     super.key,
@@ -13,10 +14,23 @@ class ParkingPopup extends StatelessWidget {
     required this.onClose,
     required this.onBook,
     required this.canBook,
+    required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool inEmergenza = parking['inEmergenza'] == true;
+    final bool disabled = inEmergenza || !canBook || isLoading;
+
+    String label;
+    if (inEmergenza) {
+      label = 'CHIUSO PER EMERGENZA';
+    } else if (isLoading) {
+      label = 'Prenotazione...';
+    } else {
+      label = canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile';
+    }
+
     return Container(
       key: const ValueKey('popup'),
       padding: const EdgeInsets.all(16),
@@ -63,22 +77,31 @@ class ParkingPopup extends StatelessWidget {
             style: const TextStyle(color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
+
           ElevatedButton.icon(
-            onPressed: (parking['inEmergenza'] == true || !canBook) ? null : onBook,
-            icon: const Icon(Icons.qr_code),
-            label: Text(
-              parking['inEmergenza'] == true 
-                ? 'CHIUSO PER EMERGENZA' 
-                : (canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile'),
-            ),
+            onPressed: disabled ? null : onBook,
+
+            // ICONA: se loading -> spinner, altrimenti QR
+            icon: isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.qr_code),
+
+            label: Text(label),
+
             style: ElevatedButton.styleFrom(
-              backgroundColor: parking['inEmergenza'] == true || !canBook
+              backgroundColor: inEmergenza
                   ? Colors.redAccent
-                  : AppColors.accentCyan,
-            foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+                  : (disabled
+                        ? AppColors.accentCyan.withOpacity(0.55)
+                        : AppColors.accentCyan),
+              foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],

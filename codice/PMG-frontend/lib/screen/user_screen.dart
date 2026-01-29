@@ -70,11 +70,25 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   BitmapDescriptor? _parkingIconFull;
   bool _blockMapInteractions = false;
   bool _bookingCancelledInDialog = false;
-  // --- ARRIVO PARCHEGGIO -> RIPOPUP QR ---
   PrenotazioneResponse? _activeBooking;
   LatLng? _activeParkingLatLng;
   bool _arrivalHandled = false;
   static const double _arriveParkingThresholdM = 40.0;
+  DateTime _lastCamUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  LatLng? _lastCamPos;
+  double? _lastCamBearing;
+  LatLng? _lastMe;
+  static const Duration _camMinInterval = Duration(milliseconds: 180);
+  static const double _camMinMoveMeters = 2.0;
+  static const double _camMinBearingDelta = 8.0;
+  StreamSubscription<Position>? _trackSub;
+  static const String _meMarkerId = 'me';
+  DateTime _lastTrackUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  LatLng? _lastTrackUiPos;
+  static const Duration _trackUiMinInterval = Duration(milliseconds: 250);
+  static const double _trackUiMinMoveMeters = 1.5;
+  List<dynamic>? _lastParkingsJson;
+  bool _isBooking = false;
 
   void _setMapGesturesLocked(bool v) {
     if (_lockMapGestures == v) return;
@@ -154,6 +168,13 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       }
     }
     debugPrint('Polyline chars OK (all in 63..126)');
+  }
+
+  void _updatePulseCenter(LatLng me) {
+    _lastMe = me;
+
+    // marker "me" con throttle interno
+    _updateMeMarkerThrottled(me);
   }
 
   static const String _mapStyleNoPoi = '''
@@ -341,22 +362,23 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         Tween<double>(begin: 15, end: 35).animate(
           CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
         )..addListener(() {
-          if (_circles.isNotEmpty && mounted) {
-            final old = _circles.last.center;
-            setState(() {
-              _circles.removeWhere((c) => c.circleId.value == 'pulse');
-              _circles.add(
-                Circle(
-                  circleId: const CircleId('pulse'),
-                  center: old,
-                  radius: _pulseAnimation.value,
-                  fillColor: Colors.blue.withOpacity(0.25),
-                  strokeColor: Colors.blue.withOpacity(0.1),
-                  strokeWidth: 1,
-                ),
-              );
-            });
-          }
+          if (!mounted) return;
+          final me = _lastMe;
+          if (me == null) return;
+
+          setState(() {
+            _circles.removeWhere((c) => c.circleId.value == 'pulse');
+            _circles.add(
+              Circle(
+                circleId: const CircleId('pulse'),
+                center: me,
+                radius: _pulseAnimation.value,
+                fillColor: Colors.blue.withOpacity(0.25),
+                strokeColor: Colors.blue.withOpacity(0.1),
+                strokeWidth: 1,
+              ),
+            );
+          });
         });
   }
 
@@ -365,6 +387,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     _posSub?.cancel();
     _searchController.dispose();
     _pulseController.dispose();
+    _trackSub?.cancel();
     super.dispose();
   }
 
@@ -376,50 +399,54 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
+
+      // Su Web questo check può essere “falso negativo”.
+      if (!serviceEnabled && !kIsWeb) {
         UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
         return;
       }
 
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied)
+      if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
+      }
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        setState(() => _locationGranted = false);
+        if (mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        // (opzionale) timeLimit: const Duration(seconds: 8),
       );
+
       final me = LatLng(pos.latitude, pos.longitude);
+
+      if (!mounted) return;
 
       setState(() {
         _locationGranted = true;
+        _lastMe = me;
+
+        // inizializza il pulse una volta
         _circles
-          ..clear()
-          ..addAll([
+          ..removeWhere((c) => c.circleId.value == 'pulse')
+          ..add(
             Circle(
               circleId: const CircleId('pulse'),
               center: me,
-              radius: 25,
+              radius: _pulseAnimation.value,
               fillColor: Colors.blue.withOpacity(0.25),
               strokeColor: Colors.blue.withOpacity(0.1),
               strokeWidth: 1,
             ),
-            Circle(
-              circleId: const CircleId('dot'),
-              center: me,
-              radius: 6,
-              fillColor: const Color(0xFF4285F4),
-              strokeColor: Colors.white,
-              strokeWidth: 2,
-            ),
-          ]);
+          );
       });
+
+      _startTrackingPosition();
 
       if (_mapController != null) {
         await _mapController!.animateCamera(
@@ -429,6 +456,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         _pendingCenter = me;
       }
     } catch (_) {
+      if (!mounted) return;
       UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
     } finally {
       if (mounted) setState(() => _isLocating = false);
@@ -436,6 +464,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _startInAppNavigation() async {
+    _stopTrackingPosition();
     if (_routes.isEmpty) return;
     if (_isStartingNav || _navPending) return;
 
@@ -451,10 +480,23 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
     _posSub?.cancel();
 
-    const settings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 3,
-    );
+    final LocationSettings settings = kIsWeb
+        ? const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 0,
+          )
+        : (defaultTargetPlatform == TargetPlatform.android)
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 0,
+            intervalDuration: const Duration(milliseconds: 500),
+          )
+        : AppleSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 0,
+            activityType: ActivityType.automotiveNavigation,
+            pauseLocationUpdatesAutomatically: false,
+          );
 
     _posSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (pos) {
@@ -472,8 +514,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         if (!_navActive) return;
 
         final me = LatLng(pos.latitude, pos.longitude);
+        _updatePulseCenter(me);
 
-        // --- ARRIVO VICINO PARCHEGGIO: stop nav + ripopup QR ---
         final dest = _activeParkingLatLng;
         if (!_arrivalHandled && dest != null) {
           final d = Geolocator.distanceBetween(
@@ -485,7 +527,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
           if (d <= _arriveParkingThresholdM) {
             _handleArrivedNearParking();
-            return; // non processare più step nav
+            return;
           }
         }
 
@@ -502,7 +544,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             (step != null) &&
             (distanceMeters(me, step.end) <= _stepArriveThresholdM);
 
-        _followCamera(me, bearing: pos.heading.isFinite ? pos.heading : null);
+        final hasGoodHeading = pos.heading.isFinite && pos.speed > 1.5;
+        final b = hasGoodHeading ? pos.heading : (_lastCamBearing ?? 0.0);
+
+        _followCamera(me, bearing: b, speed: pos.speed);
 
         if (stepDone) _advanceStep();
       },
@@ -518,17 +563,109 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _followCamera(LatLng me, {double? bearing}) {
+  void _startTrackingPosition() {
+    if (_trackSub != null) return;
+
+    final LocationSettings settings = kIsWeb
+        ? const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 1,
+          )
+        : (defaultTargetPlatform == TargetPlatform.android)
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 1,
+            intervalDuration: const Duration(milliseconds: 700),
+          )
+        : AppleSettings(
+            accuracy: LocationAccuracy.best,
+            distanceFilter: 1,
+            activityType: ActivityType.otherNavigation,
+            pauseLocationUpdatesAutomatically: false,
+          );
+
+    _trackSub = Geolocator.getPositionStream(locationSettings: settings).listen(
+      (pos) {
+        if (!mounted) return;
+
+        // se nav attiva, non fare tracking UI
+        if (_navActive || _navPending || _isStartingNav) return;
+
+        final me = LatLng(pos.latitude, pos.longitude);
+        final now = DateTime.now();
+
+        // throttle temporale
+        if (now.difference(_lastTrackUiUpdate) < _trackUiMinInterval) return;
+
+        // throttle per spostamento
+        if (_lastTrackUiPos != null) {
+          final moved = Geolocator.distanceBetween(
+            _lastTrackUiPos!.latitude,
+            _lastTrackUiPos!.longitude,
+            me.latitude,
+            me.longitude,
+          );
+          if (moved < _trackUiMinMoveMeters) return;
+        }
+
+        _lastTrackUiUpdate = now;
+        _lastTrackUiPos = me;
+
+        // 1 sola chiamata
+        _updatePulseCenter(me);
+      },
+      onError: (e) {
+        if (!mounted) return;
+        UiFeedback.showError(context, 'Errore tracking posizione: $e');
+      },
+    );
+  }
+
+  void _stopTrackingPosition() {
+    _trackSub?.cancel();
+    _trackSub = null;
+  }
+
+  void _followCamera(LatLng me, {double? bearing, double? speed}) {
     final c = _mapController;
     if (c == null) return;
 
-    c.animateCamera(
+    final now = DateTime.now();
+    if (now.difference(_lastCamUpdate) < _camMinInterval) return;
+
+    if (_lastCamPos != null) {
+      final moved = Geolocator.distanceBetween(
+        _lastCamPos!.latitude,
+        _lastCamPos!.longitude,
+        me.latitude,
+        me.longitude,
+      );
+
+      final b0 = _lastCamBearing;
+      final b1 = bearing;
+      final bearingDelta = (b0 != null && b1 != null)
+          ? (((b1 - b0).abs()) % 360).clamp(0, 180)
+          : 999.0;
+
+      if (moved < _camMinMoveMeters && bearingDelta < _camMinBearingDelta) {
+        return;
+      }
+    }
+
+    _lastCamUpdate = now;
+    _lastCamPos = me;
+    _lastCamBearing = bearing ?? _lastCamBearing ?? 0;
+
+    final tilt = (speed != null && speed < 1.0) ? 35.0 : 55.0;
+
+    // ISTANTANEO: molto più reattivo di animateCamera in navigazione
+    c.moveCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(
           target: me,
           zoom: 18,
-          bearing: (bearing ?? 0).clamp(0, 360),
-          tilt: 55,
+          bearing: (_lastCamBearing ?? 0).clamp(0, 360),
+          tilt: tilt,
         ),
       ),
     );
@@ -576,6 +713,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       _lockMapGestures = false;
     });
+    _startTrackingPosition();
   }
 
   Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
@@ -793,7 +931,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
       );
 
-      final res = await http.get(uri);
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+
+      if (!mounted) return;
+
       if (res.statusCode != 200) {
         UiFeedback.showError(
           context,
@@ -803,50 +944,15 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       }
 
       final data = jsonDecode(res.body) as List<dynamic>;
-      final newMarkers = <Marker>{};
 
-      for (final p in data) {
-        final markerId = 'p_${p['id']}';
-        final isSelected = _selectedParkingMarkerId == markerId;
+      _lastParkingsJson = data;
 
-        // 1. Estrazione dei dati dal JSON (Risolve l'errore 'inEmergenza' non definito)
-        final bool inEmergenza = p['inEmergenza'] as bool? ?? false;
-        final int postiDisp = (p['postiDisponibili'] as num?)?.toInt() ?? 0;
-        final bool isFull = postiDisp <= 0;
-
-        newMarkers.add(
-          Marker(
-            markerId: MarkerId(markerId),
-            position: LatLng(
-              (p['latitudine'] as num).toDouble(),
-              (p['longitudine'] as num).toDouble(),
-            ),
-            // 2. Logica Icona Unificata (Risolve l'errore del parametro duplicato)
-            icon: inEmergenza || isFull
-                ? (_parkingIconFull ?? BitmapDescriptor.defaultMarker)
-                : (isSelected
-                      ? (_parkingIconSelected ??
-                            _parkingIcon ??
-                            BitmapDescriptor.defaultMarker)
-                      : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
-
-            infoWindow: const InfoWindow(title: ''),
-            onTap: () async {
-              setState(() {
-                _selectedParkingMarkerId = markerId;
-                _selectedParkingData = p;
-              });
-              await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
-            },
-          ),
-        );
-      }
-
-      setState(() {
-        _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
-        _markers.addAll(newMarkers);
-      });
+      _rebuildParkingMarkersFromLastData();
+    } on TimeoutException {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Timeout caricamento parcheggi.');
     } catch (_) {
+      if (!mounted) return;
       UiFeedback.showError(
         context,
         'Errore durante il caricamento dei parcheggi.',
@@ -854,6 +960,97 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     } finally {
       if (mounted) setState(() => _isLoadingParkings = false);
     }
+  }
+
+  void _updateMeMarkerThrottled(LatLng me) {
+    if (!mounted) return;
+
+    final now = DateTime.now();
+
+    // throttle temporale
+    if (now.difference(_lastTrackUiUpdate) < _trackUiMinInterval) return;
+
+    // throttle sul movimento (se non ti sei mosso abbastanza, non aggiornare)
+    if (_lastTrackUiPos != null) {
+      final moved = Geolocator.distanceBetween(
+        _lastTrackUiPos!.latitude,
+        _lastTrackUiPos!.longitude,
+        me.latitude,
+        me.longitude,
+      );
+      if (moved < _trackUiMinMoveMeters) return;
+    }
+
+    _lastTrackUiUpdate = now;
+    _lastTrackUiPos = me;
+
+    final m = Marker(
+      markerId: const MarkerId(_meMarkerId),
+      position: me,
+      zIndex: 9999,
+      anchor: const Offset(0.5, 0.5),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      consumeTapEvents: true,
+    );
+
+    setState(() {
+      _markers.removeWhere((x) => x.markerId.value == _meMarkerId);
+      _markers.add(m);
+    });
+  }
+
+  void _rebuildParkingMarkersFromLastData() {
+    final data = _lastParkingsJson;
+    if (data == null) return;
+
+    final newMarkers = <Marker>{};
+
+    for (final raw in data) {
+      final p = raw as Map<String, dynamic>;
+
+      final markerId = 'p_${p['id']}';
+      final isSelected = _selectedParkingMarkerId == markerId;
+
+      final bool inEmergenza = p['inEmergenza'] as bool? ?? false;
+      final int postiDisp = (p['postiDisponibili'] as num?)?.toInt() ?? 0;
+      final bool isFull = postiDisp <= 0;
+
+      final icon = (inEmergenza || isFull)
+          ? (_parkingIconFull ?? BitmapDescriptor.defaultMarker)
+          : (isSelected
+                ? (_parkingIconSelected ??
+                      _parkingIcon ??
+                      BitmapDescriptor.defaultMarker)
+                : (_parkingIcon ?? BitmapDescriptor.defaultMarker));
+
+      newMarkers.add(
+        Marker(
+          markerId: MarkerId(markerId),
+          position: LatLng(
+            (p['latitudine'] as num).toDouble(),
+            (p['longitudine'] as num).toDouble(),
+          ),
+          icon: icon,
+          infoWindow: const InfoWindow(title: ''),
+          consumeTapEvents: true,
+          onTap: () {
+            // NIENTE rete qui
+            setState(() {
+              _selectedParkingMarkerId = markerId;
+              _selectedParkingData = p;
+            });
+
+            // aggiorna solo le icone localmente
+            _rebuildParkingMarkersFromLastData();
+          },
+        ),
+      );
+    }
+
+    setState(() {
+      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      _markers.addAll(newMarkers);
+    });
   }
 
   // -------------------- booking --------------------
@@ -864,56 +1061,42 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     required double destLng,
     required Map<String, dynamic> parkingData,
   }) async {
-    // reset flag annullo
+    if (_isBooking) return;
+
+    setState(() => _isBooking = true);
     _bookingCancelledInDialog = false;
 
-    // prova a ottenere origin (per route)
-    LatLng? origin;
-    try {
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-
-      if (perm != LocationPermission.denied &&
-          perm != LocationPermission.deniedForever) {
+    // ORIGIN: usa _lastMe (tracking) subito; fallback a un fix fresco
+    LatLng? origin = _lastMe;
+    if (origin == null) {
+      try {
         final pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
-        );
+        ).timeout(const Duration(seconds: 5));
         origin = LatLng(pos.latitude, pos.longitude);
+      } catch (_) {
+        // origin resta null -> prenotazione ok, route no
       }
-    } catch (_) {
-      // ok: origin rimane null
     }
 
-    // loader blocking
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: AppColors.accentCyan),
-      ),
-    );
-
     try {
-      // 1) PRENOTA
-      final risposta = await widget.apiClient.prenotaParcheggio(
-        widget.utente.id,
-        parcheggioId,
-        DateTime.now().toIso8601String(),
-      );
+      // 1) PRENOTAZIONE (rete)
+      final risposta = await widget.apiClient
+          .prenotaParcheggio(
+            widget.utente.id,
+            parcheggioId,
+            DateTime.now().toIso8601String(),
+          )
+          .timeout(const Duration(seconds: 12));
 
-      // --- salva prenotazione + destinazione per trigger arrivo ---
+      // salva prenotazione + destinazione per trigger arrivo
       _activeBooking = risposta;
       _activeParkingLatLng = LatLng(destLat, destLng);
       _arrivalHandled = false;
 
       if (!mounted) return;
 
-      // chiudi loader
-      Navigator.of(context, rootNavigator: true).pop();
-
-      // 2) DIALOG PRENOTAZIONE (può annullare davvero)
+      // 2) DIALOG prenotazione (può annullare davvero)
       await _showMapLockedDialog<void>(
         show: () => PrenotazioneDialog.mostra(
           context,
@@ -922,7 +1105,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           utenteId: widget.utente.id,
           onCancelled: () {
             _bookingCancelledInDialog = true;
-
             Future.microtask(() async {
               if (!mounted) return;
               await _handleBookingCancelledAndReload(parkingData);
@@ -933,49 +1115,38 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       if (!mounted) return;
 
-      // 3) Se annullata nel dialog, STOP: non deve partire la route, né lock marker
-      if (_bookingCancelledInDialog) {
-        return;
-      }
+      // Se annullata nel dialog -> stop, NON route, NON lock.
+      if (_bookingCancelledInDialog) return;
 
-      // 4) Se non ho origin, non posso calcolare percorso -> (scelta UX)
+      // 3) Lock + mostra SOLO parcheggio prenotato
+      setState(() => _bookedMarkerLocked = true);
+      _showOnlyBookedParking(parkingData);
+
+      // 4) Route (solo se ho origin)
       if (origin == null) {
         UiFeedback.showError(
           context,
-          'Posizione non disponibile: impossibile calcolare il percorso.',
+          'Posizione non disponibile: percorso non calcolato.',
         );
-        // comunque posso considerare la prenotazione "attiva" e mostrare solo il booked parking:
-        setState(() => _bookedMarkerLocked = true);
-        _showOnlyBookedParking(parkingData);
         return;
       }
 
-      // 5) ROUTE + pannello
       await _showRouteToParking(
         origin: origin,
         destLat: destLat,
         destLng: destLng,
       );
-
+    } on TimeoutException {
       if (!mounted) return;
-
-      // 6) LOCK e mostra solo parcheggio prenotato (verde)
-      setState(() => _bookedMarkerLocked = true);
-      _showOnlyBookedParking(parkingData);
+      UiFeedback.showError(context, 'Timeout prenotazione: riprova.');
     } on ApiException catch (e) {
       if (!mounted) return;
-
-      // chiudi loader se ancora aperto
-      Navigator.of(context, rootNavigator: true).pop();
-
       UiFeedback.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-
-      // chiudi loader se ancora aperto
-      Navigator.of(context, rootNavigator: true).pop();
-
       UiFeedback.showError(context, 'Errore di connessione o del server');
+    } finally {
+      if (mounted) setState(() => _isBooking = false);
     }
   }
 
@@ -1577,6 +1748,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                 child: ParkingPopup(
                                   parking: _selectedParkingData!,
                                   canBook: !isFullSelected,
+                                  isLoading: _isBooking,
                                   onClose: () async {
                                     setState(() {
                                       _selectedParkingData = null;
