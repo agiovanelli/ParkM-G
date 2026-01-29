@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:park_mg/models/directions.dart';
+import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:park_mg/widgets/map/nav_math.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
@@ -69,6 +70,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   BitmapDescriptor? _parkingIconFull;
   bool _blockMapInteractions = false;
   bool _bookingCancelledInDialog = false;
+  // --- ARRIVO PARCHEGGIO -> RIPOPUP QR ---
+  PrenotazioneResponse? _activeBooking;
+  LatLng? _activeParkingLatLng;
+  bool _arrivalHandled = false;
+  static const double _arriveParkingThresholdM = 40.0;
 
   void _setMapGesturesLocked(bool v) {
     if (_lockMapGestures == v) return;
@@ -212,12 +218,54 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         .trim();
   }
 
+  Future<void> _handleArrivedNearParking() async {
+    if (_arrivalHandled) return;
+    _arrivalHandled = true;
+
+    // chiudi pannello route (se aperto) e ferma nav una volta sola
+    if (_showRoutePanel) {
+      _closeRoutePanel(); // stop nav è dentro
+    } else {
+      _stopInAppNavigation();
+    }
+
+    final p = _activeBooking;
+    if (p == null || !mounted) return;
+
+    UiFeedback.showSuccess(
+      context,
+      'Sei arrivato al parcheggio. Scansiona il QR all’ingresso.',
+    );
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+
+    await _showMapLockedDialog<void>(
+      show: () => PrenotazioneDialog.mostra(
+        context,
+        prenotazione: p,
+        apiClient: widget.apiClient,
+        utenteId: widget.utente.id,
+        onCancelled: () {
+          _bookingCancelledInDialog = true;
+          Future.microtask(() async {
+            if (!mounted) return;
+            await _handleBookingCancelledAndReload();
+          });
+        },
+      ),
+    );
+  }
+
   Future<void> _handleBookingCancelledAndReload([
     Map<String, dynamic>? _,
   ]) async {
     _stopInAppNavigation();
 
     setState(() {
+      _activeBooking = null;
+      _activeParkingLatLng = null;
+      _arrivalHandled = false;
+
       _bookedParkingMarkerId = null;
       _bookedMarkerLocked = false;
 
@@ -329,7 +377,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        UiFeedback.showError(context,'Servizi di localizzazione disattivati.');
+        UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
         return;
       }
 
@@ -340,7 +388,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
         setState(() => _locationGranted = false);
-        UiFeedback.showError(context,'Permesso posizione negato.');
+        UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
@@ -381,7 +429,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         _pendingCenter = me;
       }
     } catch (_) {
-      UiFeedback.showError(context,'Impossibile ottenere la posizione.');
+      UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
     } finally {
       if (mounted) setState(() => _isLocating = false);
     }
@@ -389,14 +437,14 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
   Future<void> _startInAppNavigation() async {
     if (_routes.isEmpty) return;
-    if (_isStartingNav || _navPending) return; // evita doppi tap
+    if (_isStartingNav || _navPending) return;
 
     setState(() {
       _navPending = true;
       _isStartingNav = true;
       _gotFirstNavFix = false;
 
-      _navActive = false; // ✅ IMPORTANTISSIMO: non attivare ancora
+      _navActive = false;
       _navStepIndex = 0;
       _lockMapGestures = true;
     });
@@ -425,6 +473,22 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
         final me = LatLng(pos.latitude, pos.longitude);
 
+        // --- ARRIVO VICINO PARCHEGGIO: stop nav + ripopup QR ---
+        final dest = _activeParkingLatLng;
+        if (!_arrivalHandled && dest != null) {
+          final d = Geolocator.distanceBetween(
+            me.latitude,
+            me.longitude,
+            dest.latitude,
+            dest.longitude,
+          );
+
+          if (d <= _arriveParkingThresholdM) {
+            _handleArrivedNearParking();
+            return; // non processare più step nav
+          }
+        }
+
         final routePts = _getNavRoutePts();
         nearestPointOnPolyline(routePts, me);
 
@@ -449,7 +513,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           _isStartingNav = false;
           _navActive = false;
         });
-        UiFeedback.showError(context,'Errore avvio navigazione: $e');
+        UiFeedback.showError(context, 'Errore avvio navigazione: $e');
       },
     );
   }
@@ -495,7 +559,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       _navStepIndex++;
       if (_navStepIndex >= route.steps.length) {
         _navStepIndex = route.steps.length - 1;
-        UiFeedback.showError(context,'Sei arrivato a destinazione.');
         _stopInAppNavigation();
       }
     });
@@ -630,7 +693,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     } catch (e, st) {
       debugPrint('Errore calcolo percorso: $e');
       debugPrintStack(stackTrace: st);
-      UiFeedback.showError(context,'Errore calcolo percorso.');
+      UiFeedback.showError(context, 'Errore calcolo percorso.');
     } finally {
       if (mounted) setState(() => _isLoadingRoute = false);
     }
@@ -691,7 +754,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
   Future<void> _toggleParkings() async {
     if (_bookedParkingMarkerId != null) {
-      UiFeedback.showError(context,
+      UiFeedback.showError(
+        context,
         'Hai già una prenotazione attiva: mostro solo il parcheggio prenotato.',
       );
       return;
@@ -731,7 +795,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       final res = await http.get(uri);
       if (res.statusCode != 200) {
-        UiFeedback.showError(context,'Errore caricamento parcheggi (${res.statusCode})');
+        UiFeedback.showError(
+          context,
+          'Errore caricamento parcheggi (${res.statusCode})',
+        );
         return;
       }
 
@@ -758,9 +825,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
             icon: inEmergenza || isFull
                 ? (_parkingIconFull ?? BitmapDescriptor.defaultMarker)
                 : (isSelected
-                    ? (_parkingIconSelected ?? _parkingIcon ?? BitmapDescriptor.defaultMarker)
-                    : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
-            
+                      ? (_parkingIconSelected ??
+                            _parkingIcon ??
+                            BitmapDescriptor.defaultMarker)
+                      : (_parkingIcon ?? BitmapDescriptor.defaultMarker)),
+
             infoWindow: const InfoWindow(title: ''),
             onTap: () async {
               setState(() {
@@ -778,7 +847,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         _markers.addAll(newMarkers);
       });
     } catch (_) {
-      UiFeedback.showError(context,'Errore durante il caricamento dei parcheggi.');
+      UiFeedback.showError(
+        context,
+        'Errore durante il caricamento dei parcheggi.',
+      );
     } finally {
       if (mounted) setState(() => _isLoadingParkings = false);
     }
@@ -831,6 +903,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         DateTime.now().toIso8601String(),
       );
 
+      // --- salva prenotazione + destinazione per trigger arrivo ---
+      _activeBooking = risposta;
+      _activeParkingLatLng = LatLng(destLat, destLng);
+      _arrivalHandled = false;
+
       if (!mounted) return;
 
       // chiudi loader
@@ -863,7 +940,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       // 4) Se non ho origin, non posso calcolare percorso -> (scelta UX)
       if (origin == null) {
-        UiFeedback.showError(context,
+        UiFeedback.showError(
+          context,
           'Posizione non disponibile: impossibile calcolare il percorso.',
         );
         // comunque posso considerare la prenotazione "attiva" e mostrare solo il booked parking:
@@ -890,14 +968,14 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       // chiudi loader se ancora aperto
       Navigator.of(context, rootNavigator: true).pop();
 
-      UiFeedback.showError(context,e.message);
+      UiFeedback.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
 
       // chiudi loader se ancora aperto
       Navigator.of(context, rootNavigator: true).pop();
 
-      UiFeedback.showError(context,'Errore di connessione o del server');
+      UiFeedback.showError(context, 'Errore di connessione o del server');
     }
   }
 
@@ -1055,7 +1133,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
       final results = (data['results'] as List).cast<Map<String, dynamic>>();
       if (results.isEmpty) {
-        UiFeedback.showError(context,'Nessun risultato trovato.');
+        UiFeedback.showError(context, 'Nessun risultato trovato.');
         return;
       }
 
@@ -1070,7 +1148,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         ),
       );
     } catch (_) {
-      UiFeedback.showError(context,'Errore durante la ricerca.');
+      UiFeedback.showError(context, 'Errore durante la ricerca.');
     }
   }
 
