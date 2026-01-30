@@ -13,6 +13,7 @@ class PrenotazioneDialog {
     required ApiClient apiClient,
     required String utenteId,
     required VoidCallback onCancelled,
+    required VoidCallback? onClosed,
   }) {
     return showDialog<void>(
       context: context,
@@ -22,6 +23,7 @@ class PrenotazioneDialog {
         apiClient: apiClient,
         utenteId: utenteId,
         onCancelled: onCancelled,
+        onClosed: onClosed,
       ),
     );
   }
@@ -32,12 +34,14 @@ class _PrenotazioneDialogContent extends StatefulWidget {
   final ApiClient apiClient;
   final String utenteId;
   final VoidCallback onCancelled;
+  final VoidCallback? onClosed;
 
   const _PrenotazioneDialogContent({
     required this.prenotazione,
     required this.apiClient,
     required this.utenteId,
     required this.onCancelled,
+    this.onClosed,
   });
 
   @override
@@ -254,7 +258,10 @@ class _PrenotazioneDialogContentState
                     ElevatedButton(
                       onPressed: _isCancelling
                           ? null
-                          : () => Navigator.of(context).pop(),
+                          : () {
+                              Navigator.of(context).pop();
+                              widget.onClosed?.call();
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.accentCyan,
                         foregroundColor: Colors.black,

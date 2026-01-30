@@ -79,7 +79,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 style: TextStyle(color: AppColors.textMuted),
               ),
             );
-            
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Text(
@@ -142,6 +141,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         });
                         widget.onBookingCancelled();
                       },
+                      onClosed: () {},
                     );
                   },
                 ),

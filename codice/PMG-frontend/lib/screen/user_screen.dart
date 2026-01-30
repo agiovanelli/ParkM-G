@@ -1,19 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
+import 'dart:html' as html;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:park_mg/models/directions.dart';
 import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
-import 'package:park_mg/widgets/map/nav_math.dart';
+import 'package:park_mg/widgets/active_booking_banner.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
 
 import 'package:park_mg/utils/theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../models/utente.dart';
@@ -22,7 +23,6 @@ import 'history_screen.dart';
 
 import '../widgets/map/gmaps_control_button.dart';
 import '../widgets/map/parking_popup.dart';
-import '../widgets/map/route_panel.dart';
 
 class UserScreen extends StatefulWidget {
   final Utente utente;
@@ -34,13 +34,13 @@ class UserScreen extends StatefulWidget {
   State<UserScreen> createState() => _UserScreenState();
 }
 
-class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
+class _UserScreenState extends State<UserScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   final Set<Circle> _circles = {};
-  final Set<Polyline> _polylines = {};
   bool _locationGranted = false;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -49,51 +49,31 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   bool _isLoadingParkings = false;
   Map<String, dynamic>? _selectedParkingData;
   String? _selectedParkingMarkerId;
-  List<DirectionsRoute> _routes = [];
-  int _selectedRouteIndex = 0;
-  bool _isLoadingRoute = false;
   bool _isLocating = false;
   LatLng? _pendingCenter;
-  bool _showRoutePanel = false;
   bool _lockMapGestures = false;
-  StreamSubscription<Position>? _posSub;
-  bool _navActive = false;
-  int _navStepIndex = 0;
-  List<LatLng>? _navRoutePts;
-  int? _navRouteIndexCached;
   String? _bookedParkingMarkerId;
-  static const double _stepArriveThresholdM = 25;
-  bool _isStartingNav = false;
-  bool _gotFirstNavFix = false;
-  bool _navPending = false;
   bool _bookedMarkerLocked = false;
   BitmapDescriptor? _parkingIconFull;
   bool _blockMapInteractions = false;
   bool _bookingCancelledInDialog = false;
-  PrenotazioneResponse? _activeBooking;
-  LatLng? _activeParkingLatLng;
-  bool _arrivalHandled = false;
-  static const double _arriveParkingThresholdM = 40.0;
-  DateTime _lastCamUpdate = DateTime.fromMillisecondsSinceEpoch(0);
-  LatLng? _lastCamPos;
-  double? _lastCamBearing;
   LatLng? _lastMe;
-  static const Duration _camMinInterval = Duration(milliseconds: 180);
-  static const double _camMinMoveMeters = 2.0;
-  static const double _camMinBearingDelta = 8.0;
   StreamSubscription<Position>? _trackSub;
-  static const String _meMarkerId = 'me';
   DateTime _lastTrackUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   LatLng? _lastTrackUiPos;
   static const Duration _trackUiMinInterval = Duration(milliseconds: 250);
   static const double _trackUiMinMoveMeters = 1.5;
   List<dynamic>? _lastParkingsJson;
   bool _isBooking = false;
-
-  void _setMapGesturesLocked(bool v) {
-    if (_lockMapGestures == v) return;
-    setState(() => _lockMapGestures = v);
-  }
+  bool _externalNavOpened = false;
+  static const double _arriveParkingThresholdM = 60.0;
+  DateTime _lastArrivalCheck = DateTime.fromMillisecondsSinceEpoch(0);
+  static const Duration _arrivalCheckMinInterval = Duration(seconds: 2);
+  PrenotazioneResponse? _activeBooking;
+  LatLng? _activeParkingLatLng;
+  bool _arrivalHandled = false;
+  StreamSubscription<html.Event>? _focusSub;
+  static const double _blueDotRadiusM = 5.0;
 
   void _showOnlyBookedParking(Map<String, dynamic> p) {
     final markerId = 'p_${p['id']}';
@@ -156,25 +136,148 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
   // -------------------- utils --------------------
 
-  void _checkPolylineChars(String poly) {
-    for (int i = 0; i < poly.length; i++) {
-      final c = poly.codeUnitAt(i);
-      if (c < 63 || c > 126) {
-        debugPrint('BAD CHAR in polyline at i=$i code=$c char="${poly[i]}"');
-        final start = (i - 10).clamp(0, poly.length);
-        final end = (i + 10).clamp(0, poly.length);
-        debugPrint('CONTEXT: "${poly.substring(start, end)}"');
-        return;
-      }
+  Future<void> _openExternalNavWeb({
+    required double destLat,
+    required double destLng,
+    LatLng? origin,
+  }) async {
+    final url = (origin != null)
+        ? 'https://www.google.com/maps/dir/?api=1'
+              '&origin=${origin.latitude},${origin.longitude}'
+              '&destination=$destLat,$destLng'
+              '&travelmode=driving'
+        : 'https://www.google.com/maps/dir/?api=1'
+              '&destination=$destLat,$destLng'
+              '&travelmode=driving';
+
+    final ok = await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
+
+    if (!ok && mounted) {
+      UiFeedback.showError(context, 'Impossibile aprire Google Maps.');
     }
-    debugPrint('Polyline chars OK (all in 63..126)');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkArrivalOnReturn();
+    }
+  }
+
+  Future<void> _checkArrivalOnReturn({bool force = false}) async {
+    if (!mounted) return;
+
+    if (_activeBooking == null) {
+      UiFeedback.showError(context, 'Nessuna prenotazione attiva.');
+      return;
+    }
+    if (_activeParkingLatLng == null) {
+      UiFeedback.showError(context, 'Destinazione non disponibile.');
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!force &&
+        now.difference(_lastArrivalCheck) < _arrivalCheckMinInterval) {
+      UiFeedback.showError(context, 'Attendi un attimo e riprova…');
+      return;
+    }
+    _lastArrivalCheck = now;
+
+    if (_arrivalHandled) {
+      UiFeedback.showSuccess(context, 'Arrivo già gestito.');
+      return;
+    }
+
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      ).timeout(const Duration(seconds: 8));
+
+      final me = LatLng(pos.latitude, pos.longitude);
+      _lastMe = me;
+
+      final dest = _activeParkingLatLng!;
+      final d = Geolocator.distanceBetween(
+        me.latitude,
+        me.longitude,
+        dest.latitude,
+        dest.longitude,
+      );
+
+      UiFeedback.showSuccess(
+        context,
+        'Distanza dal parcheggio: ${d.toStringAsFixed(1)} m',
+      );
+
+      if (d <= _arriveParkingThresholdM) {
+        _arrivalHandled = true;
+
+        UiFeedback.showSuccess(context, 'Sei arrivato al parcheggio!');
+        await Future.delayed(const Duration(milliseconds: 350));
+        if (!mounted) return;
+
+        await _showMapLockedDialog<void>(
+          show: () => PrenotazioneDialog.mostra(
+            context,
+            prenotazione: _activeBooking!,
+            apiClient: widget.apiClient,
+            utenteId: widget.utente.id,
+            onCancelled: () {
+              _bookingCancelledInDialog = true;
+              Future.microtask(() async {
+                if (!mounted) return;
+                await _handleBookingCancelledAndReload();
+              });
+            },
+            onClosed: () {},
+          ),
+        );
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Timeout nel fix GPS (web).');
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Geolocazione KO: $e');
+    }
   }
 
   void _updatePulseCenter(LatLng me) {
     _lastMe = me;
 
-    // marker "me" con throttle interno
-    _updateMeMarkerThrottled(me);
+    setState(() {
+      // aggiorna PULSE con il nuovo centro (subito)
+      _circles.removeWhere((c) => c.circleId.value == 'pulse');
+      _circles.add(
+        Circle(
+          circleId: const CircleId('pulse'),
+          center: me,
+          radius: _pulseAnimation.value, // raggio attuale dell'animazione
+          fillColor: Colors.blue.withOpacity(0.25),
+          strokeColor: Colors.blue.withOpacity(0.1),
+          strokeWidth: 1,
+          zIndex: 900,
+        ),
+      );
+
+      // aggiorna PALLINO BLU con lo stesso centro (subito)
+      _circles.removeWhere((c) => c.circleId.value == 'blue_dot');
+      _circles.add(
+        Circle(
+          circleId: const CircleId('blue_dot'),
+          center: me,
+          radius: _blueDotRadiusM,
+          fillColor: const Color(0xFF1A73E8),
+          strokeWidth: 0,
+          strokeColor: Colors.transparent,
+          zIndex: 1000,
+        ),
+      );
+    });
+
+    // opzionale: se non ti serve più il marker "me", puoi anche rimuoverlo del tutto
+    // _updateMeMarkerThrottled(me);
   }
 
   static const String _mapStyleNoPoi = '''
@@ -184,104 +287,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     ]
   ''';
 
-  String _formatDistanceKm(String distanceText) {
-    final t = distanceText.trim().toLowerCase().replaceAll(',', '.');
-
-    final m = RegExp(r'([\d.]+)\s*(km|m)\b').firstMatch(t);
-    if (m == null) return distanceText;
-
-    final value = double.tryParse(m.group(1)!) ?? 0.0;
-    final unit = m.group(2)!;
-
-    final km = (unit == 'm') ? (value / 1000.0) : value;
-
-    if (km >= 10) return '${km.toStringAsFixed(0)} km';
-    return '${km.toStringAsFixed(1)} km';
-  }
-
-  String _formatDurationHm(String durationText) {
-    final t = durationText.trim().toLowerCase();
-
-    int hours = 0;
-    int mins = 0;
-
-    final hMatch = RegExp(r'(\d+)\s*(h|hour|hours|ora|ore)\b').firstMatch(t);
-    if (hMatch != null) hours = int.tryParse(hMatch.group(1)!) ?? 0;
-
-    final mMatch = RegExp(
-      r'(\d+)\s*(m|min|mins|minute|minutes|minuto|minuti)\b',
-    ).firstMatch(t);
-    if (mMatch != null) mins = int.tryParse(mMatch.group(1)!) ?? 0;
-
-    if (hours == 0 && mins == 0) return durationText;
-
-    if (hours == 0) return '$mins min';
-    if (mins == 0) return '${hours} h';
-    return '${hours} h ${mins} min';
-  }
-
-  String _routeMeta(DirectionsRoute r) {
-    final dist = _formatDistanceKm(r.distanceText);
-    final dur = _formatDurationHm(r.durationText);
-    return '$dist • $dur';
-  }
-
-  String _stripHtml(String input) {
-    final noTags = input.replaceAll(RegExp(r'<[^>]*>'), ' ');
-    return noTags
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  Future<void> _handleArrivedNearParking() async {
-    if (_arrivalHandled) return;
-    _arrivalHandled = true;
-
-    // chiudi pannello route (se aperto) e ferma nav una volta sola
-    if (_showRoutePanel) {
-      _closeRoutePanel(); // stop nav è dentro
-    } else {
-      _stopInAppNavigation();
-    }
-
-    final p = _activeBooking;
-    if (p == null || !mounted) return;
-
-    UiFeedback.showSuccess(
-      context,
-      'Sei arrivato al parcheggio. Scansiona il QR all’ingresso.',
-    );
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-
-    await _showMapLockedDialog<void>(
-      show: () => PrenotazioneDialog.mostra(
-        context,
-        prenotazione: p,
-        apiClient: widget.apiClient,
-        utenteId: widget.utente.id,
-        onCancelled: () {
-          _bookingCancelledInDialog = true;
-          Future.microtask(() async {
-            if (!mounted) return;
-            await _handleBookingCancelledAndReload();
-          });
-        },
-      ),
-    );
-  }
-
   Future<void> _handleBookingCancelledAndReload([
     Map<String, dynamic>? _,
   ]) async {
-    _stopInAppNavigation();
-
     setState(() {
       _activeBooking = null;
       _activeParkingLatLng = null;
@@ -293,15 +301,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
       _selectedParkingData = null;
       _selectedParkingMarkerId = null;
 
-      _routes = [];
-      _selectedRouteIndex = 0;
-      _showRoutePanel = false;
-
-      _navRoutePts = null;
-      _navRouteIndexCached = null;
-      _navStepIndex = 0;
-
-      _polylines.removeWhere((p) => p.polylineId.value == 'route');
+      _externalNavOpened = false;
 
       _showParkings = true;
       _lockMapGestures = false;
@@ -317,6 +317,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (kIsWeb) {
+      _focusSub = html.window.onFocus.listen((_) {
+        _checkArrivalOnReturn();
+      });
+    }
 
     _bitmapDescriptorFromIcon(
       Icons.local_parking,
@@ -384,10 +390,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _posSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _pulseController.dispose();
     _trackSub?.cancel();
+    _focusSub?.cancel();
     super.dispose();
   }
 
@@ -400,7 +407,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
-      // Su Web questo check può essere “falso negativo”.
       if (!serviceEnabled && !kIsWeb) {
         UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
         return;
@@ -431,9 +437,9 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         _locationGranted = true;
         _lastMe = me;
 
-        // inizializza il pulse una volta
         _circles
           ..removeWhere((c) => c.circleId.value == 'pulse')
+          ..removeWhere((c) => c.circleId.value == 'blue_dot')
           ..add(
             Circle(
               circleId: const CircleId('pulse'),
@@ -442,6 +448,17 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               fillColor: Colors.blue.withOpacity(0.25),
               strokeColor: Colors.blue.withOpacity(0.1),
               strokeWidth: 1,
+            ),
+          )
+          ..add(
+            Circle(
+              circleId: const CircleId('blue_dot'),
+              center: me,
+              radius: _blueDotRadiusM,
+              fillColor: const Color(0xFF1A73E8),
+              strokeColor: Colors.transparent,
+              strokeWidth: 0,
+              zIndex: 1000,
             ),
           );
       });
@@ -461,106 +478,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     } finally {
       if (mounted) setState(() => _isLocating = false);
     }
-  }
-
-  Future<void> _startInAppNavigation() async {
-    _stopTrackingPosition();
-    if (_routes.isEmpty) return;
-    if (_isStartingNav || _navPending) return;
-
-    setState(() {
-      _navPending = true;
-      _isStartingNav = true;
-      _gotFirstNavFix = false;
-
-      _navActive = false;
-      _navStepIndex = 0;
-      _lockMapGestures = true;
-    });
-
-    _posSub?.cancel();
-
-    final LocationSettings settings = kIsWeb
-        ? const LocationSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 0,
-          )
-        : (defaultTargetPlatform == TargetPlatform.android)
-        ? AndroidSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 0,
-            intervalDuration: const Duration(milliseconds: 500),
-          )
-        : AppleSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 0,
-            activityType: ActivityType.automotiveNavigation,
-            pauseLocationUpdatesAutomatically: false,
-          );
-
-    _posSub = Geolocator.getPositionStream(locationSettings: settings).listen(
-      (pos) {
-        if (!mounted) return;
-
-        if (_navPending && !_gotFirstNavFix) {
-          _gotFirstNavFix = true;
-          setState(() {
-            _navPending = false;
-            _isStartingNav = false;
-            _navActive = true;
-          });
-        }
-
-        if (!_navActive) return;
-
-        final me = LatLng(pos.latitude, pos.longitude);
-        _updatePulseCenter(me);
-
-        final dest = _activeParkingLatLng;
-        if (!_arrivalHandled && dest != null) {
-          final d = Geolocator.distanceBetween(
-            me.latitude,
-            me.longitude,
-            dest.latitude,
-            dest.longitude,
-          );
-
-          if (d <= _arriveParkingThresholdM) {
-            _handleArrivedNearParking();
-            return;
-          }
-        }
-
-        final routePts = _getNavRoutePts();
-        nearestPointOnPolyline(routePts, me);
-
-        final route = _routes[_selectedRouteIndex];
-        final step =
-            (route.steps.isNotEmpty && _navStepIndex < route.steps.length)
-            ? route.steps[_navStepIndex]
-            : null;
-
-        final stepDone =
-            (step != null) &&
-            (distanceMeters(me, step.end) <= _stepArriveThresholdM);
-
-        final hasGoodHeading = pos.heading.isFinite && pos.speed > 1.5;
-        final b = hasGoodHeading ? pos.heading : (_lastCamBearing ?? 0.0);
-
-        _followCamera(me, bearing: b, speed: pos.speed);
-
-        if (stepDone) _advanceStep();
-      },
-      onError: (e) {
-        if (!mounted) return;
-        setState(() {
-          _navPending = false;
-          _isStartingNav = false;
-          _navActive = false;
-        });
-        UiFeedback.showError(context, 'Errore avvio navigazione: $e');
-      },
-    );
   }
 
   void _startTrackingPosition() {
@@ -587,9 +504,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     _trackSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (pos) {
         if (!mounted) return;
-
-        // se nav attiva, non fare tracking UI
-        if (_navActive || _navPending || _isStartingNav) return;
 
         final me = LatLng(pos.latitude, pos.longitude);
         final now = DateTime.now();
@@ -619,101 +533,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
         UiFeedback.showError(context, 'Errore tracking posizione: $e');
       },
     );
-  }
-
-  void _stopTrackingPosition() {
-    _trackSub?.cancel();
-    _trackSub = null;
-  }
-
-  void _followCamera(LatLng me, {double? bearing, double? speed}) {
-    final c = _mapController;
-    if (c == null) return;
-
-    final now = DateTime.now();
-    if (now.difference(_lastCamUpdate) < _camMinInterval) return;
-
-    if (_lastCamPos != null) {
-      final moved = Geolocator.distanceBetween(
-        _lastCamPos!.latitude,
-        _lastCamPos!.longitude,
-        me.latitude,
-        me.longitude,
-      );
-
-      final b0 = _lastCamBearing;
-      final b1 = bearing;
-      final bearingDelta = (b0 != null && b1 != null)
-          ? (((b1 - b0).abs()) % 360).clamp(0, 180)
-          : 999.0;
-
-      if (moved < _camMinMoveMeters && bearingDelta < _camMinBearingDelta) {
-        return;
-      }
-    }
-
-    _lastCamUpdate = now;
-    _lastCamPos = me;
-    _lastCamBearing = bearing ?? _lastCamBearing ?? 0;
-
-    final tilt = (speed != null && speed < 1.0) ? 35.0 : 55.0;
-
-    // ISTANTANEO: molto più reattivo di animateCamera in navigazione
-    c.moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: me,
-          zoom: 18,
-          bearing: (_lastCamBearing ?? 0).clamp(0, 360),
-          tilt: tilt,
-        ),
-      ),
-    );
-  }
-
-  List<LatLng> _getNavRoutePts() {
-    final idx = _selectedRouteIndex;
-    if (_navRoutePts == null || _navRouteIndexCached != idx) {
-      _navRoutePts = decodePolylineToLatLngs(_routes[idx].polyline);
-      _navRouteIndexCached = idx;
-    }
-    return _navRoutePts!;
-  }
-
-  String _currentInstruction() {
-    if (_routes.isEmpty) return '';
-    final steps = _routes[_selectedRouteIndex].steps;
-    if (steps.isEmpty) return '';
-    if (_navStepIndex < 0 || _navStepIndex >= steps.length) return '';
-    return _stripHtml(steps[_navStepIndex].htmlInstructions);
-  }
-
-  void _advanceStep() {
-    if (_routes.isEmpty) return;
-    final route = _routes[_selectedRouteIndex];
-
-    setState(() {
-      _navStepIndex++;
-      if (_navStepIndex >= route.steps.length) {
-        _navStepIndex = route.steps.length - 1;
-        _stopInAppNavigation();
-      }
-    });
-  }
-
-  void _stopInAppNavigation() {
-    _posSub?.cancel();
-    _posSub = null;
-
-    setState(() {
-      _navActive = false;
-      _navPending = false;
-      _isStartingNav = false;
-      _gotFirstNavFix = false;
-
-      _lockMapGestures = false;
-    });
-    _startTrackingPosition();
   }
 
   Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
@@ -756,137 +575,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   }
 
   // -------------------- routes --------------------
-
-  void _applySelectedRoute() {
-    _navRoutePts = null;
-    _navRouteIndexCached = null;
-    if (_routes.isEmpty) return;
-    final route = _routes[_selectedRouteIndex];
-
-    final pts = decodePolylineToLatLngs(route.polyline);
-
-    setState(() {
-      _polylines
-        ..removeWhere((p) => p.polylineId.value == 'route')
-        ..add(
-          Polyline(
-            polylineId: const PolylineId('route'),
-            points: pts,
-            width: 6,
-            color: AppColors.accentCyan,
-            geodesic: true,
-          ),
-        );
-    });
-
-    if (pts.isNotEmpty) _fitCameraToPoints(pts);
-  }
-
-  void _showRouteChoiceSheet() {
-    if (_routes.isEmpty) return;
-    setState(() {
-      _showRoutePanel = true;
-    });
-  }
-
-  void _closeRoutePanel() {
-    if (_navActive) _stopInAppNavigation();
-    setState(() {
-      _showRoutePanel = false;
-      _lockMapGestures = false;
-    });
-  }
-
-  Future<void> _showRouteToParking({
-    required LatLng origin,
-    required double destLat,
-    required double destLng,
-  }) async {
-    setState(() {
-      _isLoadingRoute = true;
-    });
-
-    try {
-      final destination = LatLng(destLat, destLng);
-
-      final routes = await _fetchDirectionsRoutes(
-        origin: origin,
-        destination: destination,
-      );
-
-      setState(() {
-        _routes = routes;
-        _selectedRouteIndex = 0;
-      });
-
-      _navRoutePts = null;
-      _navRouteIndexCached = null;
-      _navStepIndex = 0;
-
-      _applySelectedRoute();
-
-      setState(() {
-        _showRoutePanel = true;
-      });
-    } catch (e, st) {
-      debugPrint('Errore calcolo percorso: $e');
-      debugPrintStack(stackTrace: st);
-      UiFeedback.showError(context, 'Errore calcolo percorso.');
-    } finally {
-      if (mounted) setState(() => _isLoadingRoute = false);
-    }
-  }
-
-  Future<List<DirectionsRoute>> _fetchDirectionsRoutes({
-    required LatLng origin,
-    required LatLng destination,
-  }) async {
-    final data = await widget.apiClient.getDirections(
-      oLat: origin.latitude,
-      oLng: origin.longitude,
-      dLat: destination.latitude,
-      dLng: destination.longitude,
-    );
-
-    final routesJson = (data['routes'] as List).cast<Map<String, dynamic>>();
-    if (routesJson.isEmpty)
-      throw Exception('Nessun percorso dalla Directions API');
-
-    return routesJson.map((r) {
-      final route = DirectionsRoute.fromJson(r);
-
-      if (route.polyline.isEmpty) {
-        throw Exception('Polyline overview vuota dal backend');
-      }
-      _checkPolylineChars(route.polyline);
-
-      return route;
-    }).toList();
-  }
-
-  void _fitCameraToPoints(List<LatLng> pts) {
-    if (_mapController == null || pts.isEmpty) return;
-
-    double minLat = pts.first.latitude, maxLat = pts.first.latitude;
-    double minLng = pts.first.longitude, maxLng = pts.first.longitude;
-
-    for (final p in pts) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        70,
-      ),
-    );
-  }
 
   // -------------------- parkings --------------------
 
@@ -962,43 +650,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _updateMeMarkerThrottled(LatLng me) {
-    if (!mounted) return;
-
-    final now = DateTime.now();
-
-    // throttle temporale
-    if (now.difference(_lastTrackUiUpdate) < _trackUiMinInterval) return;
-
-    // throttle sul movimento (se non ti sei mosso abbastanza, non aggiornare)
-    if (_lastTrackUiPos != null) {
-      final moved = Geolocator.distanceBetween(
-        _lastTrackUiPos!.latitude,
-        _lastTrackUiPos!.longitude,
-        me.latitude,
-        me.longitude,
-      );
-      if (moved < _trackUiMinMoveMeters) return;
-    }
-
-    _lastTrackUiUpdate = now;
-    _lastTrackUiPos = me;
-
-    final m = Marker(
-      markerId: const MarkerId(_meMarkerId),
-      position: me,
-      zIndex: 9999,
-      anchor: const Offset(0.5, 0.5),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      consumeTapEvents: true,
-    );
-
-    setState(() {
-      _markers.removeWhere((x) => x.markerId.value == _meMarkerId);
-      _markers.add(m);
-    });
-  }
-
   void _rebuildParkingMarkersFromLastData() {
     final data = _lastParkingsJson;
     if (data == null) return;
@@ -1066,7 +717,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
     setState(() => _isBooking = true);
     _bookingCancelledInDialog = false;
 
-    // ORIGIN: usa _lastMe (tracking) subito; fallback a un fix fresco
     LatLng? origin = _lastMe;
     if (origin == null) {
       try {
@@ -1074,13 +724,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           desiredAccuracy: LocationAccuracy.high,
         ).timeout(const Duration(seconds: 5));
         origin = LatLng(pos.latitude, pos.longitude);
-      } catch (_) {
-        // origin resta null -> prenotazione ok, route no
-      }
+      } catch (_) {}
     }
 
     try {
-      // 1) PRENOTAZIONE (rete)
       final risposta = await widget.apiClient
           .prenotaParcheggio(
             widget.utente.id,
@@ -1089,14 +736,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
           )
           .timeout(const Duration(seconds: 12));
 
-      // salva prenotazione + destinazione per trigger arrivo
-      _activeBooking = risposta;
-      _activeParkingLatLng = LatLng(destLat, destLng);
-      _arrivalHandled = false;
-
       if (!mounted) return;
 
-      // 2) DIALOG prenotazione (può annullare davvero)
       await _showMapLockedDialog<void>(
         show: () => PrenotazioneDialog.mostra(
           context,
@@ -1110,39 +751,49 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
               await _handleBookingCancelledAndReload(parkingData);
             });
           },
+          onClosed: () {
+            // Se l'ha annullata nel dialog, non attivare nulla
+            if (_bookingCancelledInDialog) return;
+
+            // ✅ ATTIVA la prenotazione "globale" SOLO ORA (dopo Chiudi del QR)
+            setState(() {
+              _activeBooking = risposta;
+              _activeParkingLatLng = LatLng(destLat, destLng);
+              _arrivalHandled = false;
+            });
+
+            // evita doppio open
+            if (_externalNavOpened) return;
+            _externalNavOpened = true;
+
+            setState(() => _bookedMarkerLocked = true);
+            _showOnlyBookedParking(parkingData);
+
+            UiFeedback.showSuccess(
+              context,
+              'Google Maps aperto. Torna qui quando arrivi.',
+            );
+
+            Future.microtask(() async {
+              await _openExternalNavWeb(
+                destLat: destLat,
+                destLng: destLng,
+                origin: origin ?? _lastMe,
+              );
+            });
+          },
         ),
       );
 
       if (!mounted) return;
-
-      // Se annullata nel dialog -> stop, NON route, NON lock.
       if (_bookingCancelledInDialog) return;
-
-      // 3) Lock + mostra SOLO parcheggio prenotato
-      setState(() => _bookedMarkerLocked = true);
-      _showOnlyBookedParking(parkingData);
-
-      // 4) Route (solo se ho origin)
-      if (origin == null) {
-        UiFeedback.showError(
-          context,
-          'Posizione non disponibile: percorso non calcolato.',
-        );
-        return;
-      }
-
-      await _showRouteToParking(
-        origin: origin,
-        destLat: destLat,
-        destLng: destLng,
-      );
     } on TimeoutException {
       if (!mounted) return;
       UiFeedback.showError(context, 'Timeout prenotazione: riprova.');
     } on ApiException catch (e) {
       if (!mounted) return;
       UiFeedback.showError(context, e.message);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       UiFeedback.showError(context, 'Errore di connessione o del server');
     } finally {
@@ -1328,12 +979,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final fullName = '${widget.utente.nome} ${widget.utente.cognome}'.trim();
-    final int safeIdx = _selectedRouteIndex.clamp(
-      0,
-      _routes.isEmpty ? 0 : _routes.length - 1,
-    );
-    final int stepsTotal = _routes.isEmpty ? 0 : _routes[safeIdx].steps.length;
-    (_navStepIndex + 1).clamp(1, stepsTotal == 0 ? 1 : stepsTotal);
+
     final selected = _selectedParkingData;
     final int postiDispSelected =
         (selected?['postiDisponibili'] as num?)?.toInt() ??
@@ -1511,7 +1157,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                   !kIsWeb && _locationGranted,
                               zoomControlsEnabled: false,
                               mapToolbarEnabled: false,
-                              polylines: _polylines,
                               scrollGesturesEnabled: !_lockMapGestures,
                               zoomGesturesEnabled: !_lockMapGestures,
                               rotateGesturesEnabled: !_lockMapGestures,
@@ -1531,10 +1176,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                               },
                             ),
 
-                            if (_isLoadingParkings ||
-                                _isLoadingRoute ||
-                                _isLocating ||
-                                _isStartingNav)
+                            if (_isLoadingParkings || _isLocating)
                               Container(
                                 color: Colors.black54,
                                 child: const Center(
@@ -1567,178 +1209,10 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                           ? false
                                           : _showParkings,
                                     ),
-                                    const SizedBox(height: 10),
-                                    GMapsControlButton(
-                                      icon: Icons.route,
-                                      onPressed: _routes.isEmpty
-                                          ? null
-                                          : _showRouteChoiceSheet,
-                                      tooltip: 'Percorso / Navigazione',
-                                      selected: _showRoutePanel,
-                                    ),
                                   ],
                                 ),
                               ),
                             ),
-
-                            if (_showRoutePanel &&
-                                _routes.isNotEmpty &&
-                                !_isStartingNav)
-                              _navActive
-                                  ? Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: SafeArea(
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 16,
-                                          ),
-                                          child: SizedBox(
-                                            width: 520,
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.fromLTRB(
-                                                      16,
-                                                      14,
-                                                      16,
-                                                      16,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.18),
-                                                      blurRadius: 24,
-                                                      offset: const Offset(
-                                                        0,
-                                                        10,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: RoutePanel(
-                                                  compact: true,
-                                                  currentInstruction:
-                                                      _currentInstruction(),
-                                                  stepNow: (_navStepIndex + 1),
-                                                  stepsTotal:
-                                                      _routes[_selectedRouteIndex]
-                                                          .steps
-                                                          .length,
-
-                                                  routes: _routes
-                                                      .map(
-                                                        (r) => RoutePanelRoute(
-                                                          summary: _routeMeta(
-                                                            r,
-                                                          ),
-                                                          steps: r.steps,
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                                  selectedIndex:
-                                                      _selectedRouteIndex,
-                                                  onSelectIndex: (i) {
-                                                    setState(
-                                                      () =>
-                                                          _selectedRouteIndex =
-                                                              i,
-                                                    );
-                                                    _navRoutePts = null;
-                                                    _navRouteIndexCached = null;
-                                                    _navStepIndex = 0;
-                                                    _applySelectedRoute();
-                                                  },
-                                                  onClose: _closeRoutePanel,
-                                                  onStart:
-                                                      _startInAppNavigation,
-                                                  onStop: _stopInAppNavigation,
-                                                  navActive: _navActive,
-                                                  stripHtml: _stripHtml,
-                                                  setMapGesturesLocked:
-                                                      _setMapGesturesLocked,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : Positioned(
-                                      left: 16,
-                                      top: 16,
-                                      bottom: 16,
-                                      child: SafeArea(
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 420,
-                                          ),
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                    16,
-                                                    14,
-                                                    16,
-                                                    16,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(18),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.18),
-                                                    blurRadius: 24,
-                                                    offset: const Offset(0, 10),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: RoutePanel(
-                                                compact: false,
-                                                currentInstruction: '',
-                                                stepNow: 0,
-                                                stepsTotal: 0,
-
-                                                routes: _routes
-                                                    .map(
-                                                      (r) => RoutePanelRoute(
-                                                        summary: _routeMeta(r),
-                                                        steps: r.steps,
-                                                      ),
-                                                    )
-                                                    .toList(),
-                                                selectedIndex:
-                                                    _selectedRouteIndex,
-                                                onSelectIndex: (i) {
-                                                  setState(
-                                                    () =>
-                                                        _selectedRouteIndex = i,
-                                                  );
-                                                  _navRoutePts = null;
-                                                  _navRouteIndexCached = null;
-                                                  _navStepIndex = 0;
-                                                  _applySelectedRoute();
-                                                },
-                                                onClose: _closeRoutePanel,
-                                                onStart: _startInAppNavigation,
-                                                onStop: _stopInAppNavigation,
-                                                navActive: _navActive,
-                                                stripHtml: _stripHtml,
-                                                setMapGesturesLocked:
-                                                    _setMapGesturesLocked,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
 
                             if (_selectedParkingData != null)
                               Positioned(
@@ -1779,6 +1253,31 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin {
                                     );
                                   },
                                 ),
+                              ),
+                            if (_activeBooking != null)
+                              ActiveBookingBanner(
+                                booking: _activeBooking,
+                                onCheck: () async =>
+                                    _checkArrivalOnReturn(force: true),
+                                onDetails: () async {
+                                  if (_activeBooking == null) return;
+                                  await _showMapLockedDialog<void>(
+                                    show: () => PrenotazioneDialog.mostra(
+                                      context,
+                                      prenotazione: _activeBooking!,
+                                      apiClient: widget.apiClient,
+                                      utenteId: widget.utente.id,
+                                      onCancelled: () {
+                                        _bookingCancelledInDialog = true;
+                                        Future.microtask(() async {
+                                          if (!mounted) return;
+                                          await _handleBookingCancelledAndReload();
+                                        });
+                                      },
+                                      onClosed: () {},
+                                    ),
+                                  );
+                                },
                               ),
                           ],
                         ),
