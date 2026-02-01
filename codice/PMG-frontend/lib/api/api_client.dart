@@ -203,13 +203,14 @@ class ApiClient {
   }
 
   //BLOCCO DI EMERGENZA PARCHEGGIO
-  Future<void> impostaEmergenza(String parcheggioId, bool attiva, String motivo) async {
-    final url = Uri.parse('$_baseUrl/parcheggi/$parcheggioId/emergenza').replace(
-      queryParameters: {
-        'attiva': attiva.toString(),
-        'motivo': motivo,
-      },
-    );
+  Future<void> impostaEmergenza(
+    String parcheggioId,
+    bool attiva,
+    String motivo,
+  ) async {
+    final url = Uri.parse(
+      '$_baseUrl/parcheggi/$parcheggioId/emergenza',
+    ).replace(queryParameters: {'attiva': attiva.toString(), 'motivo': motivo});
 
     final resp = await _client.patch(
       url,
@@ -223,6 +224,7 @@ class ApiClient {
       throw ApiException('Errore attivazione emergenza', resp.statusCode);
     }
   }
+
   //-------------------- PRENOTAZIONI --------------------
   /// Prenota un parcheggio: POST /api/parcheggi/prenota
   Future<PrenotazioneResponse> prenotaParcheggio(
@@ -339,6 +341,29 @@ class ApiClient {
       'Errore directions: HTTP ${resp.statusCode}',
       resp.statusCode,
     );
+  }
+
+  Future<int?> getRoadDistanceMeters({
+    required double oLat,
+    required double oLng,
+    required double dLat,
+    required double dLng,
+  }) async {
+    final data = await getDirections(
+      oLat: oLat,
+      oLng: oLng,
+      dLat: dLat,
+      dLng: dLng,
+    );
+
+    final routes = (data['routes'] as List?) ?? const [];
+    if (routes.isEmpty) return null;
+
+    final first = routes.first as Map<String, dynamic>;
+    final m = first['distanceMeters'];
+    if (m is num) return m.round();
+
+    return null;
   }
 
   //LOCALIZZAZIONE GPS

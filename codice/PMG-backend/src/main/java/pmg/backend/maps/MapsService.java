@@ -74,23 +74,45 @@ public class MapsService {
       String durTrafficText = "";
       List<StepDto> steps = new ArrayList<>();
 
+      int distMeters = 0;
+      int durSeconds = 0;
+      Integer durTrafficSeconds = null;
+
       if (leg0 != null) {
         distText = leg0.path("distance").path("text").asText("");
         durText = leg0.path("duration").path("text").asText("");
         durTrafficText = leg0.path("duration_in_traffic").path("text").asText("");
 
+        distMeters = leg0.path("distance").path("value").asInt(0);
+        durSeconds = leg0.path("duration").path("value").asInt(0);
+
+        JsonNode dit = leg0.path("duration_in_traffic");
+        if (!dit.isMissingNode() && !dit.isNull()) {
+          durTrafficSeconds = dit.path("value").asInt(0);
+        }
+
         for (JsonNode s : leg0.path("steps")) {
           String html = s.path("html_instructions").asText("");
-          String sDist = s.path("distance").path("text").asText("");
-          String sDur = s.path("duration").path("text").asText("");
+          String sDistText = s.path("distance").path("text").asText("");
+          String sDurText = s.path("duration").path("text").asText("");
           String man = s.path("maneuver").asText("");
           String sPoly = s.path("polyline").path("points").asText("");
 
           JsonNode st = s.path("start_location");
           JsonNode en = s.path("end_location");
 
+          // Se hai aggiornato StepDto con i valori numerici:
+          int sDistMeters = s.path("distance").path("value").asInt(0);
+          int sDurSeconds = s.path("duration").path("value").asInt(0);
+
           steps.add(new StepDto(
-              html, sDist, sDur, man, sPoly,
+              html,
+              sDistText,
+              sDistMeters,      // <-- solo se hai cambiato StepDto
+              sDurText,
+              sDurSeconds,      // <-- solo se hai cambiato StepDto
+              man,
+              sPoly,
               st.path("lat").asDouble(), st.path("lng").asDouble(),
               en.path("lat").asDouble(), en.path("lng").asDouble()
           ));
@@ -98,16 +120,34 @@ public class MapsService {
       }
 
       out.add(new RouteDto(
-          overviewPolyline,
-          routeSummary,
-          distText,
-          durText,
-          durTrafficText,
-          steps
-      ));
+    		    overviewPolyline,
+    		    routeSummary,
+    		    distText,
+    		    distMeters,
+    		    durText,
+    		    durSeconds,
+    		    durTrafficText,
+    		    durTrafficSeconds,
+    		    steps
+    		));
     }
 
-    return new DirectionsResponseDto(out);
+    RouteDto best = null;
+    for (RouteDto r : out) {
+      if (best == null) { best = r; continue; }
+
+      int bestT = (best.durationInTrafficSeconds() != null)
+          ? best.durationInTrafficSeconds()
+          : best.durationSeconds();
+
+      int rT = (r.durationInTrafficSeconds() != null)
+          ? r.durationInTrafficSeconds()
+          : r.durationSeconds();
+
+      if (rT > 0 && rT < bestT) best = r;
+    }
+
+    return new DirectionsResponseDto(List.of(best));
   }
 
   public GeocodeResponseDto geocode(String address) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'dart:html' as html;
 
@@ -10,7 +11,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
-import 'package:park_mg/widgets/active_booking_banner.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
 
 import 'package:park_mg/utils/theme.dart';
@@ -66,14 +66,17 @@ class _UserScreenState extends State<UserScreen>
   List<dynamic>? _lastParkingsJson;
   bool _isBooking = false;
   bool _externalNavOpened = false;
-  static const double _arriveParkingThresholdM = 60.0;
-  DateTime _lastArrivalCheck = DateTime.fromMillisecondsSinceEpoch(0);
-  static const Duration _arrivalCheckMinInterval = Duration(seconds: 2);
+  static const double _arriveParkingThresholdM = 150.0;
   PrenotazioneResponse? _activeBooking;
   LatLng? _activeParkingLatLng;
   bool _arrivalHandled = false;
   StreamSubscription<html.Event>? _focusSub;
   static const double _blueDotRadiusM = 5.0;
+  bool _returnOverlay = false;
+  double? _distanceToParkingM;
+  Timer? _returnOverlayTimer;
+  bool _arrivalUiDone = false;
+  bool _openingQrDialog = false; 
 
   void _showOnlyBookedParking(Map<String, dynamic> p) {
     final markerId = 'p_${p['id']}';
@@ -114,6 +117,19 @@ class _UserScreenState extends State<UserScreen>
     });
   }
 
+  double distanceLocalFlatMeters(LatLng a, LatLng b) {
+    // Equirectangular approximation (ottima localmente, <~5-10 km)
+    const double R = 6378137.0; // raggio terrestre (m) - WGS84
+    final lat1 = a.latitude * (pi / 180.0);
+    final lat2 = b.latitude * (pi / 180.0);
+    final dLat = lat2 - lat1;
+    final dLon = (b.longitude - a.longitude) * (pi / 180.0);
+
+    final x = dLon * cos((lat1 + lat2) / 2.0);
+    final y = dLat;
+    return R * sqrt(x * x + y * y);
+  }
+
   static const Color _baseBlue = Color(0xFF4285F4);
 
   late final Color _selectedGreen = () {
@@ -135,6 +151,127 @@ class _UserScreenState extends State<UserScreen>
   );
 
   // -------------------- utils --------------------
+
+  void _startReturnOverlay() {
+    if (!mounted) return;
+    if (_activeBooking == null || _activeParkingLatLng == null) return;
+    if (_arrivalHandled) return;
+
+    setState(() {
+      _returnOverlay = true;
+      _arrivalUiDone = false; // ✅ reset overlay state
+      _openingQrDialog = false; // ✅ reset guard
+    });
+
+    // stop eventuale timer precedente
+    _returnOverlayTimer?.cancel();
+
+    // aggiorna subito + poi periodico
+    _updateDistanceAndMaybeArrive();
+    _returnOverlayTimer = Timer.periodic(const Duration(milliseconds: 1500), (
+      _,
+    ) {
+      _updateDistanceAndMaybeArrive();
+    });
+  }
+
+  void _stopReturnOverlay() {
+    _returnOverlayTimer?.cancel();
+    _returnOverlayTimer = null;
+    if (mounted) {
+      setState(() {
+        _returnOverlay = false;
+        _arrivalUiDone = false;
+      });
+    }
+  }
+
+  Future<void> _updateDistanceAndMaybeArrive() async {
+    if (!mounted) return;
+    if (_activeBooking == null || _activeParkingLatLng == null) return;
+    if (_arrivalHandled) {
+      _stopReturnOverlay();
+      return;
+    }
+
+    if (_arrivalUiDone) return;
+
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      ).timeout(const Duration(seconds: 6));
+
+      final me = LatLng(pos.latitude, pos.longitude);
+      _lastMe = me;
+
+      final dest = _activeParkingLatLng!;
+
+      // distanza su strada (metri) via backend
+      final roadMeters = await widget.apiClient.getRoadDistanceMeters(
+        oLat: me.latitude,
+        oLng: me.longitude,
+        dLat: dest.latitude,
+        dLng: dest.longitude,
+      );
+
+      // fallback se backend/Google non risponde
+      final d = (roadMeters != null)
+          ? roadMeters.toDouble()
+          : Geolocator.distanceBetween(
+              me.latitude,
+              me.longitude,
+              dest.latitude,
+              dest.longitude,
+            );
+
+      if (!mounted) return;
+      setState(() => _distanceToParkingM = d);
+
+      if (d <= _arriveParkingThresholdM) {
+        // evita rientri multipli
+        if (_openingQrDialog) return;
+        _openingQrDialog = true;
+
+        if (mounted) {
+          setState(() {
+            _arrivalUiDone = true;
+          });
+        }
+
+        // fai vedere il tick per un attimo
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+
+        // ora chiudi overlay e apri QR
+        _arrivalHandled = true;
+        _stopReturnOverlay();
+
+        await _showMapLockedDialog<void>(
+          show: () => PrenotazioneDialog.mostra(
+            context,
+            prenotazione: _activeBooking!,
+            apiClient: widget.apiClient,
+            utenteId: widget.utente.id,
+            onCancelled: () {
+              _bookingCancelledInDialog = true;
+              Future.microtask(() async {
+                if (!mounted) return;
+                await _handleBookingCancelledAndReload();
+              });
+            },
+            onClosed: () {},
+          ),
+        );
+
+        // reset guard (se serve in futuro)
+        _openingQrDialog = false;
+      }
+    } on TimeoutException {
+      // niente toast qui: evita spam. overlay resta, aggiornerà al prossimo giro
+    } catch (_) {
+      // idem: non spammare errori mentre l'utente sta tornando
+    }
+  }
 
   Future<void> _openExternalNavWeb({
     required double destLat,
@@ -160,86 +297,7 @@ class _UserScreenState extends State<UserScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkArrivalOnReturn();
-    }
-  }
-
-  Future<void> _checkArrivalOnReturn({bool force = false}) async {
-    if (!mounted) return;
-
-    if (_activeBooking == null) {
-      UiFeedback.showError(context, 'Nessuna prenotazione attiva.');
-      return;
-    }
-    if (_activeParkingLatLng == null) {
-      UiFeedback.showError(context, 'Destinazione non disponibile.');
-      return;
-    }
-
-    final now = DateTime.now();
-    if (!force &&
-        now.difference(_lastArrivalCheck) < _arrivalCheckMinInterval) {
-      UiFeedback.showError(context, 'Attendi un attimo e riprova…');
-      return;
-    }
-    _lastArrivalCheck = now;
-
-    if (_arrivalHandled) {
-      UiFeedback.showSuccess(context, 'Arrivo già gestito.');
-      return;
-    }
-
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      ).timeout(const Duration(seconds: 8));
-
-      final me = LatLng(pos.latitude, pos.longitude);
-      _lastMe = me;
-
-      final dest = _activeParkingLatLng!;
-      final d = Geolocator.distanceBetween(
-        me.latitude,
-        me.longitude,
-        dest.latitude,
-        dest.longitude,
-      );
-
-      UiFeedback.showSuccess(
-        context,
-        'Distanza dal parcheggio: ${d.toStringAsFixed(1)} m',
-      );
-
-      if (d <= _arriveParkingThresholdM) {
-        _arrivalHandled = true;
-
-        UiFeedback.showSuccess(context, 'Sei arrivato al parcheggio!');
-        await Future.delayed(const Duration(milliseconds: 350));
-        if (!mounted) return;
-
-        await _showMapLockedDialog<void>(
-          show: () => PrenotazioneDialog.mostra(
-            context,
-            prenotazione: _activeBooking!,
-            apiClient: widget.apiClient,
-            utenteId: widget.utente.id,
-            onCancelled: () {
-              _bookingCancelledInDialog = true;
-              Future.microtask(() async {
-                if (!mounted) return;
-                await _handleBookingCancelledAndReload();
-              });
-            },
-            onClosed: () {},
-          ),
-        );
-      }
-    } on TimeoutException {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Timeout nel fix GPS (web).');
-    } catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Geolocazione KO: $e');
+      _startReturnOverlay();
     }
   }
 
@@ -290,6 +348,7 @@ class _UserScreenState extends State<UserScreen>
   Future<void> _handleBookingCancelledAndReload([
     Map<String, dynamic>? _,
   ]) async {
+    _stopReturnOverlay();
     setState(() {
       _activeBooking = null;
       _activeParkingLatLng = null;
@@ -320,7 +379,7 @@ class _UserScreenState extends State<UserScreen>
     WidgetsBinding.instance.addObserver(this);
     if (kIsWeb) {
       _focusSub = html.window.onFocus.listen((_) {
-        _checkArrivalOnReturn();
+        _startReturnOverlay();
       });
     }
 
@@ -395,6 +454,7 @@ class _UserScreenState extends State<UserScreen>
     _pulseController.dispose();
     _trackSub?.cancel();
     _focusSub?.cancel();
+    _returnOverlayTimer?.cancel();
     super.dispose();
   }
 
@@ -762,17 +822,18 @@ class _UserScreenState extends State<UserScreen>
               _arrivalHandled = false;
             });
 
+            setState(() {
+              _distanceToParkingM = null; // ✅ pulisci distanza
+              _returnOverlay =
+                  false; // ✅ overlay deve comparire solo al ritorno
+            });
+
             // evita doppio open
             if (_externalNavOpened) return;
             _externalNavOpened = true;
 
             setState(() => _bookedMarkerLocked = true);
             _showOnlyBookedParking(parkingData);
-
-            UiFeedback.showSuccess(
-              context,
-              'Google Maps aperto. Torna qui quando arrivi.',
-            );
 
             Future.microtask(() async {
               await _openExternalNavWeb(
@@ -1128,7 +1189,7 @@ class _UserScreenState extends State<UserScreen>
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
                       child: AbsorbPointer(
-                        absorbing: _blockMapInteractions,
+                        absorbing: _blockMapInteractions || _returnOverlay,
                         child: Stack(
                           children: [
                             GoogleMap(
@@ -1157,10 +1218,14 @@ class _UserScreenState extends State<UserScreen>
                                   !kIsWeb && _locationGranted,
                               zoomControlsEnabled: false,
                               mapToolbarEnabled: false,
-                              scrollGesturesEnabled: !_lockMapGestures,
-                              zoomGesturesEnabled: !_lockMapGestures,
-                              rotateGesturesEnabled: !_lockMapGestures,
-                              tiltGesturesEnabled: !_lockMapGestures,
+                              scrollGesturesEnabled:
+                                  !_lockMapGestures && !_returnOverlay,
+                              zoomGesturesEnabled:
+                                  !_lockMapGestures && !_returnOverlay,
+                              rotateGesturesEnabled:
+                                  !_lockMapGestures && !_returnOverlay,
+                              tiltGesturesEnabled:
+                                  !_lockMapGestures && !_returnOverlay,
                               onTap: (_) async {
                                 setState(() {
                                   _selectedParkingData = null;
@@ -1254,30 +1319,81 @@ class _UserScreenState extends State<UserScreen>
                                   },
                                 ),
                               ),
-                            if (_activeBooking != null)
-                              ActiveBookingBanner(
-                                booking: _activeBooking,
-                                onCheck: () async =>
-                                    _checkArrivalOnReturn(force: true),
-                                onDetails: () async {
-                                  if (_activeBooking == null) return;
-                                  await _showMapLockedDialog<void>(
-                                    show: () => PrenotazioneDialog.mostra(
-                                      context,
-                                      prenotazione: _activeBooking!,
-                                      apiClient: widget.apiClient,
-                                      utenteId: widget.utente.id,
-                                      onCancelled: () {
-                                        _bookingCancelledInDialog = true;
-                                        Future.microtask(() async {
-                                          if (!mounted) return;
-                                          await _handleBookingCancelledAndReload();
-                                        });
-                                      },
-                                      onClosed: () {},
+
+                            if (_returnOverlay)
+                              Positioned.fill(
+                                child: Container(
+                                  color: Colors.black54,
+                                  child: Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _arrivalUiDone
+                                                ? 'Sei arrivato al parcheggio'
+                                                : 'Torna quando sei arrivato al parcheggio',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 26,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 14),
+                                          Text(
+                                            _arrivalUiDone
+                                                ? 'Apro il QR…'
+                                                : (_distanceToParkingM == null
+                                                      ? 'Calcolo distanza…'
+                                                      : 'Distanza: ${_distanceToParkingM!.toStringAsFixed(0)} m'),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 18),
+
+                                          if (_arrivalUiDone)
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.withOpacity(
+                                                  0.18,
+                                                ),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.greenAccent
+                                                      .withOpacity(0.6),
+                                                ),
+                                              ),
+                                              child: const Icon(
+                                                Icons.check,
+                                                color: Colors.greenAccent,
+                                                size: 28,
+                                              ),
+                                            )
+                                          else
+                                            const SizedBox(
+                                              width: 28,
+                                              height: 28,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 3,
+                                                color: AppColors.accentCyan,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  );
-                                },
+                                  ),
+                                ),
                               ),
                           ],
                         ),
