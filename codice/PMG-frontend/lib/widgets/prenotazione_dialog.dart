@@ -12,8 +12,13 @@ class PrenotazioneDialog {
     required PrenotazioneResponse prenotazione,
     required ApiClient apiClient,
     required String utenteId,
-    required VoidCallback onCancelled,
-    required VoidCallback? onClosed,
+
+    // ✅ rendi opzionali per poterli omettere nel flow "arrivo"
+    VoidCallback? onCancelled,
+    VoidCallback? onClosed,
+
+    // ✅ nuovo flag: se true, niente bottoni
+    bool lockActions = false,
   }) {
     return showDialog<void>(
       context: context,
@@ -24,6 +29,7 @@ class PrenotazioneDialog {
         utenteId: utenteId,
         onCancelled: onCancelled,
         onClosed: onClosed,
+        lockActions: lockActions,
       ),
     );
   }
@@ -33,15 +39,21 @@ class _PrenotazioneDialogContent extends StatefulWidget {
   final PrenotazioneResponse prenotazione;
   final ApiClient apiClient;
   final String utenteId;
-  final VoidCallback onCancelled;
+
+  // ✅ ora opzionali
+  final VoidCallback? onCancelled;
   final VoidCallback? onClosed;
+
+  // ✅ nuovo
+  final bool lockActions;
 
   const _PrenotazioneDialogContent({
     required this.prenotazione,
     required this.apiClient,
     required this.utenteId,
-    required this.onCancelled,
+    this.onCancelled,
     this.onClosed,
+    this.lockActions = false,
   });
 
   @override
@@ -127,7 +139,7 @@ class _PrenotazioneDialogContentState
         utenteId: widget.utenteId,
       );
       if (!mounted) return;
-      widget.onCancelled();
+      widget.onCancelled?.call();
       Navigator.of(context).pop();
       UiFeedback.showSuccess(context, "Prenotazione annullata.");
     } on ApiException catch (e) {
@@ -164,7 +176,6 @@ class _PrenotazioneDialogContentState
 
   @override
   Widget build(BuildContext context) {
-    // WEB: stringhe lunghe (es. parcheggioId) allargano il dialog -> maxWidth stretta
     const double maxDialogWidth = 300.0;
 
     return Dialog(
@@ -219,67 +230,70 @@ class _PrenotazioneDialogContentState
                     widget.prenotazione.codiceQr!.isNotEmpty)
                   const SizedBox(height: 12),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (widget.prenotazione.stato ==
-                        StatoPrenotazione.ATTIVA) ...[
-                      OutlinedButton(
-                        onPressed: _isCancelling ? null : _annullaPrenotazione,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
-                          side: const BorderSide(
-                            color: Colors.redAccent,
-                            width: 1.6,
+                if (!widget.lockActions)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (widget.prenotazione.stato ==
+                          StatoPrenotazione.ATTIVA) ...[
+                        OutlinedButton(
+                          onPressed: _isCancelling
+                              ? null
+                              : _annullaPrenotazione,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            side: const BorderSide(
+                              color: Colors.redAccent,
+                              width: 1.6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
                           ),
+                          child: _isCancelling
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  "Annulla",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      ElevatedButton(
+                        onPressed: _isCancelling
+                            ? null
+                            : () {
+                                Navigator.of(context).pop();
+                                widget.onClosed?.call();
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accentCyan,
+                          foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
+                            horizontal: 22,
                             vertical: 10,
                           ),
                         ),
-                        child: _isCancelling
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                "Annulla",
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
+                        child: const Text(
+                          "Chiudi",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      const SizedBox(width: 10),
                     ],
-                    ElevatedButton(
-                      onPressed: _isCancelling
-                          ? null
-                          : () {
-                              Navigator.of(context).pop();
-                              widget.onClosed?.call();
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accentCyan,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 10,
-                        ),
-                      ),
-                      child: const Text(
-                        "Chiudi",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),

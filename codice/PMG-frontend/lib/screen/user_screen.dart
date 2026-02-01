@@ -252,6 +252,7 @@ class _UserScreenState extends State<UserScreen>
             prenotazione: _activeBooking!,
             apiClient: widget.apiClient,
             utenteId: widget.utente.id,
+            lockActions: true,
             onCancelled: () {
               _bookingCancelledInDialog = true;
               Future.microtask(() async {
