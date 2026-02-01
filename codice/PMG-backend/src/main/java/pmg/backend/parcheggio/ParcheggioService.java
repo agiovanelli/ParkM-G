@@ -14,5 +14,5 @@ public interface ParcheggioService {
 
 	void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo);
     
-    
+	ParcheggioResponse getById(String id);
 }

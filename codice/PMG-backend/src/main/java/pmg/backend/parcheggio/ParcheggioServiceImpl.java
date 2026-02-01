@@ -174,8 +174,10 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         return R * c;
     }
     
-    
-    
-    
-    
+    @Override
+    public ParcheggioResponse getById(String id) {
+        Parcheggio p = parcheggioRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+        return toResponse(p);
+    }
 }

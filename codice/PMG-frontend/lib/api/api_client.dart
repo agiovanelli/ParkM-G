@@ -378,4 +378,23 @@ class ApiClient {
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
+  //RECUPERO INFORMAZIONI PARCHEGGIO
+  Future<Map<String, dynamic>> getParcheggioById(String parcheggioId) async {
+    final uri = Uri.parse('$_baseUrl/parcheggi/$parcheggioId');
+
+    final resp = await _client.get(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body) as Map<String, dynamic>;
+    }
+
+    throw ApiException(
+      'Errore recupero parcheggio: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
+  }
 }

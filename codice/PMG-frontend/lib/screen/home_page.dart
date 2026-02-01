@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
@@ -128,6 +130,8 @@ class _HomePageState extends State<HomePage>
   // ------------------ AZIONI CLIENTI ------------------
 
   Future<void> _handleUserLogin() async {
+    if (_isLoading) return; // evita doppi tap
+
     final email = _userLoginEmailController.text.trim();
     final password = _userLoginPasswordController.text;
 
@@ -149,20 +153,32 @@ class _HomePageState extends State<HomePage>
     }
 
     setState(() => _isLoading = true);
+
     try {
-      final utente = await widget.apiClient.loginUtente(email, password);
+      final utente = await widget.apiClient
+          .loginUtente(email, password)
+          .timeout(const Duration(seconds: 12));
+
       _userLoginEmailController.clear();
       _userLoginPasswordController.clear();
       if (!mounted) return;
-      Navigator.of(context).push(
+
+      await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) =>
               UserScreen(utente: utente, apiClient: widget.apiClient),
         ),
       );
+    } on TimeoutException {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Timeout login: riprova.');
     } catch (e) {
-      UiFeedback.showError( context,
-            e is ApiException ? e.message : 'Errore di connessione al server utenti',
+      if (!mounted) return;
+      UiFeedback.showError(
+        context,
+        e is ApiException
+            ? e.message
+            : 'Errore di connessione al server utenti',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -206,7 +222,10 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _isLoginMode = true;
       });
-      UiFeedback.showError(context, 'Registrazione completata. Ora effettua il login.');
+      UiFeedback.showError(
+        context,
+        'Registrazione completata. Ora effettua il login.',
+      );
     } catch (e) {
       UiFeedback.showError(
         context,
@@ -220,7 +239,10 @@ class _HomePageState extends State<HomePage>
   }
 
   void _handleUserForgotPassword() {
-    UiFeedback.showError(context, 'Funzionalità "Password dimenticata?" non ancora disponibile.');
+    UiFeedback.showError(
+      context,
+      'Funzionalità "Password dimenticata?" non ancora disponibile.',
+    );
   }
 
   // ------------------ AZIONI OPERATORI ------------------
@@ -230,7 +252,10 @@ class _HomePageState extends State<HomePage>
     final username = _operatorUsernameController.text.trim();
 
     if (nomeStruttura.isEmpty && username.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci il nome della struttura e l\'username.');
+      UiFeedback.showError(
+        context,
+        'Inserisci il nome della struttura e l\'username.',
+      );
       return;
     }
     if (nomeStruttura.isEmpty) {
@@ -252,7 +277,7 @@ class _HomePageState extends State<HomePage>
       _operatorUsernameController.clear();
 
       if (!mounted) return;
-      Navigator.of(context).push(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => OperatorScreen(operatore: operatore)),
       );
     } catch (e) {
@@ -583,9 +608,7 @@ class _HomePageState extends State<HomePage>
         PrimaryButton(text: 'Accedi', onPressed: _handleUserLogin),
         TextButton(
           onPressed: _handleUserForgotPassword,
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF60A5FA),
-          ),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF60A5FA)),
           child: const Text(
             'Password dimenticata?',
             style: TextStyle(fontSize: 12),
@@ -631,10 +654,14 @@ class _HomePageState extends State<HomePage>
             labelText: 'Password',
             suffixIcon: IconButton(
               onPressed: () {
-                setState(() => _obscureRegisterPassword = !_obscureRegisterPassword);
+                setState(
+                  () => _obscureRegisterPassword = !_obscureRegisterPassword,
+                );
               },
               icon: Icon(
-                _obscureRegisterPassword ? Icons.visibility_off : Icons.visibility,
+                _obscureRegisterPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
                 color: AppColors.textMuted,
               ),
             ),
@@ -687,7 +714,7 @@ class _HomePageState extends State<HomePage>
                 TextField(
                   controller: _operatorUsernameController,
                   decoration: const InputDecoration(labelText: 'Username'),
-                  obscureText: true, 
+                  obscureText: true,
                 ),
                 const SizedBox(height: 16),
                 PrimaryButton(text: 'Accedi', onPressed: _handleOperatorLogin),

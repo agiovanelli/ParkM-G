@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'dart:ui' as ui;
 import 'dart:html' as html;
 
@@ -10,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:park_mg/models/prenotazione.dart';
+import 'package:park_mg/screen/home_page.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
 
@@ -76,69 +76,13 @@ class _UserScreenState extends State<UserScreen>
   double? _distanceToParkingM;
   Timer? _returnOverlayTimer;
   bool _arrivalUiDone = false;
-  bool _openingQrDialog = false; 
-
-  void _showOnlyBookedParking(Map<String, dynamic> p) {
-    final markerId = 'p_${p['id']}';
-
-    final lat = (p['latitudine'] as num).toDouble();
-    final lng = (p['longitudine'] as num).toDouble();
-
-    final bookedMarker = Marker(
-      markerId: MarkerId(markerId),
-      position: LatLng(lat, lng),
-      icon:
-          _parkingIconSelected ??
-          _parkingIcon ??
-          BitmapDescriptor.defaultMarker,
-      infoWindow: const InfoWindow(title: ''),
-
-      onTap: _bookedMarkerLocked
-          ? null
-          : () {
-              setState(() {
-                _selectedParkingMarkerId = markerId;
-                _selectedParkingData = p;
-              });
-            },
-
-      consumeTapEvents: true,
-    );
-
-    setState(() {
-      _bookedParkingMarkerId = markerId;
-      _showParkings = false;
-
-      _selectedParkingData = null;
-      _selectedParkingMarkerId = markerId;
-
-      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
-      _markers.add(bookedMarker);
-    });
-  }
-
-  double distanceLocalFlatMeters(LatLng a, LatLng b) {
-    // Equirectangular approximation (ottima localmente, <~5-10 km)
-    const double R = 6378137.0; // raggio terrestre (m) - WGS84
-    final lat1 = a.latitude * (pi / 180.0);
-    final lat2 = b.latitude * (pi / 180.0);
-    final dLat = lat2 - lat1;
-    final dLon = (b.longitude - a.longitude) * (pi / 180.0);
-
-    final x = dLon * cos((lat1 + lat2) / 2.0);
-    final y = dLat;
-    return R * sqrt(x * x + y * y);
-  }
-
+  bool _openingQrDialog = false;
+  bool _autoNavAfterQrClose = false;
+  bool _qrShownOnLogin = false;
   static const Color _baseBlue = Color(0xFF4285F4);
-
-  late final Color _selectedGreen = () {
-    final hsl = HSLColor.fromColor(_baseBlue);
-    return hsl.withHue(120).toColor();
-  }();
-
   BitmapDescriptor? _parkingIcon;
   BitmapDescriptor? _parkingIconSelected;
+  int _sessionToken = 0;
 
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -150,23 +94,227 @@ class _UserScreenState extends State<UserScreen>
     zoom: 6,
   );
 
+  late final Color _selectedGreen = () {
+    final hsl = HSLColor.fromColor(_baseBlue);
+    return hsl.withHue(120).toColor();
+  }();
+
+  void _showOnlyBookedParking(Map<String, dynamic> p) {
+    final markerId = 'p_${p['id']}';
+    final lat = (p['latitudine'] as num).toDouble();
+    final lng = (p['longitudine'] as num).toDouble();
+    final bookedMarker = Marker(
+      markerId: MarkerId(markerId),
+      position: LatLng(lat, lng),
+      icon:
+          _parkingIconSelected ??
+          _parkingIcon ??
+          BitmapDescriptor.defaultMarker,
+      infoWindow: const InfoWindow(title: ''),
+      onTap: _bookedMarkerLocked
+          ? null
+          : () {
+              setState(() {
+                _selectedParkingMarkerId = markerId;
+                _selectedParkingData = p;
+              });
+            },
+      consumeTapEvents: true,
+    );
+    setState(() {
+      _bookedParkingMarkerId = markerId;
+      _showParkings = false;
+      _selectedParkingData = null;
+      _selectedParkingMarkerId = markerId;
+      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+      _markers.add(bookedMarker);
+    });
+  }
+
   // -------------------- utils --------------------
+
+  Future<void> _showQrOnLoginIfNeeded() async {
+    if (!mounted) return;
+    if (_qrShownOnLogin) return;
+    if (_activeBooking == null) return;
+    if (_activeParkingLatLng == null) return;
+
+    _qrShownOnLogin = true;
+    _openingQrDialog = true;
+
+    try {
+      final arrived = await _isArrivedToActiveParking();
+      _autoNavAfterQrClose = !arrived;
+
+      await _showMapLockedDialog<void>(
+        show: () => PrenotazioneDialog.mostra(
+          context,
+          prenotazione: _activeBooking!,
+          apiClient: widget.apiClient,
+          utenteId: widget.utente.id,
+          lockActions: arrived,
+          onCancelled: arrived
+              ? null
+              : () async {
+                  _autoNavAfterQrClose = false;
+                  await _handleBookingCancelledAndReload();
+                },
+          onClosed: arrived
+              ? null
+              : () async {
+                  if (!_autoNavAfterQrClose) return;
+                  _autoNavAfterQrClose = false;
+                  final dest = _activeParkingLatLng;
+                  if (dest == null) return;
+                  if (_externalNavOpened) return;
+                  _externalNavOpened = true;
+
+                  LatLng? origin = _lastMe;
+                  if (origin == null) {
+                    try {
+                      final pos = await Geolocator.getCurrentPosition(
+                        desiredAccuracy: LocationAccuracy.high,
+                      ).timeout(const Duration(seconds: 5));
+                      origin = LatLng(pos.latitude, pos.longitude);
+                    } catch (_) {}
+                  }
+
+                  await _openExternalNavWeb(
+                    destLat: dest.latitude,
+                    destLng: dest.longitude,
+                    origin: origin,
+                  );
+                },
+        ),
+      );
+    } finally {
+      _openingQrDialog = false;
+    }
+  }
+
+  Future<bool> _isArrivedToActiveParking() async {
+    if (_activeBooking == null || _activeParkingLatLng == null) return false;
+
+    LatLng? me = _lastMe;
+
+    if (me == null) {
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        ).timeout(const Duration(seconds: 5));
+        me = LatLng(pos.latitude, pos.longitude);
+        _lastMe = me;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    final dest = _activeParkingLatLng!;
+
+    try {
+      final roadMeters = await widget.apiClient
+          .getRoadDistanceMeters(
+            oLat: me.latitude,
+            oLng: me.longitude,
+            dLat: dest.latitude,
+            dLng: dest.longitude,
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final d = (roadMeters != null)
+          ? roadMeters.toDouble()
+          : Geolocator.distanceBetween(
+              me.latitude,
+              me.longitude,
+              dest.latitude,
+              dest.longitude,
+            );
+
+      _distanceToParkingM = d;
+      return d <= _arriveParkingThresholdM;
+    } catch (_) {
+      final d = Geolocator.distanceBetween(
+        me.latitude,
+        me.longitude,
+        dest.latitude,
+        dest.longitude,
+      );
+      _distanceToParkingM = d;
+      return d <= _arriveParkingThresholdM;
+    }
+  }
+
+  bool _isActiveState(StatoPrenotazione s) {
+    return s == StatoPrenotazione.ATTIVA ||
+        s == StatoPrenotazione.IN_CORSO ||
+        s == StatoPrenotazione.PAGATO;
+  }
+
+  Future<void> _restoreActiveBookingFromBackend() async {
+    try {
+      final storico = await widget.apiClient.getStoricoPrenotazioni(
+        widget.utente.id,
+      );
+
+      final attive = storico.where((p) => _isActiveState(p.stato)).toList();
+
+      if (attive.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _activeBooking = null;
+          _activeParkingLatLng = null;
+          _arrivalHandled = false;
+          _bookedParkingMarkerId = null;
+          _bookedMarkerLocked = false;
+          _externalNavOpened = false;
+        });
+        return;
+      }
+
+      attive.sort((a, b) {
+        final da = a.dataCreazione ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final db = b.dataCreazione ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return db.compareTo(da); // desc
+      });
+
+      final booking = attive.first;
+
+      // recupera parcheggio per lat/lng
+      final park = await widget.apiClient.getParcheggioById(
+        booking.parcheggioId,
+      );
+
+      final lat = (park['latitudine'] as num).toDouble();
+      final lng = (park['longitudine'] as num).toDouble();
+
+      if (!mounted) return;
+
+      setState(() {
+        _activeBooking = booking;
+        _activeParkingLatLng = LatLng(lat, lng);
+        _arrivalHandled = false;
+
+        _externalNavOpened = false;
+        _distanceToParkingM = null;
+        _returnOverlay = false;
+        _bookedMarkerLocked = true;
+      });
+
+      _showOnlyBookedParking(park);
+    } catch (_) {}
+  }
 
   void _startReturnOverlay() {
     if (!mounted) return;
+    if (_openingQrDialog) return;
     if (_activeBooking == null || _activeParkingLatLng == null) return;
     if (_arrivalHandled) return;
 
     setState(() {
       _returnOverlay = true;
-      _arrivalUiDone = false; // ✅ reset overlay state
-      _openingQrDialog = false; // ✅ reset guard
+      _arrivalUiDone = false;
     });
-
-    // stop eventuale timer precedente
     _returnOverlayTimer?.cancel();
-
-    // aggiorna subito + poi periodico
     _updateDistanceAndMaybeArrive();
     _returnOverlayTimer = Timer.periodic(const Duration(milliseconds: 1500), (
       _,
@@ -238,11 +386,9 @@ class _UserScreenState extends State<UserScreen>
           });
         }
 
-        // fai vedere il tick per un attimo
         await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
 
-        // ora chiudi overlay e apri QR
         _arrivalHandled = true;
         _stopReturnOverlay();
 
@@ -253,25 +399,11 @@ class _UserScreenState extends State<UserScreen>
             apiClient: widget.apiClient,
             utenteId: widget.utente.id,
             lockActions: true,
-            onCancelled: () {
-              _bookingCancelledInDialog = true;
-              Future.microtask(() async {
-                if (!mounted) return;
-                await _handleBookingCancelledAndReload();
-              });
-            },
-            onClosed: () {},
           ),
         );
-
-        // reset guard (se serve in futuro)
         _openingQrDialog = false;
       }
-    } on TimeoutException {
-      // niente toast qui: evita spam. overlay resta, aggiornerà al prossimo giro
-    } catch (_) {
-      // idem: non spammare errori mentre l'utente sta tornando
-    }
+    } catch (_) {}
   }
 
   Future<void> _openExternalNavWeb({
@@ -380,6 +512,9 @@ class _UserScreenState extends State<UserScreen>
     WidgetsBinding.instance.addObserver(this);
     if (kIsWeb) {
       _focusSub = html.window.onFocus.listen((_) {
+        if (!mounted) return;
+        if (_openingQrDialog) return;
+        if (!_qrShownOnLogin && _activeBooking != null) {}
         _startReturnOverlay();
       });
     }
@@ -411,7 +546,11 @@ class _UserScreenState extends State<UserScreen>
       if (mounted) setState(() => _parkingIconFull = v);
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapMyLocation());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _bootstrapMyLocation();
+      await _restoreActiveBookingFromBackend();
+      await _showQrOnLoginIfNeeded();
+    });
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback(
@@ -463,36 +602,47 @@ class _UserScreenState extends State<UserScreen>
 
   Future<void> _bootstrapMyLocation() async {
     if (_isLocating) return;
-    setState(() => _isLocating = true);
+    final int token = _sessionToken; // ✅ snapshot sessione
+
+    if (mounted) setState(() => _isLocating = true);
 
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      // (su web questo può essere poco affidabile, ma ok)
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled()
+          .timeout(const Duration(seconds: 3));
 
       if (!serviceEnabled && !kIsWeb) {
         UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
         return;
       }
 
-      LocationPermission perm = await Geolocator.checkPermission();
+      LocationPermission perm = await Geolocator.checkPermission().timeout(
+        const Duration(seconds: 3),
+      );
+
       if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
+        perm = await Geolocator.requestPermission().timeout(
+          const Duration(seconds: 8),
+        );
       }
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
+        if (token != _sessionToken) return; // ✅ sessione cambiata
         if (mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
+      // ✅ IL PUNTO CRITICO: su web può pendere -> timeout duro
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        // (opzionale) timeLimit: const Duration(seconds: 8),
-      );
+      ).timeout(const Duration(seconds: 8));
+
+      if (token != _sessionToken) return; // ✅ logout nel frattempo
+      if (!mounted) return;
 
       final me = LatLng(pos.latitude, pos.longitude);
-
-      if (!mounted) return;
 
       setState(() {
         _locationGranted = true;
@@ -533,10 +683,16 @@ class _UserScreenState extends State<UserScreen>
       } else {
         _pendingCenter = me;
       }
+    } on TimeoutException {
+      if (token != _sessionToken) return;
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Timeout posizione, riprova.');
     } catch (_) {
+      if (token != _sessionToken) return;
       if (!mounted) return;
       UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
     } finally {
+      if (token != _sessionToken) return;
       if (mounted) setState(() => _isLocating = false);
     }
   }
@@ -911,8 +1067,39 @@ class _UserScreenState extends State<UserScreen>
     return result;
   }
 
-  void _logout() {
-    Navigator.of(context).pop();
+  Future<void> _logout() async {
+    _sessionToken++;
+    _stopReturnOverlay();
+    await _trackSub?.cancel();
+    _trackSub = null;
+    await _focusSub?.cancel();
+    _focusSub = null;
+    _openingQrDialog = false;
+    _arrivalHandled = false;
+    _autoNavAfterQrClose = false;
+    _qrShownOnLogin = false;
+    _externalNavOpened = false;
+
+    if (!mounted) return;
+
+    setState(() {
+      _blockMapInteractions = false;
+      _lockMapGestures = false;
+      _isLocating = false;
+      _isLoadingParkings = false;
+      _returnOverlay = false;
+      _arrivalUiDone = false;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => HomePage(apiClient: widget.apiClient),
+        ),
+        (route) => false,
+      );
+    });
   }
 
   void _vaiAlloStorico() {
@@ -1004,7 +1191,7 @@ class _UserScreenState extends State<UserScreen>
     } else if (selected == 'history') {
       _vaiAlloStorico();
     } else if (selected == 'logout') {
-      _logout();
+      await _logout();
     }
   }
 

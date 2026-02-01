@@ -48,8 +48,6 @@ public class ParcheggioController {
         List<ParcheggioResponse> risultati = parcheggioService.cercaVicini(lat, lng, radius);
         return ResponseEntity.ok(risultati);
     }
-    
-
 
     @PatchMapping("/{id}/emergenza")
     public ResponseEntity<Void> toggleEmergenza(
@@ -61,5 +59,10 @@ public class ParcheggioController {
         parcheggioService.impostaStatoEmergenza(id, attiva, motivo);
         return ResponseEntity.ok().build();
     }
-
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<ParcheggioResponse> getById(@PathVariable String id) {
+        LOGGER.info("HTTP GET /api/parcheggi/{}", id);
+        return ResponseEntity.ok(parcheggioService.getById(id));
+    }
 }
