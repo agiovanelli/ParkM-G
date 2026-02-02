@@ -66,11 +66,16 @@ class _PrenotazioneDialogContentState
   Timer? _timer;
   Duration _remainingTime = Duration.zero;
   bool _isCancelling = false;
+  Timer? _pollTimer;
+  late PrenotazioneResponse _current;
+  bool _polling = false; // evita doppi start
 
   @override
   void initState() {
     super.initState();
-    if (widget.prenotazione.stato == StatoPrenotazione.ATTIVA) {
+    _current = widget.prenotazione;
+    _startPolling();
+    if (_current.stato == StatoPrenotazione.ATTIVA) {
       _calcolaTempoRimanente();
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() {
@@ -81,6 +86,43 @@ class _PrenotazioneDialogContentState
         }
       });
     }
+  }
+
+  void _startPolling() {
+    if (_polling) return;
+    _polling = true;
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      // se dialog non più montato, stop
+      if (!mounted) return;
+
+      try {
+        final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
+          widget.utenteId,
+          _current.id,
+        );
+
+        if (!mounted) return;
+        if (updated == null) return;
+
+        final changed =
+            updated.stato != _current.stato ||
+            updated.dataIngresso != _current.dataIngresso ||
+            updated.dataUscita != _current.dataUscita;
+
+        if (changed) {
+          setState(() => _current = updated);
+        }
+      } catch (_) {
+        // ignora: rete ballerina, ecc.
+      }
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _polling = false;
   }
 
   Future<void> _annullaPrenotazione() async {
@@ -154,29 +196,28 @@ class _PrenotazioneDialogContentState
   }
 
   void _calcolaTempoRimanente() {
-    if (widget.prenotazione.dataCreazione == null) {
+    final dc = _current.dataCreazione;
+    if (dc == null) {
       _remainingTime = Duration.zero;
       return;
     }
 
-    final scadenza = widget.prenotazione.dataCreazione!.add(
-      const Duration(minutes: 10),
-    );
-    final now = DateTime.now();
-    final diff = scadenza.difference(now);
-
+    final scadenza = dc.add(const Duration(minutes: 10));
+    final diff = scadenza.difference(DateTime.now());
     _remainingTime = diff.isNegative ? Duration.zero : diff;
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _stopPolling();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     const double maxDialogWidth = 300.0;
+    final p = _current;
 
     return Dialog(
       backgroundColor: AppColors.bgDark2,
@@ -191,51 +232,45 @@ class _PrenotazioneDialogContentState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _buildStatoBadge(),
+                _buildStatoBadge(p),
                 const SizedBox(height: 12),
 
-                if (widget.prenotazione.stato == StatoPrenotazione.ATTIVA)
-                  _buildTimer(),
+                if (p.stato == StatoPrenotazione.ATTIVA) _buildTimer(),
 
                 _buildDettaglio(
                   Icons.directions_car,
                   "Parcheggio",
-                  widget.prenotazione.parcheggioId,
+                  p.parcheggioId,
                 ),
                 _buildDettaglio(
                   Icons.event,
                   "Creazione",
-                  _formatDT(widget.prenotazione.dataCreazione),
+                  _formatDT(p.dataCreazione),
                 ),
-                if (widget.prenotazione.dataIngresso != null)
+                if (p.dataIngresso != null)
                   _buildDettaglio(
                     Icons.login,
                     "Ingresso",
-                    _formatDT(widget.prenotazione.dataIngresso),
+                    _formatDT(p.dataIngresso),
                   ),
-                if (widget.prenotazione.dataUscita != null)
+                if (p.dataUscita != null)
                   _buildDettaglio(
                     Icons.logout,
                     "Uscita",
-                    _formatDT(widget.prenotazione.dataUscita),
+                    _formatDT(p.dataUscita),
                   ),
 
                 const SizedBox(height: 12),
 
-                if (widget.prenotazione.codiceQr != null &&
-                    widget.prenotazione.codiceQr!.isNotEmpty)
-                  _buildQrCode(),
+                if ((p.codiceQr ?? '').isNotEmpty) _buildQrCode(p),
 
-                if (widget.prenotazione.codiceQr != null &&
-                    widget.prenotazione.codiceQr!.isNotEmpty)
-                  const SizedBox(height: 12),
+                if ((p.codiceQr ?? '').isNotEmpty) const SizedBox(height: 12),
 
                 if (!widget.lockActions)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (widget.prenotazione.stato ==
-                          StatoPrenotazione.ATTIVA) ...[
+                      if (p.stato == StatoPrenotazione.ATTIVA) ...[
                         OutlinedButton(
                           onPressed: _isCancelling
                               ? null
@@ -273,6 +308,8 @@ class _PrenotazioneDialogContentState
                         onPressed: _isCancelling
                             ? null
                             : () {
+                                _timer?.cancel();
+                                _stopPolling();
                                 Navigator.of(context).pop();
                                 widget.onClosed?.call();
                               },
@@ -302,8 +339,8 @@ class _PrenotazioneDialogContentState
     );
   }
 
-  Widget _buildStatoBadge() {
-    final stato = widget.prenotazione.stato;
+  Widget _buildStatoBadge(PrenotazioneResponse p) {
+    final stato = p.stato;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -457,7 +494,7 @@ class _PrenotazioneDialogContentState
     }
   }
 
-  Widget _buildQrCode() {
+  Widget _buildQrCode(PrenotazioneResponse p) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -477,18 +514,38 @@ class _PrenotazioneDialogContentState
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
-          QrImageView(
-            data: widget.prenotazione.codiceQr!,
-            version: QrVersions.auto,
-            size: 200.0,
-            backgroundColor: Colors.white,
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: Colors.black,
-            ),
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: Colors.black,
+          GestureDetector(
+            onLongPress: () async {
+              if (_isCancelling) return;
+
+              final s = p.stato;
+              final canCancel =
+                  s == StatoPrenotazione.ATTIVA ||
+                  s == StatoPrenotazione.IN_CORSO;
+
+              if (!canCancel) {
+                UiFeedback.showError(
+                  context,
+                  "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
+                );
+                return;
+              }
+
+              await _annullaPrenotazione();
+            },
+            child: QrImageView(
+              data: p.codiceQr!,
+              version: QrVersions.auto,
+              size: 200.0,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
             ),
           ),
           const SizedBox(height: 6),

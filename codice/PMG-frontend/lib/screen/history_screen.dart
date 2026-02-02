@@ -129,10 +129,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     Icons.chevron_right,
                     color: AppColors.textMuted,
                   ),
-                  onTap: () {
+                  onTap: () async {
+                    final updated = await widget.apiClient
+                        .getPrenotazioneByIdFromStorico(widget.utente.id, p.id);
+
+                    if (!mounted) return;
+
                     PrenotazioneDialog.mostra(
                       context,
-                      prenotazione: p,
+                      prenotazione: updated ?? p,
                       apiClient: widget.apiClient,
                       utenteId: widget.utente.id,
                       onCancelled: () {

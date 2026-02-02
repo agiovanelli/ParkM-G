@@ -366,6 +366,19 @@ class ApiClient {
     return null;
   }
 
+  // Recupera una prenotazione specifica dallo storico dell'utente
+  Future<PrenotazioneResponse?> getPrenotazioneByIdFromStorico(
+    String utenteId,
+    String prenotazioneId,
+  ) async {
+    final list = await getStoricoPrenotazioni(utenteId);
+    try {
+      return list.firstWhere((p) => p.id == prenotazioneId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   //LOCALIZZAZIONE GPS
   Future<Map<String, dynamic>> geocode({required String address}) async {
     final uri = Uri.parse(

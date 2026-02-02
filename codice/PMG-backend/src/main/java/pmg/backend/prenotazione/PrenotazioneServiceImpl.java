@@ -99,7 +99,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             .findByIdAndUtenteId(prenotazioneId, utenteId)
             .orElseThrow(() -> new RuntimeException("Prenotazione non trovata"));
 
-        if (p.getStato() != StatoPrenotazione.ATTIVA) {
+        if (p.getStato() != StatoPrenotazione.ATTIVA && p.getStato() != StatoPrenotazione.IN_CORSO) {
             throw new IllegalStateException(
                 "Puoi annullare solo prenotazioni ATTIVE (stato attuale: " + p.getStato() + ")"
             );

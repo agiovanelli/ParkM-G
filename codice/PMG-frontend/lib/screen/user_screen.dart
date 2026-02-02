@@ -147,45 +147,59 @@ class _UserScreenState extends State<UserScreen>
       _autoNavAfterQrClose = !arrived;
 
       await _showMapLockedDialog<void>(
-        show: () => PrenotazioneDialog.mostra(
-          context,
-          prenotazione: _activeBooking!,
-          apiClient: widget.apiClient,
-          utenteId: widget.utente.id,
-          lockActions: arrived,
-          onCancelled: arrived
-              ? null
-              : () async {
-                  _autoNavAfterQrClose = false;
-                  await _handleBookingCancelledAndReload();
-                },
-          onClosed: arrived
-              ? null
-              : () async {
-                  if (!_autoNavAfterQrClose) return;
-                  _autoNavAfterQrClose = false;
-                  final dest = _activeParkingLatLng;
-                  if (dest == null) return;
-                  if (_externalNavOpened) return;
-                  _externalNavOpened = true;
+        show: () async {
+          // ✅ refresh stato dal backend prima di mostrare
+          final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
+            widget.utente.id,
+            _activeBooking!.id,
+          );
 
-                  LatLng? origin = _lastMe;
-                  if (origin == null) {
-                    try {
-                      final pos = await Geolocator.getCurrentPosition(
-                        desiredAccuracy: LocationAccuracy.high,
-                      ).timeout(const Duration(seconds: 5));
-                      origin = LatLng(pos.latitude, pos.longitude);
-                    } catch (_) {}
-                  }
+          if (!mounted) return null;
 
-                  await _openExternalNavWeb(
-                    destLat: dest.latitude,
-                    destLng: dest.longitude,
-                    origin: origin,
-                  );
-                },
-        ),
+          if (updated != null) {
+            setState(() => _activeBooking = updated);
+          }
+
+          return PrenotazioneDialog.mostra(
+            context,
+            prenotazione: updated ?? _activeBooking!,
+            apiClient: widget.apiClient,
+            utenteId: widget.utente.id,
+            lockActions: arrived,
+            onCancelled: arrived
+                ? null
+                : () async {
+                    _autoNavAfterQrClose = false;
+                    await _handleBookingCancelledAndReload();
+                  },
+            onClosed: arrived
+                ? null
+                : () async {
+                    if (!_autoNavAfterQrClose) return;
+                    _autoNavAfterQrClose = false;
+                    final dest = _activeParkingLatLng;
+                    if (dest == null) return;
+                    if (_externalNavOpened) return;
+                    _externalNavOpened = true;
+
+                    LatLng? origin = _lastMe;
+                    if (origin == null) {
+                      try {
+                        final pos = await Geolocator.getCurrentPosition(
+                          desiredAccuracy: LocationAccuracy.high,
+                        ).timeout(const Duration(seconds: 5));
+                        origin = LatLng(pos.latitude, pos.longitude);
+                      } catch (_) {}
+                    }
+
+                    await _openExternalNavWeb(
+                      destLat: dest.latitude,
+                      destLng: dest.longitude,
+                      origin: origin,
+                    );
+                  },
+          );
+        },
       );
     } finally {
       _openingQrDialog = false;
@@ -348,10 +362,8 @@ class _UserScreenState extends State<UserScreen>
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 6));
-
       final me = LatLng(pos.latitude, pos.longitude);
       _lastMe = me;
-
       final dest = _activeParkingLatLng!;
 
       // distanza su strada (metri) via backend
@@ -362,7 +374,6 @@ class _UserScreenState extends State<UserScreen>
         dLng: dest.longitude,
       );
 
-      // fallback se backend/Google non risponde
       final d = (roadMeters != null)
           ? roadMeters.toDouble()
           : Geolocator.distanceBetween(
@@ -376,16 +387,13 @@ class _UserScreenState extends State<UserScreen>
       setState(() => _distanceToParkingM = d);
 
       if (d <= _arriveParkingThresholdM) {
-        // evita rientri multipli
         if (_openingQrDialog) return;
         _openingQrDialog = true;
-
         if (mounted) {
           setState(() {
             _arrivalUiDone = true;
           });
         }
-
         await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
 
@@ -393,13 +401,27 @@ class _UserScreenState extends State<UserScreen>
         _stopReturnOverlay();
 
         await _showMapLockedDialog<void>(
-          show: () => PrenotazioneDialog.mostra(
-            context,
-            prenotazione: _activeBooking!,
-            apiClient: widget.apiClient,
-            utenteId: widget.utente.id,
-            lockActions: true,
-          ),
+          show: () async {
+            final updated = await widget.apiClient
+                .getPrenotazioneByIdFromStorico(
+                  widget.utente.id,
+                  _activeBooking!.id,
+                );
+
+            if (!mounted) return null;
+
+            if (updated != null) {
+              setState(() => _activeBooking = updated);
+            }
+
+            return PrenotazioneDialog.mostra(
+              context,
+              prenotazione: updated ?? _activeBooking!,
+              apiClient: widget.apiClient,
+              utenteId: widget.utente.id,
+              lockActions: true,
+            );
+          },
         );
         _openingQrDialog = false;
       }
