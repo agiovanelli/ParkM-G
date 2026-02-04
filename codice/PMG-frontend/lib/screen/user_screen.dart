@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:park_mg/indoor/assignment/assignment_provider.dart';
+import 'package:park_mg/indoor/parking_map_definition.dart';
+import 'package:park_mg/indoor/ui/indoor_parking_view.dart';
 import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/screen/home_page.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
@@ -83,6 +86,15 @@ class _UserScreenState extends State<UserScreen>
   BitmapDescriptor? _parkingIcon;
   BitmapDescriptor? _parkingIconSelected;
   int _sessionToken = 0;
+  late final IndoorMapDefinition _indoorDef = buildDefaultIndoorMapDefinition();
+  final IndoorAssignmentProvider _assignmentProvider =
+      const IndoorAssignmentProvider();
+
+  bool get _showIndoorMap {
+    final b = _activeBooking;
+    if (b == null) return false;
+    return b.stato == StatoPrenotazione.IN_CORSO;
+  }
 
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -133,6 +145,23 @@ class _UserScreenState extends State<UserScreen>
 
   // -------------------- utils --------------------
 
+  void _enterIndoorModeIfNeeded() {
+    if (!mounted) return;
+    if (!_showIndoorMap) return;
+    _stopReturnOverlay();
+
+    final nav = Navigator.of(context);
+    if (nav.canPop()) nav.pop();
+
+    setState(() {
+      _selectedParkingData = null;
+      _selectedParkingMarkerId = null;
+      _showParkings = false;
+      _returnOverlay = false;
+      _arrivalUiDone = false;
+    });
+  }
+
   Future<void> _showQrOnLoginIfNeeded() async {
     if (!mounted) return;
     if (_qrShownOnLogin) return;
@@ -148,7 +177,6 @@ class _UserScreenState extends State<UserScreen>
 
       await _showMapLockedDialog<void>(
         show: () async {
-          // ✅ refresh stato dal backend prima di mostrare
           final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
             widget.utente.id,
             _activeBooking!.id,
@@ -158,6 +186,7 @@ class _UserScreenState extends State<UserScreen>
 
           if (updated != null) {
             setState(() => _activeBooking = updated);
+            _enterIndoorModeIfNeeded();
           }
 
           return PrenotazioneDialog.mostra(
@@ -293,7 +322,6 @@ class _UserScreenState extends State<UserScreen>
 
       final booking = attive.first;
 
-      // recupera parcheggio per lat/lng
       final park = await widget.apiClient.getParcheggioById(
         booking.parcheggioId,
       );
@@ -313,7 +341,7 @@ class _UserScreenState extends State<UserScreen>
         _returnOverlay = false;
         _bookedMarkerLocked = true;
       });
-
+      _enterIndoorModeIfNeeded();
       _showOnlyBookedParking(park);
     } catch (_) {}
   }
@@ -321,6 +349,7 @@ class _UserScreenState extends State<UserScreen>
   void _startReturnOverlay() {
     if (!mounted) return;
     if (_openingQrDialog) return;
+    if (_showIndoorMap) return;
     if (_activeBooking == null || _activeParkingLatLng == null) return;
     if (_arrivalHandled) return;
 
@@ -412,6 +441,7 @@ class _UserScreenState extends State<UserScreen>
 
             if (updated != null) {
               setState(() => _activeBooking = updated);
+              _enterIndoorModeIfNeeded();
             }
 
             return PrenotazioneDialog.mostra(
@@ -571,7 +601,9 @@ class _UserScreenState extends State<UserScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _bootstrapMyLocation();
       await _restoreActiveBookingFromBackend();
-      await _showQrOnLoginIfNeeded();
+      if (!_showIndoorMap) {
+        await _showQrOnLoginIfNeeded();
+      }
     });
 
     if (widget.utente.preferenze == null || widget.utente.preferenze!.isEmpty) {
@@ -1402,54 +1434,65 @@ class _UserScreenState extends State<UserScreen>
                         absorbing: _blockMapInteractions || _returnOverlay,
                         child: Stack(
                           children: [
-                            GoogleMap(
-                              onCameraMove: (pos) => _cameraTarget = pos.target,
-                              initialCameraPosition: _initialCamera,
-                              onMapCreated: (c) async {
-                                _mapController = c;
-                                await _mapController!.setMapStyle(
-                                  _mapStyleNoPoi,
-                                );
+                            if (_showIndoorMap)
+                              IndoorParkingView(
+                                def: _indoorDef,
+                                assignment: _assignmentProvider.fromSlotId(
+                                  '3-07',
+                                ),
+                                userFloor: 1,
+                                showGridDebug: false,
+                              )
+                            else
+                              GoogleMap(
+                                onCameraMove: (pos) =>
+                                    _cameraTarget = pos.target,
+                                initialCameraPosition: _initialCamera,
+                                onMapCreated: (c) async {
+                                  _mapController = c;
+                                  await _mapController!.setMapStyle(
+                                    _mapStyleNoPoi,
+                                  );
 
-                                if (_pendingCenter != null) {
-                                  final me = _pendingCenter!;
-                                  _pendingCenter = null;
-                                  await _mapController!.animateCamera(
-                                    CameraUpdate.newCameraPosition(
-                                      CameraPosition(target: me, zoom: 16),
-                                    ),
-                                  );
-                                }
-                              },
-                              markers: _markers,
-                              circles: _circles,
-                              myLocationEnabled: !kIsWeb && _locationGranted,
-                              myLocationButtonEnabled:
-                                  !kIsWeb && _locationGranted,
-                              zoomControlsEnabled: false,
-                              mapToolbarEnabled: false,
-                              scrollGesturesEnabled:
-                                  !_lockMapGestures && !_returnOverlay,
-                              zoomGesturesEnabled:
-                                  !_lockMapGestures && !_returnOverlay,
-                              rotateGesturesEnabled:
-                                  !_lockMapGestures && !_returnOverlay,
-                              tiltGesturesEnabled:
-                                  !_lockMapGestures && !_returnOverlay,
-                              onTap: (_) async {
-                                setState(() {
-                                  _selectedParkingData = null;
-                                  _selectedParkingMarkerId = null;
-                                });
-                                if (_showParkings &&
-                                    _bookedParkingMarkerId == null) {
-                                  await _loadParkingsNearby(
-                                    _cameraTarget,
-                                    radiusMeters: 2500,
-                                  );
-                                }
-                              },
-                            ),
+                                  if (_pendingCenter != null) {
+                                    final me = _pendingCenter!;
+                                    _pendingCenter = null;
+                                    await _mapController!.animateCamera(
+                                      CameraUpdate.newCameraPosition(
+                                        CameraPosition(target: me, zoom: 16),
+                                      ),
+                                    );
+                                  }
+                                },
+                                markers: _markers,
+                                circles: _circles,
+                                myLocationEnabled: !kIsWeb && _locationGranted,
+                                myLocationButtonEnabled:
+                                    !kIsWeb && _locationGranted,
+                                zoomControlsEnabled: false,
+                                mapToolbarEnabled: false,
+                                scrollGesturesEnabled:
+                                    !_lockMapGestures && !_returnOverlay,
+                                zoomGesturesEnabled:
+                                    !_lockMapGestures && !_returnOverlay,
+                                rotateGesturesEnabled:
+                                    !_lockMapGestures && !_returnOverlay,
+                                tiltGesturesEnabled:
+                                    !_lockMapGestures && !_returnOverlay,
+                                onTap: (_) async {
+                                  setState(() {
+                                    _selectedParkingData = null;
+                                    _selectedParkingMarkerId = null;
+                                  });
+                                  if (_showParkings &&
+                                      _bookedParkingMarkerId == null) {
+                                    await _loadParkingsNearby(
+                                      _cameraTarget,
+                                      radiusMeters: 2500,
+                                    );
+                                  }
+                                },
+                              ),
 
                             if (_isLoadingParkings || _isLocating)
                               Container(
@@ -1460,36 +1503,36 @@ class _UserScreenState extends State<UserScreen>
                                   ),
                                 ),
                               ),
-
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 14,
-                                  right: 14,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(height: 10),
-                                    GMapsControlButton(
-                                      icon: Icons.local_parking,
-                                      onPressed: hasActiveBooking
-                                          ? null
-                                          : _toggleParkings,
-                                      tooltip: hasActiveBooking
-                                          ? 'Hai già una prenotazione attiva'
-                                          : 'Parcheggi vicino',
-                                      selected: hasActiveBooking
-                                          ? false
-                                          : _showParkings,
-                                    ),
-                                  ],
+                            if (!_showIndoorMap)
+                              Align(
+                                alignment: Alignment.topRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 14,
+                                    right: 14,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(height: 10),
+                                      GMapsControlButton(
+                                        icon: Icons.local_parking,
+                                        onPressed: hasActiveBooking
+                                            ? null
+                                            : _toggleParkings,
+                                        tooltip: hasActiveBooking
+                                            ? 'Hai già una prenotazione attiva'
+                                            : 'Parcheggi vicino',
+                                        selected: hasActiveBooking
+                                            ? false
+                                            : _showParkings,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
 
-                            if (_selectedParkingData != null)
+                            if (!_showIndoorMap && _selectedParkingData != null)
                               Positioned(
                                 bottom: 40,
                                 left: 20,
