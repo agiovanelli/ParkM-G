@@ -1,6 +1,7 @@
 package pmg.backend.prenotazione;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +50,37 @@ public class PrenotazioneController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage()); // 409
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); // 404
+        }
+    }
+    
+    @GetMapping("/{id}/calcola-importo")
+    public ResponseEntity<Double> getImporto(@PathVariable String id) {
+        try {
+            double importo = prenotazioneService.calcolaImporto(id);
+            return ResponseEntity.ok(importo);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/{id}/paga")
+    public ResponseEntity<?> paga(@PathVariable String id, @org.springframework.web.bind.annotation.RequestBody Map<String, Double> payload) {
+        try {
+            Double importo = payload.get("importo"); // L'operatore o l'app invia l'importo finale
+            PrenotazioneResponse res = prenotazioneService.pagaPrenotazione(id, importo);
+            return ResponseEntity.ok(res);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/valida-uscita/{codiceQr}")
+    public ResponseEntity<?> validaUscita(@PathVariable String codiceQr) {
+        try {
+            PrenotazioneResponse res = prenotazioneService.validaUscita(codiceQr);
+            return ResponseEntity.ok(res);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         }
     }
 

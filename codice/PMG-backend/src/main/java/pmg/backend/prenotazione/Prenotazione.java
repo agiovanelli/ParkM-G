@@ -21,6 +21,9 @@ public class Prenotazione {
 
     private LocalDateTime dataIngresso;
     private LocalDateTime dataUscita;
+    
+    private Double importoPagato;
+    private LocalDateTime dataPagamento;
 
     // Costruttore vuoto richiesto da Spring / Mongo
     public Prenotazione() {}
@@ -119,4 +122,8 @@ public class Prenotazione {
     public void setDataUscita(LocalDateTime dataUscita) {
         this.dataUscita = dataUscita;
     }
+    public Double getImportoPagato() { return importoPagato; }
+    public void setImportoPagato(Double importoPagato) { this.importoPagato = importoPagato; }
+    public LocalDateTime getDataPagamento() { return dataPagamento; }
+    public void setDataPagamento(LocalDateTime dataPagamento) { this.dataPagamento = dataPagamento; }
 }
