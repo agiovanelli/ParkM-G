@@ -319,6 +319,34 @@ class ApiClient {
 
     throw ApiException(msg, resp.statusCode);
   }
+  // Calcola importo da pagare: GET /api/prenotazioni/{id}/calcola-importo
+  Future<double> calcolaImporto(String id) async {
+    final response = await http.get(Uri.parse('$_baseUrl/prenotazioni/$id/calcola-importo'));
+    if (response.statusCode == 200) {
+      return double.parse(response.body);
+    }
+    throw ApiException('Errore calcolo importo: ${response.body}');
+  }
+  // Paga prenotazione: POST /api/prenotazioni/{id}/paga
+  Future<PrenotazioneResponse> pagaPrenotazione(String id, double importo) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/prenotazioni/$id/paga'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'importo': importo}),
+    );
+    if (response.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+    }
+    throw ApiException('Errore pagamento: ${response.body}');
+  }
+  // Valida uscita: POST /api/prenotazioni/valida-uscita/{codiceQr}
+  Future<PrenotazioneResponse> validaUscita(String qr) async {
+    final response = await http.post(Uri.parse('$_baseUrl/prenotazioni/valida-uscita/$qr'));
+    if (response.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+    }
+    throw ApiException(response.body); // Passa il messaggio di errore (es. "Devi pagare")
+  }
 
   // RECUPERO DIREZIONI E PERCORSO
   Future<Map<String, dynamic>> getDirections({

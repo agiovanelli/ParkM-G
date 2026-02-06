@@ -37,8 +37,7 @@ class UserScreen extends StatefulWidget {
   State<UserScreen> createState() => _UserScreenState();
 }
 
-class _UserScreenState extends State<UserScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
   GoogleMapController? _mapController;
@@ -1277,6 +1276,221 @@ class _UserScreenState extends State<UserScreen>
     }
   }
 
+  /// Avviato dal FloatingActionButton. Scarica lo storico e decide cosa mostrare.
+  Future<void> _handleGestioneSoste() async {
+    // Mostra loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accentCyan),
+      ),
+    );
+
+    try {
+      // 1. Recupera tutto lo storico dal backend
+      final storico = await widget.apiClient.getStoricoPrenotazioni(widget.utente.id);
+
+      // Chiudi il loading
+      if (mounted) Navigator.of(context).pop();
+
+      // 2. Filtra solo quelle che richiedono azione (IN_CORSO o PAGATO)
+      final attive = storico.where((p) => 
+        p.stato == StatoPrenotazione.IN_CORSO || 
+        p.stato == StatoPrenotazione.PAGATO
+      ).toList();
+
+      if (attive.isEmpty) {
+        UiFeedback.showError(context, "Nessuna sosta attiva trovata.");
+        return;
+      }
+
+      // 3. Decisione flusso
+      if (attive.length == 1) {
+        // Se c'è solo un'auto, apri direttamente l'azione corretta
+        _apriAzioneSosta(attive.first);
+      } else {
+        // Se ce n'è più di una, mostra la lista di scelta
+        _mostraListaSelezione(attive);
+      }
+
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop(); // Chiudi loading se errore
+      UiFeedback.showError(context, "Impossibile recuperare le soste: $e");
+    }
+  }
+
+  /// Mostra un foglio dal basso per scegliere quale auto gestire (se > 1)
+  void _mostraListaSelezione(List<PrenotazioneResponse> lista) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(16),
+        height: 400,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Seleziona Veicolo", 
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.builder(
+                itemCount: lista.length,
+                itemBuilder: (context, index) {
+                  final p = lista[index];
+                  final isPagato = p.stato == StatoPrenotazione.PAGATO;
+                  
+                  return Card(
+                    color: AppColors.bgDark2,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isPagato ? Colors.green : Colors.orange,
+                        child: Icon(isPagato ? Icons.check : Icons.local_parking, color: Colors.white),
+                      ),
+                      title: Text("Parcheggio #${p.parcheggioId.substring(0, 4).toUpperCase()}",
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                          isPagato ? "Pronto per l'uscita" : "In sosta - Da pagare",
+                          style: const TextStyle(color: Colors.grey)),
+                      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                      onTap: () {
+                        Navigator.pop(ctx); // Chiudi la lista
+                        _apriAzioneSosta(p); // Procedi con quella scelta
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _apriAzioneSosta(PrenotazioneResponse p) {
+    if (p.stato == StatoPrenotazione.PAGATO) {
+      // CORREZIONE: Usa .mostra invece di showDialog manuale
+      PrenotazioneDialog.mostra(
+        context,
+        prenotazione: p,
+        apiClient: widget.apiClient,
+        utenteId: widget.utente.id,
+        // lockActions e onCancelled potrebbero essere richiesti o opzionali a seconda della tua implementazione attuale
+        onCancelled: () {}, 
+      );
+    } else if (p.stato == StatoPrenotazione.IN_CORSO) {
+      _showPaymentSheet(p);
+    }
+  }
+
+  /// UI del Pagamento: Calcola prezzo live e permette di pagare
+  void _showPaymentSheet(PrenotazioneResponse p) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: 380,
+        decoration: const BoxDecoration(
+          color: AppColors.bgDark,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [BoxShadow(blurRadius: 20, color: Colors.black54)],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 50, height: 5,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(10)),
+            ),
+            const Text("Cassa Automatica", 
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 30),
+            
+            // FutureBuilder per il calcolo del prezzo in tempo reale
+            FutureBuilder<double>(
+              future: widget.apiClient.calcolaImporto(p.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator(color: AppColors.accentCyan);
+                }
+                if (snapshot.hasError) {
+                  return const Text("Errore calcolo tariffa.\nRiprova più tardi.", 
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.redAccent));
+                }
+
+                final importo = snapshot.data ?? 0.0;
+
+                return Column(
+                  children: [
+                    Text("€ ${importo.toStringAsFixed(2)}", 
+                      style: const TextStyle(color: AppColors.accentCyan, fontSize: 48, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const Text("Tariffa calcolata in tempo reale", style: TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 40),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          elevation: 5,
+                        ),
+                        icon: const Icon(Icons.payment, color: Colors.white),
+                        label: const Text("PAGA ORA (Simulato)", 
+                           style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          try {
+                            // Chiamata al backend per pagare
+                            final aggiornata = await widget.apiClient.pagaPrenotazione(p.id, importo);
+                            
+                            Navigator.pop(ctx); // Chiudi foglio pagamento
+                            
+                            // Feedback utente
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Pagamento riuscito! Hai 10 minuti per uscire."),
+                                backgroundColor: Colors.green,
+                              )
+                            );
+                            
+                            // Aggiorna subito lo stato dell'app (opzionale ma consigliato)
+                            setState(() {
+                              _activeBooking = aggiornata;
+                            });
+
+                            // Riapri subito il dialog mostrando il QR code aggiornato
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              _apriAzioneSosta(aggiornata);
+                            });
+
+                          } catch (e) {
+                            Navigator.pop(ctx);
+                            UiFeedback.showError(context, "Errore pagamento: $e");
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // -------------------- UI --------------------
 
   @override
@@ -1292,8 +1506,24 @@ class _UserScreenState extends State<UserScreen>
     final bool isFullSelected = postiDispSelected <= 0;
     final bool hasActiveBooking = _bookedParkingMarkerId != null;
 
+
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
+
+      //  AGGIUNTA BOTTONE "LE MIE SOSTE"
+      floatingActionButton: !_showIndoorMap // Nascondi se sei in navigazione indoor
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.accentCyan, // O Colors.orange se preferisci
+              foregroundColor: Colors.black, // Testo scuro su bottone ciano
+              elevation: 6,
+              icon: const Icon(Icons.receipt_long),
+              label: const Text("Le mie Soste", style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: _handleGestioneSoste, // Chiama il metodo creato sopra
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      
+
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
