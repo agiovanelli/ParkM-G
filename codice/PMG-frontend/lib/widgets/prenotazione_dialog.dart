@@ -495,69 +495,88 @@ class _PrenotazioneDialogContentState
   }
 
   Widget _buildQrCode(PrenotazioneResponse p) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.accentCyan, width: 2),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            "Codice QR",
-            style: TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+  final code = (p.codiceQr ?? '').trim();
+
+  return Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.accentCyan, width: 2),
+    ),
+    child: Column(
+      children: [
+        const Text(
+          "Codice QR",
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+
+        GestureDetector(
+          onLongPress: () async {
+            if (_isCancelling) return;
+
+            final s = p.stato;
+            final canCancel =
+                s == StatoPrenotazione.ATTIVA ||
+                s == StatoPrenotazione.IN_CORSO;
+
+            if (!canCancel) {
+              UiFeedback.showError(
+                context,
+                "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
+              );
+              return;
+            }
+
+            await _annullaPrenotazione();
+          },
+          child: QrImageView(
+            data: code, 
+            version: QrVersions.auto,
+            size: 200.0,
+            backgroundColor: Colors.white,
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: Colors.black,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          GestureDetector(
-            onLongPress: () async {
-              if (_isCancelling) return;
-
-              final s = p.stato;
-              final canCancel =
-                  s == StatoPrenotazione.ATTIVA ||
-                  s == StatoPrenotazione.IN_CORSO;
-
-              if (!canCancel) {
-                UiFeedback.showError(
-                  context,
-                  "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
-                );
-                return;
-              }
-
-              await _annullaPrenotazione();
-            },
-            child: QrImageView(
-              data: p.codiceQr!,
-              version: QrVersions.auto,
-              size: 200.0,
-              backgroundColor: Colors.white,
-              eyeStyle: const QrEyeStyle(
-                eyeShape: QrEyeShape.square,
-                color: Colors.black,
-              ),
-              dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.square,
-                color: Colors.black,
-              ),
+            dataModuleStyle: const QrDataModuleStyle(
+              dataModuleShape: QrDataModuleShape.square,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            "Mostra questo codice all'ingresso",
-            style: TextStyle(color: Colors.black54, fontSize: 10),
-            textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 8),
+
+       
+        SelectableText(
+          code,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 11,
+            fontFamily: 'monospace',
+            color: Colors.black54,
           ),
-        ],
-      ),
-    );
-  }
+        ),
+
+        const SizedBox(height: 6),
+
+        const Text(
+          "Mostra questo codice all'ingresso",
+          style: TextStyle(color: Colors.black54, fontSize: 10),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
+}
+
 
   String _formatDT(DateTime? dt) {
     if (dt == null) return "Data non disponibile";

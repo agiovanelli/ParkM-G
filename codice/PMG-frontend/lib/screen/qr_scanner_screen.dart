@@ -4,8 +4,13 @@ import 'package:park_mg/utils/theme.dart';
 
 class QrScannerPage extends StatefulWidget {
   final Function(String) onQrScanned;
+  final bool isActive; // <--- Parametro aggiunto per gestire lo stato della camera
 
-  const QrScannerPage({super.key, required this.onQrScanned});
+  const QrScannerPage({
+    super.key,
+    required this.onQrScanned,
+    this.isActive = true, // Default a true per retrocompatibilità
+  });
 
   @override
   State<QrScannerPage> createState() => _QrScannerPageState();
@@ -49,7 +54,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
       
       if (mounted) {
         setState(() {
-          _successMessage = 'Accesso validato con successo!';
+          _successMessage = 'Validato con successo!';
           _isProcessing = false;
         });
 
@@ -83,6 +88,12 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // <--- FIX CRITICO: Se la pagina non è attiva, non montare lo scanner!
+    // Questo impedisce alla camera di partire in background e bloccarsi.
+    if (!widget.isActive) {
+      return const SizedBox(); 
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -137,30 +148,65 @@ class _QrScannerPageState extends State<QrScannerPage> {
           const SizedBox(height: 16),
 
           // Istruzioni
+          // Info Section con guida operatore
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.25),
+              color: AppColors.bgDark2.withOpacity(0.6),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderField, width: 1),
+              border: Border.all(
+                color: AppColors.accentCyan.withOpacity(0.3),
+                width: 1,
+              ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.info_outline,
-                  color: AppColors.accentCyan.withOpacity(0.8),
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Inquadra il codice QR del veicolo per validare l\'ingresso',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentCyan.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.info_outline,
+                        color: AppColors.accentCyan,
+                        size: 18,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Guida Scansione: scansiona il QR code presente sul dispositivo del cliente per convalidare l\'ingresso, incassare il pagamento o autorizzare l\'uscita.',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _buildInfoRow(
+                  Icons.login,
+                  'ATTIVA',
+                  'Convalida ingresso',
+                  const Color(0xFF3B82F6),
+                ),
+                const SizedBox(height: 6),
+                _buildInfoRow(
+                  Icons.euro,
+                  'IN CORSO',
+                  'Incassa pagamento | Se il cliente non ha ancora pagato, compare un pop-up con la procedura di pagamento',
+                  const Color(0xFFF59E0B),
+                ),
+                const SizedBox(height: 6),
+                _buildInfoRow(
+                  Icons.logout,
+                  'PAGATO',
+                  'Autorizza uscita',
+                  const Color(0xFF10B981),
                 ),
               ],
             ),
@@ -209,15 +255,15 @@ class _QrScannerPageState extends State<QrScannerPage> {
                                   color: AppColors.accentCyan,
                                 ),
                               if (_errorMessage != null)
-                                Icon(
+                                const Icon(
                                   Icons.error_outline,
-                                  color: const Color(0xFFEF4444),
+                                  color: Color(0xFFEF4444),
                                   size: 48,
                                 ),
                               if (_successMessage != null)
-                                Icon(
+                                const Icon(
                                   Icons.check_circle_outline,
-                                  color: const Color(0xFF10B981),
+                                  color: Color(0xFF10B981),
                                   size: 48,
                                 ),
                               const SizedBox(height: 16),
@@ -249,33 +295,72 @@ class _QrScannerPageState extends State<QrScannerPage> {
           const SizedBox(height: 16),
 
           // Controlli camera
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _controlButton(
-              icon: Icons.flash_off,
-              activeIcon: Icons.flash_on,
-              label: 'Flash',
-              onTap: () => cameraController.toggleTorch(),
-            ),
-            const SizedBox(width: 8), // Ridotto un po' il margine per far stare 3 bottoni
-            _controlButton(
-              icon: Icons.edit_note, // Icona per inserimento manuale
-              label: 'Manuale',
-              onTap: _showManualEntryDialog,
-            ),
-            const SizedBox(width: 8),
-            _controlButton(
-              icon: Icons.cameraswitch,
-              label: 'Cambia',
-              onTap: () => cameraController.switchCamera(),
-            ),
-          ],
-        ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _controlButton(
+                icon: Icons.flash_off,
+                activeIcon: Icons.flash_on,
+                label: 'Flash',
+                onTap: () => cameraController.toggleTorch(),
+              ),
+              const SizedBox(width: 8),
+              _controlButton(
+                icon: Icons.edit_note, // Icona per inserimento manuale
+                label: 'Manuale',
+                onTap: _showManualEntryDialog,
+              ),
+              const SizedBox(width: 8),
+              _controlButton(
+                icon: Icons.cameraswitch,
+                label: 'Cambia',
+                onTap: () => cameraController.switchCamera(),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+
+    Widget _buildInfoRow(IconData icon, String stato, String azione, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withOpacity(0.3), width: 1),
+          ),
+          child: Text(
+            stato,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        const Icon(Icons.arrow_forward, size: 12, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            azione,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
 
   Widget _controlButton({
     required IconData icon,
@@ -313,62 +398,62 @@ class _QrScannerPageState extends State<QrScannerPage> {
   }
 
   void _showManualEntryDialog() {
-  final TextEditingController manualController = TextEditingController();
+    final TextEditingController manualController = TextEditingController();
 
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: AppColors.bgDark,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: AppColors.borderField),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.bgDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: AppColors.borderField),
+        ),
+        title: const Text(
+          'Inserimento Manuale',
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: manualController,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Inserisci il codice...',
+            hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+            enabledBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: AppColors.borderField),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: AppColors.accentCyan),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentCyan,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              final code = manualController.text.trim();
+              if (code.isNotEmpty) {
+                Navigator.pop(context);
+                _onDetect(BarcodeCapture(barcodes: [Barcode(rawValue: code)]));
+              }
+            },
+            child: const Text(
+              'Conferma', 
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+            ),
+          ),
+        ],
       ),
-      title: const Text(
-        'Inserimento Manuale',
-        style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      ),
-      content: TextField(
-        controller: manualController,
-        style: const TextStyle(color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          hintText: 'Inserisci il codice...',
-          hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: AppColors.borderField),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: AppColors.accentCyan),
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ), // <--- Questa parentesi chiude il TextField correttamente
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla', style: TextStyle(color: AppColors.textSecondary)),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accentCyan,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          onPressed: () {
-            final code = manualController.text.trim();
-            if (code.isNotEmpty) {
-              Navigator.pop(context);
-              _onDetect(BarcodeCapture(barcodes: [Barcode(rawValue: code)]));
-            }
-          },
-          child: const Text(
-            'Conferma', 
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
-          ),
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 }
 
 // Custom painter per il frame di scansione
@@ -461,6 +546,8 @@ class _ScannerOverlayPainter extends CustomPainter {
       cornerPaint,
     );
   }
+
+  
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

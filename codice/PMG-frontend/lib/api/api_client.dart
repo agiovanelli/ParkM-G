@@ -319,6 +319,29 @@ class ApiClient {
 
     throw ApiException(msg, resp.statusCode);
   }
+
+/// Recupera la prenotazione tramite QR Code senza modificarne lo stato
+  Future<Map<String, dynamic>> getPrenotazioneByQr(String codiceQr) async {
+    final url = Uri.parse('$_baseUrl/prenotazioni/qr/$codiceQr');
+    
+    try {
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final errorMsg = response.body.isNotEmpty ? response.body : 'Prenotazione non trovata';
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      throw Exception('Errore di connessione: $e');
+    }
+  }
+
+
   // Calcola importo da pagare: GET /api/prenotazioni/{id}/calcola-importo
   Future<double> calcolaImporto(String id) async {
     final response = await http.get(Uri.parse('$_baseUrl/prenotazioni/$id/calcola-importo'));
