@@ -10,6 +10,6 @@ public record PrenotazioneResponse(
     String codiceQr,
     StatoPrenotazione stato,
     LocalDateTime dataIngresso,
-    LocalDateTime dataUscita
-    
+    LocalDateTime dataUscita,
+    Double importoPagato
 ) {}

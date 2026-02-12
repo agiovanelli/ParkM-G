@@ -13,4 +13,6 @@ public interface PrenotazioneService {
     PrenotazioneResponse pagaPrenotazione(String prenotazioneId, double importo);
     PrenotazioneResponse validaUscita(String codiceQr);
     
+    PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
+    
 }

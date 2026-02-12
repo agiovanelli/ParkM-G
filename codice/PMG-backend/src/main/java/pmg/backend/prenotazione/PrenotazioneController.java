@@ -37,7 +37,15 @@ public class PrenotazioneController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    
+    @GetMapping("/qr/{codiceQr}")
+    public ResponseEntity<?> getPrenotazioneByQr(@PathVariable String codiceQr) {
+        try {
+            PrenotazioneResponse prenotazione = prenotazioneService.getPrenotazioneByQr(codiceQr);
+            return ResponseEntity.ok(prenotazione);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
     @DeleteMapping("/{prenotazioneId}/utente/{utenteId}")
     public ResponseEntity<?> annullaPrenotazione(
         @PathVariable String prenotazioneId,

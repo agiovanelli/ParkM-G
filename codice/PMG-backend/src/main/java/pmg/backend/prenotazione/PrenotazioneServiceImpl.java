@@ -48,8 +48,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                         p.getCodiceQr(),
                         p.getStato(),
                         p.getDataIngresso(),
-                        p.getDataUscita()
-                ))
+                        p.getDataUscita(),
+                        p.getImportoPagato()                ))
                 .toList();
     }
     
@@ -100,7 +100,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             p.getCodiceQr(),
             p.getStato(),
             p.getDataIngresso(),
-            p.getDataUscita()
+            p.getDataUscita(),
+            p.getImportoPagato()
         );
     }
     
@@ -260,5 +261,31 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         parcheggioRepository.save(park);
 
         return convertiInResponse(prenotazioneRepository.save(p));
+    }
+    
+    
+    @Override
+    public PrenotazioneResponse getPrenotazioneByQr(String codiceQr) {
+        Prenotazione prenotazione = prenotazioneRepository.findByCodiceQr(codiceQr)
+            .orElseThrow(() -> new RuntimeException("Prenotazione non trovata per il QR Code: " + codiceQr));
+        
+        return mapToResponse(prenotazione);
+    }
+
+    /**
+     * Metodo helper per convertire Prenotazione in PrenotazioneResponse
+     */
+    private PrenotazioneResponse mapToResponse(Prenotazione prenotazione) {
+        return new PrenotazioneResponse(
+            prenotazione.getId(),
+            prenotazione.getUtenteId(),
+            prenotazione.getParcheggioId(),
+            prenotazione.getDataCreazione(),
+            prenotazione.getCodiceQr(),
+            prenotazione.getStato(),
+            prenotazione.getDataIngresso(),
+            prenotazione.getDataUscita(),
+            prenotazione.getImportoPagato()  
+        );
     }
 }

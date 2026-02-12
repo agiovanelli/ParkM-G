@@ -98,7 +98,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 salvata.getCodiceQr(),
                 salvata.getStato(),          
                 salvata.getDataIngresso(),   
-                salvata.getDataUscita()      
+                salvata.getDataUscita(),
+                salvata.getImportoPagato()
         );
     }
 
