@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:park_mg/indoor/graph/lane_grid_mask.dart';
@@ -24,13 +25,54 @@ class IndoorParkingView extends StatefulWidget {
 }
 
 class _IndoorParkingViewState extends State<IndoorParkingView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late int _floor;
   List<Offset> _path = const [];
   double? _imgAspect;
   int _stepIndex = 0;
   late final AnimationController _targetCtrl;
   late final Animation<double> _targetT;
+  late final AnimationController _userCtrl;
+  late final Animation<double> _userT;
+  static const Offset _floorLabelN = Offset(0.285, 0.305);
+
+  Rect _imageRect(Size size, double imageAspect) {
+    final dstW = size.width;
+    final dstH = size.height;
+
+    final dstAspect = dstW / dstH;
+    final srcAspect = imageAspect;
+
+    double w, h;
+    if (srcAspect > dstAspect) {
+      w = dstW;
+      h = w / srcAspect;
+    } else {
+      h = dstH;
+      w = h * srcAspect;
+    }
+
+    final left = (dstW - w) / 2.0;
+    final top = (dstH - h) / 2.0;
+    return Rect.fromLTWH(left, top, w, h);
+  }
+
+  Offset _pxFromNormalized(Offset n, Size size) {
+    final r = _imageRect(size, _imgAspect ?? (16 / 9));
+    return Offset(r.left + n.dx * r.width, r.top + n.dy * r.height);
+  }
+
+  void _autoAdvanceStep() {
+    if (!mounted) return;
+
+    final steps = _steps;
+    final total = steps.length;
+
+    if (_stepIndex >= total - 1) return;
+
+    setState(() => _stepIndex++);
+    _recompute();
+  }
 
   List<int> get _steps {
     final targetFloor = widget.assignment.slot.floor;
@@ -38,6 +80,7 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
 
     if (targetFloor == from) return [from];
     if (targetFloor > from)
+      // ignore: curly_braces_in_flow_control_structures
       return [for (int f = from; f <= targetFloor; f++) f];
     return [for (int f = from; f >= targetFloor; f--) f];
   }
@@ -46,8 +89,6 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
   void initState() {
     super.initState();
     _stepIndex = 0;
-    _floor = 1;
-    _recompute();
 
     _targetCtrl = AnimationController(
       vsync: this,
@@ -55,6 +96,23 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
     )..repeat(reverse: true);
 
     _targetT = CurvedAnimation(parent: _targetCtrl, curve: Curves.easeInOut);
+
+    _userCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6), // regola tu
+    );
+
+    _userCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _autoAdvanceStep();
+      }
+    });
+
+    _userT = CurvedAnimation(parent: _userCtrl, curve: Curves.linear);
+
+    _floor = 1;
+    _recompute();
+    _userCtrl.forward(from: 0);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final a = await _loadAssetAspect(widget.def.floorAsset);
@@ -66,6 +124,7 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
   @override
   void dispose() {
     _targetCtrl.dispose();
+    _userCtrl.dispose();
     super.dispose();
   }
 
@@ -144,6 +203,8 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
       }
 
       setState(() => _path = pts);
+      _userCtrl.stop();
+      _userCtrl.forward(from: 0);
       return;
     }
 
@@ -162,14 +223,13 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
     );
 
     setState(() => _path = pts);
+    _userCtrl.stop();
+    _userCtrl.forward(from: 0);
   }
 
   @override
   Widget build(BuildContext context) {
     final slot = widget.assignment.slot;
-    final steps = _steps;
-    final shownFloor = steps[_stepIndex];
-    final totalSteps = steps.length;
 
     return Column(
       children: [
@@ -178,13 +238,8 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: const Icon(Icons.directions, color: Colors.white),
-              ),
-
               Text(
-                'Vai al posto ${slot.slotId} (Piano ${slot.floor})',
+                'Vai al posto P${slot.slotId} (P - Piano)',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -195,36 +250,6 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
             ],
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              onPressed: _stepIndex > 0
-                  ? () {
-                      setState(() => _stepIndex--);
-                      _recompute();
-                    }
-                  : null,
-              icon: const Icon(Icons.chevron_left, color: Colors.white),
-            ),
-            Text(
-              'Step ${_stepIndex + 1}/$totalSteps • Piano $shownFloor',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            IconButton(
-              onPressed: _stepIndex < totalSteps - 1
-                  ? () {
-                      setState(() => _stepIndex++);
-                      _recompute();
-                    }
-                  : null,
-              icon: const Icon(Icons.chevron_right, color: Colors.white),
-            ),
-          ],
-        ),
         const SizedBox(height: 10),
         Expanded(
           child: ClipRRect(
@@ -234,32 +259,72 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
               child: Center(
                 child: AspectRatio(
                   aspectRatio: _imgAspect ?? (16 / 9),
-                  child: InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    boundaryMargin: const EdgeInsets.all(24),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.asset(widget.def.floorAsset, fit: BoxFit.contain),
-                        AnimatedBuilder(
-                          animation: _targetT,
-                          builder: (_, __) {
-                            return CustomPaint(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final size = Size(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                      final p = _pxFromNormalized(_floorLabelN, size);
+
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset(
+                            widget.def.floorAsset,
+                            fit: BoxFit.contain,
+                          ),
+
+                          Positioned(
+                            left: p.dx,
+                            top: p.dy,
+                            child: Transform.translate(
+                              offset: const Offset(-44, -20),
+                              child: Transform(
+                                alignment: Alignment.center,
+                                transform: (Matrix4.identity()
+                                  ..rotateZ(-0.55)
+                                  ..setEntry(0, 1, -math.tan(0.22))),
+                                child: Text(
+                                  'Piano $_floor',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 24,
+                                    shadows: [
+                                      Shadow(
+                                        blurRadius: 8,
+                                        color: Colors.black.withOpacity(0.65),
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          AnimatedBuilder(
+                            animation: Listenable.merge([
+                              _targetCtrl,
+                              _userCtrl,
+                            ]),
+                            builder: (_, __) => CustomPaint(
                               painter: _IndoorOverlayPainter(
                                 imageAspect: _imgAspect ?? (16 / 9),
                                 path: _path,
                                 target: widget.assignment.slotPoint.toOffset(),
                                 showTarget: _floor == slot.floor,
-                                showUser: _floor == widget.userFloor,
+                                showUser: _path.length >= 2,
                                 showGridDebug: widget.showGridDebug,
                                 targetAnimT: _targetT.value,
+                                userAnimT: _userT.value,
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -279,6 +344,7 @@ class _IndoorOverlayPainter extends CustomPainter {
   final bool showGridDebug;
   final double imageAspect;
   final double targetAnimT;
+  final double userAnimT;
 
   _IndoorOverlayPainter({
     required this.path,
@@ -288,6 +354,7 @@ class _IndoorOverlayPainter extends CustomPainter {
     required this.showGridDebug,
     required this.imageAspect,
     required this.targetAnimT,
+    required this.userAnimT,
   });
 
   Offset _px(Offset n, Size s) {
@@ -314,6 +381,37 @@ class _IndoorOverlayPainter extends CustomPainter {
     final left = (dstW - w) / 2.0;
     final top = (dstH - h) / 2.0;
     return Rect.fromLTWH(left, top, w, h);
+  }
+
+  Offset _pointOnPolylinePx(List<Offset> polyN, Size size, double t) {
+    if (polyN.isEmpty) return _px(LaneGridMask.entryPointNormalized(), size);
+    if (polyN.length == 1) return _px(polyN.first, size);
+
+    // lunghezze in px
+    final ptsPx = polyN.map((n) => _px(n, size)).toList();
+
+    double total = 0;
+    for (int i = 1; i < ptsPx.length; i++) {
+      total += (ptsPx[i] - ptsPx[i - 1]).distance;
+    }
+    if (total <= 0) return ptsPx.first;
+
+    double d = (t.clamp(0.0, 1.0)) * total;
+
+    for (int i = 1; i < ptsPx.length; i++) {
+      final a = ptsPx[i - 1];
+      final b = ptsPx[i];
+      final seg = (b - a).distance;
+      if (seg <= 0) continue;
+
+      if (d <= seg) {
+        final u = d / seg;
+        return Offset(a.dx + (b.dx - a.dx) * u, a.dy + (b.dy - a.dy) * u);
+      }
+      d -= seg;
+    }
+
+    return ptsPx.last;
   }
 
   @override
@@ -347,8 +445,7 @@ class _IndoorOverlayPainter extends CustomPainter {
     }
 
     if (showUser) {
-      final entry = LaneGridMask.entryPointNormalized();
-      final u = _px(entry, size);
+      final u = _pointOnPolylinePx(path, size, userAnimT);
 
       final fill = Paint()..color = const Color(0xFF00E676);
       final ring = Paint()
@@ -544,6 +641,7 @@ class _IndoorOverlayPainter extends CustomPainter {
         old.showTarget != showTarget ||
         old.showUser != showUser ||
         old.showGridDebug != showGridDebug ||
-        old.targetAnimT != targetAnimT;
+        old.targetAnimT != targetAnimT ||
+        old.userAnimT != userAnimT;
   }
 }
