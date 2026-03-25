@@ -2,6 +2,8 @@ package pmg.backend.prenotazione;
 
 import java.time.LocalDateTime;
 
+import pmg.backend.posto.PostoResponse;
+
 public record PrenotazioneResponse(
     String id,
     String utenteId,
@@ -11,5 +13,6 @@ public record PrenotazioneResponse(
     StatoPrenotazione stato,
     LocalDateTime dataIngresso,
     LocalDateTime dataUscita,
-    Double importoPagato
+    Double importoPagato,
+    PostoResponse posto
 ) {}

@@ -3,6 +3,8 @@ package pmg.backend.prenotazione;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import pmg.backend.posto.PostoResponse;
+
 import java.time.LocalDateTime;
 
 @Document(collection = "prenotazioni")
@@ -25,6 +27,8 @@ public class Prenotazione {
     private Double importoPagato;
     private LocalDateTime dataPagamento;
 
+    private PostoResponse posto;
+    
     // Costruttore vuoto richiesto da Spring / Mongo
     public Prenotazione() {}
 
@@ -46,7 +50,8 @@ public class Prenotazione {
                         String codiceQr,
                         StatoPrenotazione stato,
                         LocalDateTime dataIngresso,
-                        LocalDateTime dataUscita) {
+                        LocalDateTime dataUscita,
+                        PostoResponse posto) {
 
         this.utenteId = utenteId;
         this.parcheggioId = parcheggioId;
@@ -55,6 +60,7 @@ public class Prenotazione {
         this.stato = stato != null ? stato : StatoPrenotazione.ATTIVA;
         this.dataIngresso = dataIngresso;
         this.dataUscita = dataUscita;
+        this.posto = posto;
     }
 
     // Getter e Setter 
@@ -126,4 +132,6 @@ public class Prenotazione {
     public void setImportoPagato(Double importoPagato) { this.importoPagato = importoPagato; }
     public LocalDateTime getDataPagamento() { return dataPagamento; }
     public void setDataPagamento(LocalDateTime dataPagamento) { this.dataPagamento = dataPagamento; }
+    public PostoResponse getPosto() { return posto; }
+    public void setPosto(PostoResponse posto) { this.posto = posto; }
 }

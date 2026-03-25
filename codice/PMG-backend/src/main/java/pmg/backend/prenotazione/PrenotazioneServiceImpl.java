@@ -50,7 +50,10 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                         p.getStato(),
                         p.getDataIngresso(),
                         p.getDataUscita(),
-                        p.getImportoPagato()                ))
+                        p.getImportoPagato(),
+                        p.getPosto()
+                        )
+                	)
                 .toList();
     }
     
@@ -102,7 +105,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             p.getStato(),
             p.getDataIngresso(),
             p.getDataUscita(),
-            p.getImportoPagato()
+            p.getImportoPagato(),
+            p.getPosto()
         );
     }
     
@@ -286,7 +290,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             prenotazione.getStato(),
             prenotazione.getDataIngresso(),
             prenotazione.getDataUscita(),
-            prenotazione.getImportoPagato()  
+            prenotazione.getImportoPagato(),
+            prenotazione.getPosto()
         );
     }
 

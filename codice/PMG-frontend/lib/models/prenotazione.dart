@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'posto.dart';
 
 class PrenotazioneResponse {
   final String id;
@@ -12,6 +13,8 @@ class PrenotazioneResponse {
   final DateTime? dataIngresso;
   final DateTime? dataUscita;
 
+  final Posto posto;
+
   PrenotazioneResponse({
     required this.id,
     required this.utenteId,
@@ -21,6 +24,7 @@ class PrenotazioneResponse {
     required this.stato,
     required this.dataIngresso,
     required this.dataUscita,
+    required this.posto,
   });
 
   static DateTime? _parseDT(dynamic v) {
@@ -45,6 +49,7 @@ class PrenotazioneResponse {
 
       dataIngresso: _parseDT(json['dataIngresso']),
       dataUscita: _parseDT(json['dataUscita']),
+      posto: Posto.fromJson(json['posto'] as Map<String, dynamic>),
     );
   }
 }

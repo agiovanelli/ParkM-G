@@ -131,7 +131,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 salvata.getStato(),
                 salvata.getDataIngresso(),
                 salvata.getDataUscita(),
-                salvata.getImportoPagato()
+                salvata.getImportoPagato(),
+                new PostoResponse(migliorPosto)
         );
     }
 

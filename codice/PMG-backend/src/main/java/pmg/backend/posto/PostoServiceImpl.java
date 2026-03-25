@@ -45,11 +45,6 @@ public class PostoServiceImpl implements PostoService {
     }
 
     private PostoResponse mapToResponse(Posto posto) {
-        return new PostoResponse(
-                posto.getId(),
-                posto.getParcheggioId(),
-                posto.isDisponibile(),
-                posto.getPiano()
-        );
+        return new PostoResponse(posto);
     }
 }
