@@ -1,5 +1,7 @@
 package pmg.backend.parcheggio;
 
+import java.util.Map;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -47,4 +49,9 @@ public class Parcheggio {
     public void setLongitudine(double longitudine) { this.longitudine = longitudine; }
     public boolean isInEmergenza() { return inEmergenza; }
     public void setInEmergenza(boolean inEmergenza) { this.inEmergenza = inEmergenza; }
+
+	public Map<String, String> getPreferenze() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

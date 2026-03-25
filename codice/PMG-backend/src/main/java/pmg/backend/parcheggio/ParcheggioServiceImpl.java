@@ -11,10 +11,17 @@ import pmg.backend.log.LogCategoria;
 import pmg.backend.log.LogRequest;
 import pmg.backend.log.LogService;
 import pmg.backend.log.LogSeverità;
+import pmg.backend.posto.Posto;
+import pmg.backend.posto.PostoRepository;
+import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.Prenotazione;
 import pmg.backend.prenotazione.PrenotazioneRepository;
+import pmg.backend.utente.Utente;
+import pmg.backend.utente.UtenteRepository;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID; // Per generare un codice QR temporaneo
 
 @Service
@@ -25,12 +32,22 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final ParcheggioRepository parcheggioRepository;
     private final PrenotazioneRepository prenotazioneRepository;
     private final LogService logService;
-
+    private final PostoRepository postoRepository;
+    private final UtenteRepository utenteRepository;
+    
     // Aggiorna il costruttore per iniettare entrambi i repository
-    public ParcheggioServiceImpl(ParcheggioRepository parcheggioRepository, PrenotazioneRepository prenotazioneRepository, LogService logService) {
+    public ParcheggioServiceImpl(
+            ParcheggioRepository parcheggioRepository,
+            PrenotazioneRepository prenotazioneRepository,
+            LogService logService,
+            PostoRepository postoRepository,
+            UtenteRepository utenteRepository) {
+
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
         this.logService = logService;
+        this.postoRepository = postoRepository;
+        this.utenteRepository = utenteRepository;
     }
 
     @Override
@@ -44,60 +61,75 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 
     @Override
     @Transactional
-    public PrenotazioneResponse effettuaPrenotazione (PrenotazioneRequest req) { 
-        LOGGER.info("Tentativo di prenotazione: utente={}, parcheggio={}", req.utenteId(), req.parcheggioId());
-        // 1. Recupero il parcheggio
+    public PrenotazioneResponse effettuaPrenotazione(PrenotazioneRequest req) {
+
+        LOGGER.info("Tentativo di prenotazione: utente={}, parcheggio={}",
+                req.utenteId(), req.parcheggioId());
+
+        // 1️ Recupero parcheggio
         Parcheggio parcheggio = parcheggioRepository.findById(req.parcheggioId())
                 .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
-        
-        
-        //controllo emergenza
+
+        // 2️ Controllo emergenza
         if (parcheggio.isInEmergenza()) {
-            LOGGER.warn("Prenotazione negata: il parcheggio {} è in stato di emergenza", parcheggio.getNome());
+            LOGGER.warn("Prenotazione negata: parcheggio {} in emergenza",
+                    parcheggio.getNome());
             throw new IllegalStateException("Parcheggio temporaneamente chiuso per emergenza");
         }
 
-        // Controllo disponibilità standard
-        if (parcheggio.getPostiDisponibili() <= 0) {
+        // 3️ Recupero utente
+        Utente utente = utenteRepository.findById(req.utenteId())
+                .orElseThrow(() -> new IllegalArgumentException("Utente non trovato"));
+
+        Map<String, String> preferenze = utente.getPreferenze();
+        
+        // 4 Recupero posti disponibili reali
+        List<Posto> postiDisponibili =
+                postoRepository.findByParcheggioIdAndDisponibileTrue(req.parcheggioId());
+
+        if (postiDisponibili.isEmpty()) {
+            LOGGER.warn("Posti esauriti nel parcheggio {}", parcheggio.getNome());
             throw new IllegalStateException("Posti esauriti");
         }
-        
-        
-        
-        
 
-        // 2. Controllo disponibilità 
-        if (parcheggio.getPostiDisponibili() <= 0) {
-            LOGGER.warn("Prenotazione fallita: posti esauriti per il parcheggio {}", parcheggio.getNome());
-            throw new IllegalStateException("Posti esauriti");
+        // 5️ Algoritmo selezione posto
+        Posto migliorPosto = assegnaPostoOttimale(preferenze, postiDisponibili);
+
+        if (migliorPosto == null) {
+            throw new IllegalStateException("Nessun posto compatibile con le preferenze");
         }
 
-        // 3. Scalo il posto e aggiorno il parcheggio
+        // 6️ Marca posto occupato
+        migliorPosto.setDisponibile(false);
+        postoRepository.save(migliorPosto);
+
+        // 7️ Aggiorna contatore
         parcheggio.setPostiDisponibili(parcheggio.getPostiDisponibili() - 1);
         parcheggioRepository.save(parcheggio);
 
-        // 4. Genero un codice per il QR 
+        // 8️ Genero QR
         String codiceQr = UUID.randomUUID().toString();
 
-        // 5. Creo e salvo la prenotazione nel DB 
+        // 9️ Creo prenotazione
         Prenotazione entity = new Prenotazione(
                 req.utenteId(),
                 req.parcheggioId(),
                 LocalDateTime.now(),
                 codiceQr
         );
+
         Prenotazione salvata = prenotazioneRepository.save(entity);
 
         LOGGER.info("Prenotazione completata con successo! ID: {}", salvata.getId());
 
         return new PrenotazioneResponse(
-                String.valueOf(salvata.getId()), 
+                String.valueOf(salvata.getId()),
                 salvata.getUtenteId(),
                 salvata.getParcheggioId(),
                 salvata.getDataCreazione(),
                 salvata.getCodiceQr(),
-                salvata.getStato(),          
-                salvata.getDataIngresso(),   
+                salvata.getStato(),
+                salvata.getDataIngresso(),
                 salvata.getDataUscita(),
                 salvata.getImportoPagato()
         );
@@ -174,6 +206,81 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
+  
+    
+    private Posto assegnaPostoOttimale(Map<String, String> preferenzeUtente, List<Posto> listaPosti) {
+
+			if (preferenzeUtente == null) {
+			preferenzeUtente = Map.of();
+			}
+			
+			boolean disabile = Boolean.parseBoolean(
+			preferenzeUtente.getOrDefault("disabile", "false"));
+			
+			boolean incinta = Boolean.parseBoolean(
+			preferenzeUtente.getOrDefault("incinta", "false"));
+			
+			int pianoPreferito = parseIntOrDefault(
+			preferenzeUtente.get("pianoPreferito"), -1);
+			
+			int distanzaPreferita = parseIntOrDefault(
+			preferenzeUtente.get("distanzaPreferita"), 0);
+			
+			List<Posto> postiCandidati = new ArrayList<>();
+			
+			// O(n)
+			for (Posto posto : listaPosti) {
+			
+			if (!posto.isDisponibile()) continue;
+			
+			if (disabile && !posto.isRiservatoDisabili()) continue;
+			
+			if (incinta && !posto.isRiservatoIncinta()) continue;
+			
+			postiCandidati.add(posto);
+			}
+			
+			Posto migliorPosto = null;
+			int punteggioMassimo = Integer.MIN_VALUE;
+			
+			// O(k)
+			for (Posto posto : postiCandidati) {
+			
+			int punteggio = 0;
+			
+			if (disabile && posto.isRiservatoDisabili()) {
+			punteggio += 50;
+			}
+			
+			if (incinta) {
+			punteggio += (100 - posto.getDistanzaUscita());
+			}
+			
+			if (posto.getPiano() == pianoPreferito) {
+			punteggio += 20;
+			}
+			
+			int differenza = Math.abs(
+			posto.getDistanzaUscita() - distanzaPreferita);
+			
+			punteggio -= differenza;
+			
+			if (punteggio > punteggioMassimo) {
+			punteggioMassimo = punteggio;
+			migliorPosto = posto;
+			}
+			}
+			
+			return migliorPosto;
+			}
+    
+    private int parseIntOrDefault(String value, int defaultValue) {
+        try {
+            return value != null ? Integer.parseInt(value) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
     
     @Override
     public ParcheggioResponse getById(String id) {
@@ -181,4 +288,10 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
         return toResponse(p);
     }
+
+	@Override
+	public PostoResponse assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

@@ -2,6 +2,9 @@ package pmg.backend.prenotazione;
 
 import java.util.List;
 
+import pmg.backend.parcheggio.Parcheggio;
+import pmg.backend.utente.Utente;
+
 public interface PrenotazioneService {
     List<PrenotazioneResponse> getStoricoUtente(String utenteId);
 
@@ -12,6 +15,8 @@ public interface PrenotazioneService {
 	double calcolaImporto(String prenotazioneId);
     PrenotazioneResponse pagaPrenotazione(String prenotazioneId, double importo);
     PrenotazioneResponse validaUscita(String codiceQr);
+    
+    PrenotazioneResponse selezionePostoOttimo(Utente utente, List<Parcheggio> listaPosti);
     
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
     
