@@ -20,4 +20,5 @@ public interface PrenotazioneService {
     
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
     
+    List<PrenotazioneResponse> getByParcheggio(String parcheggioId);
 }

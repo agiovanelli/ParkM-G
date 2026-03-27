@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
 
@@ -64,5 +65,14 @@ public class ParcheggioController {
     public ResponseEntity<ParcheggioResponse> getById(@PathVariable String id) {
         LOGGER.info("HTTP GET /api/parcheggi/{}", id);
         return ResponseEntity.ok(parcheggioService.getById(id));
+    }
+    
+    @GetMapping("/{id}/posti")
+    public ResponseEntity<List<PostoResponse>> getPosti(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer piano
+    ) {
+        LOGGER.info("HTTP GET /api/parcheggi/{}/posti?piano={}", id, piano);
+        return ResponseEntity.ok(parcheggioService.getPosti(id, piano));
     }
 }

@@ -1,6 +1,5 @@
 package pmg.backend.prenotazione;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.scheduling.annotation.Scheduled;
@@ -359,5 +358,28 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
         return migliorPosto;*/
 		return null;
+	}
+
+	@Override
+	public List<PrenotazioneResponse> getByParcheggio(String parcheggioId) {
+	    return prenotazioneRepository.findByParcheggioId(parcheggioId)
+	            .stream()
+	            .map(this::toResponse)
+	            .toList();
+	}
+	
+	private PrenotazioneResponse toResponse(Prenotazione p) {
+	    return new PrenotazioneResponse(
+	            String.valueOf(p.getId()),
+	            p.getUtenteId(),
+	            p.getParcheggioId(),
+	            p.getDataCreazione(),
+	            p.getCodiceQr(),
+	            p.getStato(),
+	            p.getDataIngresso(),
+	            p.getDataUscita(),
+	            p.getImportoPagato(),
+	            null
+	    );
 	}
 }

@@ -3,7 +3,6 @@ package pmg.backend.posto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class PostoServiceImpl implements PostoService {

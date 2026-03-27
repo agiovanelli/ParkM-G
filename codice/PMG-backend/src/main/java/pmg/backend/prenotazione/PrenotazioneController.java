@@ -91,5 +91,11 @@ public class PrenotazioneController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         }
     }
+    
+    @GetMapping("/parcheggio/{parcheggioId}")
+    public ResponseEntity<List<PrenotazioneResponse>> getByParcheggio(@PathVariable String parcheggioId) {
+        List<PrenotazioneResponse> prenotazioni = prenotazioneService.getByParcheggio(parcheggioId);
+        return ResponseEntity.ok(prenotazioni);
+    }
 
 }

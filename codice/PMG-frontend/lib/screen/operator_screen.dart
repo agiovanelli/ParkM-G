@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:park_mg/models/posto.dart';
 import 'package:park_mg/utils/theme.dart';
-import 'package:park_mg/widgets/parking_map.dart' as sch;
+import 'package:park_mg/widgets/operator_parking_image_map.dart';
 import '../models/operatore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -98,39 +99,10 @@ class ParkingStats {
   int get occupancyPercent => (occupancyRatio * 100).round();
 }
 
-enum ParkingSpotState { available, occupied, reserved, unavailable }
-
-class ParkingSpot {
-  final String id;
-  final ParkingSpotState state;
-
-  const ParkingSpot(this.id, this.state);
-}
-
-List<ParkingSpot> mockSpotsForFloor(int floor) {
-  final random = [
-    ParkingSpotState.available,
-    ParkingSpotState.occupied,
-    ParkingSpotState.reserved,
-    ParkingSpotState.unavailable,
-  ];
-
-  return List.generate(
-    44,
-    (i) => ParkingSpot(
-      'F$floor-${(i + 1).toString().padLeft(3, '0')}',
-      random[(i + floor * 2) % random.length],
-    ),
-  );
-}
-
 class OperatorScreen extends StatefulWidget {
   final Operatore operatore;
-  
-  
 
-  const OperatorScreen({super.key, required this.operatore, });
-
+  const OperatorScreen({super.key, required this.operatore});
 
   @override
   State<OperatorScreen> createState() => _OperatorScreenState();
@@ -140,24 +112,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late ApiClient _apiClient;
   bool _isProcessing = false;
-  // --- Side menu navigation ---
   int _pageIndex = 0;
-
   String? _selectedSpotId;
-
   int _selectedFloor = 1;
-  late List<ParkingSpot> _spots;
-
-  // Dashboard state
   LogCategory _selectedCategory = LogCategory.allarme;
-  LogSeverity? _severityFilter; // null = tutte
-
+  LogSeverity? _severityFilter;
   final _searchController = TextEditingController();
-
   bool _isRefreshing = false;
-
-  // Mock data (poi li rimpiazzi con API / websocket / polling)
   late List<ParkingLogItem> _items;
+  List<Posto> _realSpots = [];
+  bool _isLoadingSpots = false;
 
   // Nuova pagina: stats
   late ParkingStats _stats;
@@ -177,9 +141,15 @@ class _OperatorScreenState extends State<OperatorScreen> {
     _apiClient = ApiClient();
     _items = [];
     _loadLogs();
-    _stats = _buildMockStats();
+    _stats = const ParkingStats(
+      totalSpots: 0,
+      availableSpots: 0,
+      activeReservations: 0,
+      inactiveReservations: 0,
+    );
     _lastFetchAt = DateTime.now();
-    _spots = mockSpotsForFloor(_selectedFloor);
+    _loadParkingStats();
+    _loadParkingSpots();
 
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!mounted) return;
@@ -193,6 +163,31 @@ class _OperatorScreenState extends State<OperatorScreen> {
     _autoRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadParkingSpots() async {
+    if (!mounted) return;
+
+    setState(() => _isLoadingSpots = true);
+
+    try {
+      final spots = await _apiClient.getPostiParcheggio(
+        widget.operatore.parcheggioId,
+        piano: _selectedFloor,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _realSpots = spots;
+      });
+    } catch (e) {
+      _showToast('Errore caricamento posti: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingSpots = false);
+      }
+    }
   }
 
   Future<List<ParkingLogItem>> _fetchLogItems() async {
@@ -230,17 +225,60 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  ParkingStats _buildMockStats() {
-    // TODO: rimpiazza con dati reali (API/websocket/polling)
-    return const ParkingStats(
-      totalSpots: 220,
-      availableSpots: 58,
-      activeReservations: 12,
-      inactiveReservations: 3,
-    );
-  }
+  Future<void> _loadParkingStats() async {
+    try {
+      final parcheggio = await _apiClient.getParcheggioById(
+        widget.operatore.parcheggioId,
+      );
+      debugPrint('parcheggio raw: $parcheggio');
 
-  // ---- Top actions ----
+      final prenotazioni = await _apiClient.getPrenotazioniByParcheggio(
+        widget.operatore.parcheggioId,
+      );
+      debugPrint('prenotazioni count: ${prenotazioni.length}');
+
+      int activeReservations = 0;
+      int inactiveReservations = 0;
+
+      for (final p in prenotazioni) {
+        switch (p.stato) {
+          case StatoPrenotazione.ATTIVA:
+          case StatoPrenotazione.IN_CORSO:
+          case StatoPrenotazione.PAGATO:
+            activeReservations++;
+            break;
+          case StatoPrenotazione.CONCLUSA:
+          case StatoPrenotazione.SCADUTA:
+          case StatoPrenotazione.ANNULLATA:
+            inactiveReservations++;
+            break;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _stats = ParkingStats(
+          totalSpots: (parcheggio['postiTotali'] as num?)?.toInt() ?? 0,
+          availableSpots:
+              (parcheggio['postiDisponibili'] as num?)?.toInt() ?? 0,
+          activeReservations: activeReservations,
+          inactiveReservations: inactiveReservations,
+        );
+      });
+
+      debugPrint(
+        'stats loaded -> total: ${_stats.totalSpots}, '
+        'available: ${_stats.availableSpots}, '
+        'active: ${_stats.activeReservations}, '
+        'inactive: ${_stats.inactiveReservations}',
+      );
+    } catch (e, st) {
+      debugPrint('errore _loadParkingStats: $e');
+      debugPrintStack(stackTrace: st);
+      _showToast('Errore caricamento statistiche: $e');
+    }
+  }
 
   void _logout() => Navigator.of(context).pop();
 
@@ -248,8 +286,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
     setState(() {
       _selectedFloor = floor;
       _selectedSpotId = null;
-      _spots = mockSpotsForFloor(floor);
     });
+
+    _loadParkingSpots();
   }
 
   Future<void> _confirmLogout() async {
@@ -443,31 +482,35 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
     setState(() => _isRefreshing = true);
 
-    // Qui in futuro farai: await api.fetchLogs(...);
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
-    final data = await _fetchLogItems();
+    try {
+      final data = await _fetchLogItems();
 
-    if (!mounted) return;
-    setState(() {
-      _items = data;
-      _stats = _buildMockStats();
-      _spots = mockSpotsForFloor(_selectedFloor); // aggiorna anche la mappa
-      _lastFetchAt = DateTime.now();
-      _isRefreshing = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _items = data;
+        _lastFetchAt = DateTime.now();
+        _isRefreshing = false;
+      });
+
+      await _loadParkingStats();
+      await _loadParkingSpots();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isRefreshing = false);
+      _showToast('Errore refresh: $e');
+    }
   }
 
-    void _showToast(String msg) {
+  void _showToast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
         backgroundColor: AppColors.bgDark,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -792,25 +835,31 @@ class _OperatorScreenState extends State<OperatorScreen> {
         children: [
           // EMERGENZA
           InkWell(
-              onTap: _triggerEmergenza,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.red, width: 2),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.warning_amber_rounded, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text("ATTIVA BLOCCO EMERGENZA", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  ],
-                ),
+            onTap: _triggerEmergenza,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.red, width: 2),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red),
+                  SizedBox(width: 12),
+                  Text(
+                    "ATTIVA BLOCCO EMERGENZA",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
           // KPI CARDS
           isWide
               ? Row(
@@ -1172,62 +1221,34 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 ),
           const SizedBox(height: 24),
 
-          // ---- MAPPA PARCHEGGIO (ORA IN FILE SEPARATO) ----
-          sch.ParkingSchematicMap(
-            selectedFloor: _selectedFloor,
-            floors: const [1, 2, 3, 4, 5],
-            onFloorChanged: (v) => _changeFloor(v),
+          if (_isLoadingSpots)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.accentCyan),
+              ),
+            )
+          else
+            OperatorParkingImageMap(
+              selectedFloor: _selectedFloor,
+              floors: const [1, 2, 3],
+              onFloorChanged: (v) => _changeFloor(v),
+              spots: _realSpots,
+              selectedSpotId: _selectedSpotId,
+              onSpotTap: (slotId) {
+                final tapped = _realSpots.firstWhere((s) => s.slotId == slotId);
 
-            spots: sch.UniformGarageLayout.buildForFloor(
-              floor: _selectedFloor,
-              selectedId: _selectedSpotId,
-              occupiedIds: _occupiedIdsForSelectedFloor(),
-              reservedIds: _reservedIdsForSelectedFloor(),
-              unavailableIds: _unavailableIdsForSelectedFloor(),
+                if (!tapped.disponibile) return;
+
+                setState(() {
+                  _selectedSpotId = (_selectedSpotId == slotId) ? null : slotId;
+                });
+              },
             ),
-
-            onSpotTap: (s) {
-              // Blocca tap su occupati/prenotati/non disponibili
-              if (s.state != sch.SpotState.free) return;
-
-              setState(() {
-                _selectedSpotId = (_selectedSpotId == s.id) ? null : s.id;
-              });
-            },
-
-            legend: [
-              _legendItem(AppColors.accentCyan, 'Disponibile'),
-              _legendItem(const Color(0xFFF59E0B), 'Occupato'),
-              _legendItem(const Color(0xFF3B82F6), 'Prenotato'),
-              _legendItem(const Color(0xFF6B7280), 'Non disponibile'),
-            ],
-          ),
         ],
       ),
     );
   }
-
-  Set<String> _occupiedIdsForSelectedFloor() {
-    return _spots
-        .where((s) => s.state == ParkingSpotState.occupied)
-        .map((s) => s.id)
-        .toSet();
-  }
-
-  Set<String> _reservedIdsForSelectedFloor() {
-    return _spots
-        .where((s) => s.state == ParkingSpotState.reserved)
-        .map((s) => s.id)
-        .toSet();
-  }
-
-  Set<String> _unavailableIdsForSelectedFloor() {
-    return _spots
-        .where((s) => s.state == ParkingSpotState.unavailable)
-        .map((s) => s.id)
-        .toSet();
-  }
-
   // ---- Widgets (riusati) ----
 
   Widget _kpiCard(
@@ -1283,32 +1304,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
           if (trailing != null) ...[const SizedBox(width: 10), trailing],
         ],
       ),
-    );
-  }
-
-  Widget _legendItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.25),
-            border: Border.all(color: color, width: 1.5),
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1640,71 +1635,252 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
+  /// Handler principale per la scansione del QR Code
+  Future<void> _handleQrScan(String qrCode) async {
+    if (_isProcessing) return;
 
+    setState(() {
+      _isProcessing = true;
+    });
 
-/// Handler principale per la scansione del QR Code
-Future<void> _handleQrScan(String qrCode) async {
-  if (_isProcessing) return;
-  
-  setState(() {
-    _isProcessing = true;
-  });
+    try {
+      // 1. Recupera la prenotazione senza modificarne lo stato
+      final prenotazioneData = await _apiClient.getPrenotazioneByQr(qrCode);
+      final statoString = prenotazioneData['stato'] as String;
+      final stato = StatoPrenotazione.values.firstWhere(
+        (e) => e.name == statoString,
+      );
+      final prenotazioneId = prenotazioneData['id'] as String;
 
-  try {
-    // 1. Recupera la prenotazione senza modificarne lo stato
-    final prenotazioneData = await _apiClient.getPrenotazioneByQr(qrCode);
-    final statoString = prenotazioneData['stato'] as String;
-    final stato = StatoPrenotazione.values.firstWhere(
-      (e) => e.name == statoString,
+      // 2. Gestisci in base allo stato
+      switch (stato) {
+        case StatoPrenotazione.ATTIVA:
+          await _handleIngresso(qrCode);
+          break;
+
+        case StatoPrenotazione.IN_CORSO:
+          await _handlePagamento(prenotazioneId, qrCode);
+          break;
+
+        case StatoPrenotazione.PAGATO:
+          await _handleUscita(qrCode);
+          break;
+
+        case StatoPrenotazione.CONCLUSA:
+          _showErrorDialog('Prenotazione già conclusa');
+          break;
+
+        case StatoPrenotazione.SCADUTA:
+          _showErrorDialog('Prenotazione scaduta');
+          break;
+
+        case StatoPrenotazione.ANNULLATA:
+          _showErrorDialog('Prenotazione annullata');
+          break;
+      }
+    } catch (e) {
+      _showErrorDialog('Errore: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  /// Gestisce l'ingresso (stato ATTIVA → IN_CORSO)
+  Future<void> _handleIngresso(String qrCode) async {
+    try {
+      final response = await _apiClient.validaIngresso(qrCode);
+
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.bgDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF10B981),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Ingresso Validato',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow('Prenotazione', response.id),
+                const SizedBox(height: 8),
+                _infoRow('Codice QR', response.codiceQr ?? qrCode),
+                const SizedBox(height: 8),
+                _infoRow('Stato', _formatStato(response.stato)),
+                const SizedBox(height: 8),
+                _infoRow(
+                  'Data ingresso',
+                  response.dataIngresso != null
+                      ? _formatTime(response.dataIngresso!)
+                      : 'Ora',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accentCyan,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        _refresh();
+      }
+    } catch (e) {
+      _showErrorDialog('Errore validazione ingresso: ${e.toString()}');
+    }
+  }
+
+  /// Gestisce il pagamento in cassa (stato IN_CORSO → PAGATO)
+  Future<void> _handlePagamento(String prenotazioneId, String qrCode) async {
+    try {
+      // Calcola l'importo dovuto
+      final importo = await _apiClient.calcolaImporto(prenotazioneId);
+
+      // Mostra il dialog di pagamento
+      final conferma = await _showPagamentoDialog(importo, prenotazioneId);
+
+      if (conferma == true && mounted) {
+        _showSuccessDialog(
+          'Pagamento registrato con successo.\n\nScansionare nuovamente il QR per consentire l\'uscita.',
+        );
+        _refresh();
+      }
+    } catch (e) {
+      _showErrorDialog('Errore durante il pagamento: ${e.toString()}');
+    }
+  }
+
+  /// Gestisce l'uscita (stato PAGATO → CONCLUSA)
+  Future<void> _handleUscita(String qrCode) async {
+    try {
+      final response = await _apiClient.validaUscita(qrCode);
+
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.bgDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF10B981),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Uscita Consentita',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow('Prenotazione', response.id),
+                const SizedBox(height: 8),
+                _infoRow('Stato', _formatStato(response.stato)),
+                const SizedBox(height: 8),
+                _infoRow(
+                  'Data uscita',
+                  response.dataUscita != null
+                      ? _formatTime(response.dataUscita!)
+                      : 'Ora',
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Buon viaggio! 🚗',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accentCyan,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        _refresh();
+      }
+    } catch (e) {
+      _showErrorDialog('Errore validazione uscita: ${e.toString()}');
+    }
+  }
+
+  /// Mostra il dialog per il pagamento in cassa
+  Future<bool?> _showPagamentoDialog(
+    double importoCalcolato,
+    String prenotazioneId,
+  ) async {
+    final importoController = TextEditingController(
+      text: importoCalcolato.toStringAsFixed(2),
     );
-    final prenotazioneId = prenotazioneData['id'] as String;
 
-    // 2. Gestisci in base allo stato
-    switch (stato) {
-      case StatoPrenotazione.ATTIVA:
-        await _handleIngresso(qrCode);
-        break;
-
-      case StatoPrenotazione.IN_CORSO:
-        await _handlePagamento(prenotazioneId, qrCode);
-        break;
-
-      case StatoPrenotazione.PAGATO:
-        await _handleUscita(qrCode);
-        break;
-
-      case StatoPrenotazione.CONCLUSA:
-        _showErrorDialog('Prenotazione già conclusa');
-        break;
-
-      case StatoPrenotazione.SCADUTA:
-        _showErrorDialog('Prenotazione scaduta');
-        break;
-
-      case StatoPrenotazione.ANNULLATA:
-        _showErrorDialog('Prenotazione annullata');
-        break;
-    }
-  } catch (e) {
-    _showErrorDialog('Errore: ${e.toString()}');
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-}
-
-/// Gestisce l'ingresso (stato ATTIVA → IN_CORSO)
-Future<void> _handleIngresso(String qrCode) async {
-  try {
-    final response = await _apiClient.validaIngresso(qrCode);
-    
-    if (mounted) {
-      await showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
           backgroundColor: AppColors.bgDark,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -1714,19 +1890,19 @@ Future<void> _handleIngresso(String qrCode) async {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  color: const Color(0xFFF59E0B).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF10B981),
+                  Icons.euro,
+                  color: Color(0xFFF59E0B),
                   size: 28,
                 ),
               ),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Ingresso Validato',
+                  'Pagamento in Cassa',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -1739,491 +1915,316 @@ Future<void> _handleIngresso(String qrCode) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _infoRow('Prenotazione', response.id),
-              const SizedBox(height: 8),
-              _infoRow('Codice QR', response.codiceQr ?? qrCode),
-              const SizedBox(height: 8),
-              _infoRow('Stato', _formatStato(response.stato)),
-              const SizedBox(height: 8),
-              _infoRow(
-                'Data ingresso',
-                response.dataIngresso != null 
-                  ? _formatTime(response.dataIngresso!)
-                  : 'Ora',
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.accentCyan,
-              ),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      
-      _refresh();
-    }
-  } catch (e) {
-    _showErrorDialog('Errore validazione ingresso: ${e.toString()}');
-  }
-}
-
-/// Gestisce il pagamento in cassa (stato IN_CORSO → PAGATO)
-Future<void> _handlePagamento(String prenotazioneId, String qrCode) async {
-  try {
-    // Calcola l'importo dovuto
-    final importo = await _apiClient.calcolaImporto(prenotazioneId);
-    
-    // Mostra il dialog di pagamento
-    final conferma = await _showPagamentoDialog(importo, prenotazioneId);
-    
-    if (conferma == true && mounted) {
-      _showSuccessDialog(
-        'Pagamento registrato con successo.\n\nScansionare nuovamente il QR per consentire l\'uscita.',
-      );
-      _refresh();
-    }
-  } catch (e) {
-    _showErrorDialog('Errore durante il pagamento: ${e.toString()}');
-  }
-}
-
-/// Gestisce l'uscita (stato PAGATO → CONCLUSA)
-Future<void> _handleUscita(String qrCode) async {
-  try {
-    final response = await _apiClient.validaUscita(qrCode);
-    
-    if (mounted) {
-      await showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppColors.bgDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF10B981),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Uscita Consentita',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoRow('Prenotazione', response.id),
-              const SizedBox(height: 8),
-              _infoRow('Stato', _formatStato(response.stato)),
-              const SizedBox(height: 8),
-              _infoRow(
-                'Data uscita',
-                response.dataUscita != null 
-                  ? _formatTime(response.dataUscita!)
-                  : 'Ora',
-              ),
-              const SizedBox(height: 16),
               const Text(
-                'Buon viaggio! 🚗',
+                'Importo dovuto:',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.accentCyan,
-              ),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      
-      _refresh();
-    }
-  } catch (e) {
-    _showErrorDialog('Errore validazione uscita: ${e.toString()}');
-  }
-}
-
-/// Mostra il dialog per il pagamento in cassa
-Future<bool?> _showPagamentoDialog(double importoCalcolato, String prenotazioneId) async {
-  final importoController = TextEditingController(
-    text: importoCalcolato.toStringAsFixed(2),
-  );
-
-  return showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: AppColors.bgDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.euro,
-                color: Color(0xFFF59E0B),
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Pagamento in Cassa',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(height: 12),
+              TextField(
+                controller: importoController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Importo dovuto:',
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: importoController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              decoration: InputDecoration(
-                prefixText: '€ ',
-                prefixStyle: const TextStyle(
+                style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
-                filled: true,
-                fillColor: AppColors.bgDark2,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.borderField),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.borderField),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.accentCyan, width: 2),
+                decoration: InputDecoration(
+                  prefixText: '€ ',
+                  prefixStyle: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.bgDark2,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderField),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderField),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.accentCyan,
+                      width: 2,
+                    ),
+                  ),
                 ),
               ),
+              const SizedBox(height: 12),
+              const Text(
+                'L\'operatore può modificare l\'importo se necessario.',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+              child: const Text('Annulla'),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'L\'operatore può modificare l\'importo se necessario.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textMuted,
+            ElevatedButton(
+              onPressed: () async {
+                final importo = double.tryParse(importoController.text);
+
+                if (importo == null || importo <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Importo non valido'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  // Chiama l'API di pagamento
+                  await _apiClient.pagaPrenotazione(prenotazioneId, importo);
+                  Navigator.of(context).pop(true);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Errore: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accentCyan,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
+              child: const Text('Conferma Pagamento'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Mostra un dialog di successo
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Operazione completata',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accentCyan,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Mostra un dialog di errore
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.error,
+                  color: Color(0xFFEF4444),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Errore',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatStato(StatoPrenotazione stato) {
+    switch (stato) {
+      case StatoPrenotazione.ATTIVA:
+        return 'Attiva';
+      case StatoPrenotazione.IN_CORSO:
+        return 'In Corso';
+      case StatoPrenotazione.PAGATO:
+        return 'Pagato';
+      case StatoPrenotazione.CONCLUSA:
+        return 'Conclusa';
+      case StatoPrenotazione.SCADUTA:
+        return 'Scaduta';
+      case StatoPrenotazione.ANNULLATA:
+        return 'Annullata';
+    }
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _triggerEmergenza() async {
+    String motivo = "";
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgDark,
+        title: const Text(
+          'ATTIVAZIONE EMERGENZA',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Il parcheggio verrà chiuso istantaneamente.',
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Motivo (opzionale)',
+                labelStyle: TextStyle(color: Colors.grey),
+              ),
+              onChanged: (v) => motivo = v,
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.textMuted,
-            ),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Annulla'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              final importo = double.tryParse(importoController.text);
-              
-              if (importo == null || importo <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Importo non valido'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-
-              try {
-                // Chiama l'API di pagamento
-                await _apiClient.pagaPrenotazione(prenotazioneId, importo);
-                Navigator.of(context).pop(true);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Errore: ${e.toString()}'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accentCyan,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Conferma Pagamento'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-/// Mostra un dialog di successo
-void _showSuccessDialog(String message) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: AppColors.bgDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.check_circle,
-                color: Color(0xFF10B981),
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Operazione completata',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accentCyan,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-/// Mostra un dialog di errore
-void _showErrorDialog(String message) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: AppColors.bgDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.error,
-                color: Color(0xFFEF4444),
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Errore',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-String _formatStato(StatoPrenotazione stato) {
-  switch (stato) {
-    case StatoPrenotazione.ATTIVA:
-      return 'Attiva';
-    case StatoPrenotazione.IN_CORSO:
-      return 'In Corso';
-    case StatoPrenotazione.PAGATO:
-      return 'Pagato';
-    case StatoPrenotazione.CONCLUSA:
-      return 'Conclusa';
-    case StatoPrenotazione.SCADUTA:
-      return 'Scaduta';
-    case StatoPrenotazione.ANNULLATA:
-      return 'Annullata';
-  }
-}
-
-Widget _infoRow(String label, String value) {
-  return Row(
-    children: [
-      Text(
-        '$label: ',
-        style: const TextStyle(
-          color: AppColors.textMuted,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      Expanded(
-        child: Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ],
-  );
-}
-
-Future<void> _triggerEmergenza() async {
-  String motivo = "";
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.bgDark,
-      title: const Text('ATTIVAZIONE EMERGENZA', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Il parcheggio verrà chiuso istantaneamente.', style: TextStyle(color: Colors.white)),
-          const SizedBox(height: 10),
-          TextField(
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(labelText: 'Motivo (opzionale)', labelStyle: TextStyle(color: Colors.grey)),
-            onChanged: (v) => motivo = v,
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('CONFERMA BLOCCO'),
           ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('CONFERMA BLOCCO'),
-        ),
-      ],
-    ),
-  );
+    );
 
-  if (confirm == true) {
-    try {
-      await _apiClient.impostaEmergenza(widget.operatore.parcheggioId, true, motivo);
-      _refresh();
-      _showToast("EMERGENZA ATTIVATA");
-    } catch (e) {
-      _showToast("Errore: $e");
+    if (confirm == true) {
+      try {
+        await _apiClient.impostaEmergenza(
+          widget.operatore.parcheggioId,
+          true,
+          motivo,
+        );
+        _refresh();
+        _showToast("EMERGENZA ATTIVATA");
+      } catch (e) {
+        _showToast("Errore: $e");
+      }
     }
   }
-}
-
-  
-
-
-
-
-
 }

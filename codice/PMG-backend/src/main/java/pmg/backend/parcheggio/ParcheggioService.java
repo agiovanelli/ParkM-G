@@ -20,4 +20,6 @@ public interface ParcheggioService {
 	PostoResponse assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze);
     
 	ParcheggioResponse getById(String id);
+	
+	List<PostoResponse> getPosti(String parcheggioId, Integer piano);
 }

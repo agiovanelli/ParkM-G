@@ -20,6 +20,7 @@ import pmg.backend.utente.Utente;
 import pmg.backend.utente.UtenteRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID; // Per generare un codice QR temporaneo
@@ -84,24 +85,23 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         Map<String, Map<String, Posto>> listaPosti = parcheggio.getListaPosti();
 
         // 4️ Scansione posti
-        Posto migliorPosto = assegnaPostoOttimale(preferenze, listaPosti);
+        SelectedPosto selected = assegnaPostoOttimale(preferenze, listaPosti);
 
-        if (migliorPosto == null) {
+        if (selected == null) {
             throw new IllegalStateException("Posti esauriti");
         }
 
-        // 5️ Occupa posto
-        migliorPosto.setDisponibile(false);
-        postoRepository.save(migliorPosto);
+        Posto migliorPosto = selected.posto();
+        PostoResponse postoAssegnato = selected.response();
 
-        // 6️ Salva
+        // ora migliorPosto NON può essere null
+        migliorPosto.setDisponibile(false);
+
         parcheggio.setPostiDisponibili(parcheggio.getPostiDisponibili() - 1);
         parcheggioRepository.save(parcheggio);
 
-        // 7️ QR
         String codiceQr = UUID.randomUUID().toString();
 
-        // 8️ Prenotazione
         Prenotazione entity = new Prenotazione(
                 req.utenteId(),
                 req.parcheggioId(),
@@ -109,10 +109,12 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 codiceQr
         );
 
+        entity.setPosto(postoAssegnato);
+
         Prenotazione salvata = prenotazioneRepository.save(entity);
 
         return new PrenotazioneResponse(
-                String.valueOf(salvata.getId()),
+                salvata.getId(),
                 salvata.getUtenteId(),
                 salvata.getParcheggioId(),
                 salvata.getDataCreazione(),
@@ -121,7 +123,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 salvata.getDataIngresso(),
                 salvata.getDataUscita(),
                 salvata.getImportoPagato(),
-                new PostoResponse(migliorPosto)
+                salvata.getPosto()
         );
     }
 
@@ -199,9 +201,13 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     }
   
     
-    private Posto assegnaPostoOttimale(
+    private SelectedPosto assegnaPostoOttimale(
             Map<String, String> preferenzeUtente,
             Map<String, Map<String, Posto>> listaPosti) {
+
+        if (listaPosti == null || listaPosti.isEmpty()) {
+            return null;
+        }
 
         if (preferenzeUtente == null) {
             preferenzeUtente = Map.of();
@@ -217,25 +223,28 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 preferenzeUtente.get("distanzaPreferita"), 0);
 
         Posto migliorPosto = null;
+        String migliorPianoKey = null;
+        String migliorPostoKey = null;
         int punteggioMassimo = Integer.MIN_VALUE;
 
-        // 🔁 CICLO SU TUTTA LA STRUTTURA
-        for (String pianoKey : listaPosti.keySet()) {
+        for (Map.Entry<String, Map<String, Posto>> pianoEntry : listaPosti.entrySet()) {
+            String pianoKey = pianoEntry.getKey();
+            Map<String, Posto> postiPiano = pianoEntry.getValue();
 
-            Map<String, Posto> postiPiano = listaPosti.get(pianoKey);
+            if (postiPiano == null || postiPiano.isEmpty()) {
+                continue;
+            }
 
-            for (String postoKey : postiPiano.keySet()) {
+            for (Map.Entry<String, Posto> postoEntry : postiPiano.entrySet()) {
+                String postoKey = postoEntry.getKey();
+                Posto posto = postoEntry.getValue();
 
-                Posto posto = postiPiano.get(postoKey);
-
-                // ❌ salta occupati
+                if (posto == null) continue;
                 if (!posto.isDisponibile()) continue;
 
-                // ❌ filtri hard
                 if (disabile && !posto.isRiservatoDisabili()) continue;
                 if (incinta && !posto.isRiservatoIncinta()) continue;
 
-                // 🎯 CALCOLO PUNTEGGIO
                 int punteggio = 0;
 
                 if (disabile && posto.isRiservatoDisabili()) {
@@ -246,21 +255,34 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                     punteggio += 30;
                 }
 
-                // distanza (più vicino = meglio)
-                int differenza = Math.abs(
-                        posto.getDistanzaUscita() - distanzaPreferita);
-
+                int differenza = Math.abs(posto.getDistanzaUscita() - distanzaPreferita);
                 punteggio -= differenza;
 
-                // 🏆 migliore
                 if (punteggio > punteggioMassimo) {
                     punteggioMassimo = punteggio;
                     migliorPosto = posto;
+                    migliorPianoKey = pianoKey;
+                    migliorPostoKey = postoKey;
                 }
             }
         }
 
-        return migliorPosto;
+        if (migliorPosto == null) {
+            return null;
+        }
+
+        int floor = extractFloorNumber(migliorPianoKey);
+        String normalizedSlotNumber = normalizeSlotNumber(migliorPostoKey);
+        String slotId = floor + "-" + normalizedSlotNumber;
+
+        PostoResponse response = new PostoResponse(
+                slotId,
+                floor,
+                normalizedSlotNumber,
+                migliorPosto
+        );
+
+        return new SelectedPosto(migliorPosto, response);
     }
     
     private int parseIntOrDefault(String value, int defaultValue) {
@@ -277,10 +299,89 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
         return toResponse(p);
     }
+	
+	public List<PostoResponse> getPosti(String parcheggioId, Integer piano) {
+	    Parcheggio parcheggio = parcheggioRepository.findById(parcheggioId)
+	            .orElseThrow(() -> new RuntimeException("Parcheggio non trovato: " + parcheggioId));
+
+	    Map<String, Map<String, Posto>> listaPosti = parcheggio.getListaPosti();
+	    List<PostoResponse> result = new ArrayList<>();
+
+	    if (listaPosti == null || listaPosti.isEmpty()) {
+	        return result;
+	    }
+
+	    for (Map.Entry<String, Map<String, Posto>> pianoEntry : listaPosti.entrySet()) {
+	        String pianoKey = pianoEntry.getKey();      // es. "piano1"
+	        int floor = extractFloorNumber(pianoKey);   // -> 1
+
+	        if (piano != null && floor != piano) {
+	            continue;
+	        }
+
+	        Map<String, Posto> postiDelPiano = pianoEntry.getValue();
+	        if (postiDelPiano == null || postiDelPiano.isEmpty()) {
+	            continue;
+	        }
+
+	        for (Map.Entry<String, Posto> postoEntry : postiDelPiano.entrySet()) {
+	            String rawSlotNumber = postoEntry.getKey();   // es. "7" oppure "07"
+	            Posto posto = postoEntry.getValue();
+
+	            String normalizedSlotNumber = normalizeSlotNumber(rawSlotNumber);
+	            String slotId = floor + "-" + normalizedSlotNumber;
+
+	            result.add(new PostoResponse(
+	                    slotId,
+	                    floor,
+	                    normalizedSlotNumber,
+	                    posto
+	            ));
+	        }
+	    }
+
+	    result.sort(
+	            Comparator.comparingInt(PostoResponse::getFloor)
+	                    .thenComparing(PostoResponse::getSlotNumber)
+	    );
+
+	    return result;
+	}
+
+    private int extractFloorNumber(String pianoKey) {
+        if (pianoKey == null || pianoKey.isBlank()) {
+            throw new IllegalArgumentException("Chiave piano non valida: " + pianoKey);
+        }
+
+        String digits = pianoKey.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            throw new IllegalArgumentException("Impossibile estrarre numero piano da: " + pianoKey);
+        }
+
+        return Integer.parseInt(digits);
+    }
+
+    private String normalizeSlotNumber(String rawSlotNumber) {
+        if (rawSlotNumber == null || rawSlotNumber.isBlank()) {
+            throw new IllegalArgumentException("Numero posto non valido: " + rawSlotNumber);
+        }
+
+        int num = Integer.parseInt(rawSlotNumber);
+        if (num <= 0) {
+            throw new IllegalArgumentException("Numero posto non valido: " + rawSlotNumber);
+        }
+
+        return String.format("%02d", num);
+    }
 
 	@Override
 	public PostoResponse assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze) {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	private record SelectedPosto(
+		    Posto posto,
+		    PostoResponse response
+		) {}
 }

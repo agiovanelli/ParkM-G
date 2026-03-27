@@ -13,7 +13,7 @@ class PrenotazioneResponse {
   final DateTime? dataIngresso;
   final DateTime? dataUscita;
 
-  final Posto posto;
+  final Posto? posto;
 
   PrenotazioneResponse({
     required this.id,
@@ -49,7 +49,9 @@ class PrenotazioneResponse {
 
       dataIngresso: _parseDT(json['dataIngresso']),
       dataUscita: _parseDT(json['dataUscita']),
-      posto: Posto.fromJson(json['posto'] as Map<String, dynamic>),
+      posto: json['posto'] != null
+          ? Posto.fromJson(json['posto'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

@@ -6,5 +6,5 @@ class IndoorMapDefinition {
 }
 
 IndoorMapDefinition buildDefaultIndoorMapDefinition() {
-  return IndoorMapDefinition(floorAsset: 'assets/parking/floor.png', floors: 5);
+  return IndoorMapDefinition(floorAsset: 'assets/parking/floor.png', floors: 3);
 }

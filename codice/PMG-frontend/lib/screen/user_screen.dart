@@ -1668,7 +1668,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
                               IndoorParkingView(
                                 def: _indoorDef,
                                 assignment: _assignmentProvider.fromSlotId(
-                                  '3-07',
+                                  '1-01',
                                 ),
                                 userFloor: 1,
                                 showGridDebug: false,

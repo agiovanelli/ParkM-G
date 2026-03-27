@@ -14,4 +14,6 @@ public interface PrenotazioneRepository extends MongoRepository<Prenotazione, St
     Optional<Prenotazione> findByCodiceQr(String codiceQr);
     
     Optional<Prenotazione> findByIdAndUtenteId(String id, String utenteId);
+    
+    List<Prenotazione> findByParcheggioId(String parcheggioId);
 }
