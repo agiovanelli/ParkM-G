@@ -15,14 +15,6 @@ public class PostoServiceImpl implements PostoService {
     }
 
     @Override
-    public List<PostoResponse> getPostiByParcheggio(String parcheggioId) {
-        return repository.findByParcheggioId(parcheggioId)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
     public PostoResponse creaPosto(Posto posto) {
         Posto salvato = repository.save(posto);
         return mapToResponse(salvato);
@@ -47,4 +39,10 @@ public class PostoServiceImpl implements PostoService {
     private PostoResponse mapToResponse(Posto posto) {
         return new PostoResponse(posto);
     }
+
+	@Override
+	public List<PostoResponse> getPostiByParcheggio(String parcheggioId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

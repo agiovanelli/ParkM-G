@@ -6,7 +6,4 @@ import java.util.List;
 
 public interface PostoRepository extends MongoRepository<Posto, String> {
 
-    List<Posto> findByParcheggioId(String parcheggioId);
-
-    List<Posto> findByParcheggioIdAndDisponibileTrue(String parcheggioId);
 }

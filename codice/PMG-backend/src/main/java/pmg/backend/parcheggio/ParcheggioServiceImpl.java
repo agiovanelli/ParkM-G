@@ -66,51 +66,42 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         LOGGER.info("Tentativo di prenotazione: utente={}, parcheggio={}",
                 req.utenteId(), req.parcheggioId());
 
-        // 1️ Recupero parcheggio
+        // 1️ Parcheggio
         Parcheggio parcheggio = parcheggioRepository.findById(req.parcheggioId())
                 .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
 
-        // 2️ Controllo emergenza
         if (parcheggio.isInEmergenza()) {
-            LOGGER.warn("Prenotazione negata: parcheggio {} in emergenza",
-                    parcheggio.getNome());
-            throw new IllegalStateException("Parcheggio temporaneamente chiuso per emergenza");
+            throw new IllegalStateException("Parcheggio in emergenza");
         }
 
-        // 3️ Recupero utente
+        // 2️ Utente
         Utente utente = utenteRepository.findById(req.utenteId())
                 .orElseThrow(() -> new IllegalArgumentException("Utente non trovato"));
 
         Map<String, String> preferenze = utente.getPreferenze();
-        
-        // 4 Recupero posti disponibili reali
-        List<Posto> postiDisponibili =
-                postoRepository.findByParcheggioIdAndDisponibileTrue(req.parcheggioId());
 
-        if (postiDisponibili.isEmpty()) {
-            LOGGER.warn("Posti esauriti nel parcheggio {}", parcheggio.getNome());
+        // 3️ Mappe
+        Map<String, Map<String, Posto>> listaPosti = parcheggio.getListaPosti();
+
+        // 4️ Scansione posti
+        Posto migliorPosto = assegnaPostoOttimale(preferenze, listaPosti);
+
+        if (migliorPosto == null) {
             throw new IllegalStateException("Posti esauriti");
         }
 
-        // 5️ Algoritmo selezione posto
-        Posto migliorPosto = assegnaPostoOttimale(preferenze, postiDisponibili);
-
-        if (migliorPosto == null) {
-            throw new IllegalStateException("Nessun posto compatibile con le preferenze");
-        }
-
-        // 6️ Marca posto occupato
+        // 5️ Occupa posto
         migliorPosto.setDisponibile(false);
         postoRepository.save(migliorPosto);
 
-        // 7️ Aggiorna contatore
+        // 6️ Salva
         parcheggio.setPostiDisponibili(parcheggio.getPostiDisponibili() - 1);
         parcheggioRepository.save(parcheggio);
 
-        // 8️ Genero QR
+        // 7️ QR
         String codiceQr = UUID.randomUUID().toString();
 
-        // 9️ Creo prenotazione
+        // 8️ Prenotazione
         Prenotazione entity = new Prenotazione(
                 req.utenteId(),
                 req.parcheggioId(),
@@ -119,8 +110,6 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         );
 
         Prenotazione salvata = prenotazioneRepository.save(entity);
-
-        LOGGER.info("Prenotazione completata con successo! ID: {}", salvata.getId());
 
         return new PrenotazioneResponse(
                 String.valueOf(salvata.getId()),
@@ -173,7 +162,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             p.getPostiDisponibili(),
             p.getLatitudine(),
             p.getLongitudine(),
-            p.isInEmergenza()
+            p.isInEmergenza(),
+            p.getListaPosti()
         );
     }
     
@@ -209,71 +199,69 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     }
   
     
-    private Posto assegnaPostoOttimale(Map<String, String> preferenzeUtente, List<Posto> listaPosti) {
+    private Posto assegnaPostoOttimale(
+            Map<String, String> preferenzeUtente,
+            Map<String, Map<String, Posto>> listaPosti) {
 
-			if (preferenzeUtente == null) {
-			preferenzeUtente = Map.of();
-			}
-			
-			boolean disabile = Boolean.parseBoolean(
-			preferenzeUtente.getOrDefault("disabile", "false"));
-			
-			boolean incinta = Boolean.parseBoolean(
-			preferenzeUtente.getOrDefault("incinta", "false"));
-			
-			int pianoPreferito = parseIntOrDefault(
-			preferenzeUtente.get("pianoPreferito"), -1);
-			
-			int distanzaPreferita = parseIntOrDefault(
-			preferenzeUtente.get("distanzaPreferita"), 0);
-			
-			List<Posto> postiCandidati = new ArrayList<>();
-			
-			// O(n)
-			for (Posto posto : listaPosti) {
-			
-			if (!posto.isDisponibile()) continue;
-			
-			if (disabile && !posto.isRiservatoDisabili()) continue;
-			
-			if (incinta && !posto.isRiservatoIncinta()) continue;
-			
-			postiCandidati.add(posto);
-			}
-			
-			Posto migliorPosto = null;
-			int punteggioMassimo = Integer.MIN_VALUE;
-			
-			// O(k)
-			for (Posto posto : postiCandidati) {
-			
-			int punteggio = 0;
-			
-			if (disabile && posto.isRiservatoDisabili()) {
-			punteggio += 50;
-			}
-			
-			if (incinta) {
-			punteggio += (100 - posto.getDistanzaUscita());
-			}
-			
-			if (posto.getPiano() == pianoPreferito) {
-			punteggio += 20;
-			}
-			
-			int differenza = Math.abs(
-			posto.getDistanzaUscita() - distanzaPreferita);
-			
-			punteggio -= differenza;
-			
-			if (punteggio > punteggioMassimo) {
-			punteggioMassimo = punteggio;
-			migliorPosto = posto;
-			}
-			}
-			
-			return migliorPosto;
-			}
+        if (preferenzeUtente == null) {
+            preferenzeUtente = Map.of();
+        }
+
+        boolean disabile = Boolean.parseBoolean(
+                preferenzeUtente.getOrDefault("disabile", "false"));
+
+        boolean incinta = Boolean.parseBoolean(
+                preferenzeUtente.getOrDefault("incinta", "false"));
+
+        int distanzaPreferita = parseIntOrDefault(
+                preferenzeUtente.get("distanzaPreferita"), 0);
+
+        Posto migliorPosto = null;
+        int punteggioMassimo = Integer.MIN_VALUE;
+
+        // 🔁 CICLO SU TUTTA LA STRUTTURA
+        for (String pianoKey : listaPosti.keySet()) {
+
+            Map<String, Posto> postiPiano = listaPosti.get(pianoKey);
+
+            for (String postoKey : postiPiano.keySet()) {
+
+                Posto posto = postiPiano.get(postoKey);
+
+                // ❌ salta occupati
+                if (!posto.isDisponibile()) continue;
+
+                // ❌ filtri hard
+                if (disabile && !posto.isRiservatoDisabili()) continue;
+                if (incinta && !posto.isRiservatoIncinta()) continue;
+
+                // 🎯 CALCOLO PUNTEGGIO
+                int punteggio = 0;
+
+                if (disabile && posto.isRiservatoDisabili()) {
+                    punteggio += 50;
+                }
+
+                if (incinta && posto.isRiservatoIncinta()) {
+                    punteggio += 30;
+                }
+
+                // distanza (più vicino = meglio)
+                int differenza = Math.abs(
+                        posto.getDistanzaUscita() - distanzaPreferita);
+
+                punteggio -= differenza;
+
+                // 🏆 migliore
+                if (punteggio > punteggioMassimo) {
+                    punteggioMassimo = punteggio;
+                    migliorPosto = posto;
+                }
+            }
+        }
+
+        return migliorPosto;
+    }
     
     private int parseIntOrDefault(String value, int defaultValue) {
         try {

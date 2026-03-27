@@ -29,8 +29,8 @@ class ParcheggioControllerTest {
 
     @Test
     void cercaTest() throws Exception {
-        ParcheggioResponse p1 = new ParcheggioResponse("1", "Parcheggio A", "Centro", 100, 20, 45.5, 9.1, false);
-        ParcheggioResponse p2 = new ParcheggioResponse("2", "Parcheggio B", "Centro", 50, 10, 45.51, 9.11, false);
+        ParcheggioResponse p1 = new ParcheggioResponse("1", "Parcheggio A", "Centro", 100, 20, 45.5, 9.1, false, null);
+        ParcheggioResponse p2 = new ParcheggioResponse("2", "Parcheggio B", "Centro", 50, 10, 45.51, 9.11, false, null);
 
         when(parcheggioService.cercaPerArea("Centro")).thenReturn(List.of(p1, p2));
 
@@ -46,7 +46,7 @@ class ParcheggioControllerTest {
     void prenotaTest() throws Exception {
         LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
-        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", dataCreazione, "QR123", null, dataCreazione, dataCreazione, null);
+        PrenotazioneResponse resp = new PrenotazioneResponse("1", "utente1", "parcheggio1", dataCreazione, "QR123", null, dataCreazione, dataCreazione, null, null);
 
         when(parcheggioService.effettuaPrenotazione(any(PrenotazioneRequest.class))).thenReturn(resp);
 
@@ -69,7 +69,7 @@ class ParcheggioControllerTest {
 
     @Test
     void getNearbyTest() throws Exception {
-        ParcheggioResponse vicino = new ParcheggioResponse("3", "Vicino", "Nord", 10, 2, 45.50, 9.20, false);
+        ParcheggioResponse vicino = new ParcheggioResponse("3", "Vicino", "Nord", 10, 2, 45.50, 9.20, false, null);
         when(parcheggioService.cercaVicini(45.50, 9.20, 500.0)).thenReturn(List.of(vicino));
 
         mockMvc.perform(get("/api/parcheggi/nearby")

@@ -1,5 +1,10 @@
 package pmg.backend.parcheggio;
 
+import java.util.List;
+import java.util.Map;
+
+import pmg.backend.posto.Posto;
+
 public record ParcheggioResponse(
 	    String id,
 	    String nome,
@@ -8,5 +13,6 @@ public record ParcheggioResponse(
 	    int postiDisponibili,
 	    double latitudine,
 	    double longitudine,
-	    boolean inEmergenza
+	    boolean inEmergenza,
+	    Map<String, Map<String, Posto>> listaPosti
 ) {}

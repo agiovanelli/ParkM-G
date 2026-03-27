@@ -1,9 +1,12 @@
 package pmg.backend.parcheggio;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import pmg.backend.posto.Posto;
 
 @Document(collection = "parcheggi")
 public class Parcheggio {
@@ -19,17 +22,20 @@ public class Parcheggio {
     private double longitudine;
     
     private boolean inEmergenza; // Default: false
+    
+    private Map<String, Map<String, Posto>> listaPosti;
 
     public Parcheggio() {}
 
     public Parcheggio(String nome, String area, int postiTotali, int postiDisponibili,
-                      double latitudine, double longitudine) {
+                      double latitudine, double longitudine, Map<String, Map<String, Posto>> listaPosti) {
         this.nome = nome;
         this.area = area;
         this.postiTotali = postiTotali;
         this.postiDisponibili = postiDisponibili;
         this.latitudine = latitudine;
         this.longitudine = longitudine;
+        this.listaPosti = listaPosti;
     }
 
     // Getter e Setter 
@@ -49,9 +55,6 @@ public class Parcheggio {
     public void setLongitudine(double longitudine) { this.longitudine = longitudine; }
     public boolean isInEmergenza() { return inEmergenza; }
     public void setInEmergenza(boolean inEmergenza) { this.inEmergenza = inEmergenza; }
-
-	public Map<String, String> getPreferenze() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    public Map<String, Map<String, Posto>> getListaPosti() { return listaPosti; }
+    public void setListaPosti(Map<String, Map<String, Posto>> listaPosti) { this.listaPosti = listaPosti; }
 }
