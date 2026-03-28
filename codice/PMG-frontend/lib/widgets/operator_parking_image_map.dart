@@ -90,22 +90,46 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
 
   Color _spotColor(Posto posto) {
     if (widget.selectedSpotId == posto.slotId) {
-      return const Color(0xFF22C55E);
+      return AppColors.accentCyan;
     }
+
     if (!posto.disponibile) {
       return const Color(0xFFEF4444);
     }
-    if (posto.riservatoDisabili || posto.riservatoIncinta) {
-      return const Color(0xFF3B82F6);
+
+    if (posto.riservatoDisabili) {
+      return const Color(0xFFFACC15);
     }
-    return AppColors.accentCyan;
+
+    if (posto.riservatoIncinta) {
+      return const Color(0xFFF9A8D4);
+    }
+
+    return const Color(0xFF22C55E);
   }
 
   String _spotLabel(Posto posto) {
-    if (!posto.disponibile) return 'X';
-    if (posto.riservatoDisabili) return 'D';
-    if (posto.riservatoIncinta) return 'P';
-    return 'L';
+    return posto.slotNumber.toString();
+  }
+
+  List<Offset> _slotPolygonNormalized(int c, int r) {
+    return LaneGridMask.cellBlockPolygonNormalized(
+      c: c,
+      r: r,
+      halfCols: 2,
+      halfRows: 1,
+    );
+  }
+
+  Rect _slotTapRect(List<Offset> poly, Size size) {
+    final pts = poly.map((e) => _pxFromNormalized(e, size)).toList();
+
+    final minX = pts.map((e) => e.dx).reduce((a, b) => a < b ? a : b);
+    final maxX = pts.map((e) => e.dx).reduce((a, b) => a > b ? a : b);
+    final minY = pts.map((e) => e.dy).reduce((a, b) => a < b ? a : b);
+    final maxY = pts.map((e) => e.dy).reduce((a, b) => a > b ? a : b);
+
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
   @override
@@ -122,16 +146,6 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Mappa Parcheggio',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
               DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
                   dropdownColor: AppColors.bgDark,
@@ -153,77 +167,75 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
             ],
           ),
           const SizedBox(height: 12),
-          AspectRatio(
-            aspectRatio: _imgAspect ?? (16 / 9),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final size = Size(constraints.maxWidth, constraints.maxHeight);
+          Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.82,
+              child: AspectRatio(
+                aspectRatio: _imgAspect ?? (16 / 9),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size = Size(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    );
 
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.asset(widget.assetPath, fit: BoxFit.contain),
-                    ),
-                    ...widget.spots.map((posto) {
-                      final cell = baseSlotMap[posto.slotNumber];
-                      if (cell == null) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final normalized = LaneGridMask.cellCenterToNormalized(
-                        cell.c,
-                        cell.r,
-                      );
-                      final p = _pxFromNormalized(normalized, size);
-
-                      return Positioned(
-                        left: p.dx - 20,
-                        top: p.dy - 20,
-                        child: Tooltip(
-                          message:
-                              '${posto.slotId} • '
-                              '${posto.disponibile ? "Libero" : "Occupato"}'
-                              '${posto.riservatoDisabili ? " • Disabili" : ""}'
-                              '${posto.riservatoIncinta ? " • Incinta" : ""}',
-                          child: GestureDetector(
-                            onTap: () => widget.onSpotTap(posto.slotId),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: _spotColor(posto).withOpacity(0.90),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.25),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _spotLabel(posto),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.asset(
+                            widget.assetPath,
+                            fit: BoxFit.contain,
                           ),
                         ),
-                      );
-                    }),
-                  ],
-                );
-              },
+
+                        CustomPaint(
+                          painter: _OperatorParkingSlotsPainter(
+                            spots: widget.spots,
+                            selectedSpotId: widget.selectedSpotId,
+                            imageAspect: _imgAspect ?? (16 / 9),
+                            pxFromNormalized: _pxFromNormalized,
+                            spotColor: _spotColor,
+                            spotLabel: _spotLabel,
+                          ),
+                        ),
+
+                        ...widget.spots.map((posto) {
+                          final cell = baseSlotMap[posto.slotNumber];
+                          if (cell == null) return const SizedBox.shrink();
+
+                          final poly = _slotPolygonNormalized(cell.c, cell.r);
+                          final tapRect = _slotTapRect(poly, size);
+
+                          return Positioned(
+                            left: tapRect.left,
+                            top: tapRect.top,
+                            width: tapRect.width,
+                            height: tapRect.height,
+                            child: Tooltip(
+                              message:
+                                  'Posto ${posto.slotNumber} • '
+                                  '${!posto.disponibile
+                                      ? "Occupato"
+                                      : posto.riservatoDisabili
+                                      ? "Libero - Disabili"
+                                      : posto.riservatoIncinta
+                                      ? "Libero - Donna incinta"
+                                      : "Libero"}',
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: () => widget.onSpotTap(posto.slotId),
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -231,10 +243,11 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
             spacing: 16,
             runSpacing: 8,
             children: [
-              _legendItem(AppColors.accentCyan, 'Disponibile'),
-              _legendItem(const Color(0xFFF59E0B), 'Occupato'),
-              _legendItem(const Color(0xFF3B82F6), 'Riservato'),
-              _legendItem(const Color(0xFF22C55E), 'Selezionato'),
+              _legendItem(const Color(0xFF22C55E), 'Disponibile'),
+              _legendItem(const Color(0xFFFACC15), 'Disabili'),
+              _legendItem(const Color(0xFFF9A8D4), 'Donna incinta'),
+              _legendItem(const Color(0xFFEF4444), 'Occupato'),
+              _legendItem(AppColors.accentCyan, 'Selezionato'),
             ],
           ),
         ],
@@ -247,12 +260,12 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 18,
+          height: 10,
           decoration: BoxDecoration(
             color: color.withOpacity(0.25),
             border: Border.all(color: color, width: 1.5),
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(width: 6),
@@ -266,5 +279,102 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
         ),
       ],
     );
+  }
+}
+
+class _OperatorParkingSlotsPainter extends CustomPainter {
+  final List<Posto> spots;
+  final String? selectedSpotId;
+  final double imageAspect;
+  final Offset Function(Offset n, Size size) pxFromNormalized;
+  final Color Function(Posto posto) spotColor;
+  final String Function(Posto posto) spotLabel;
+
+  _OperatorParkingSlotsPainter({
+    required this.spots,
+    required this.selectedSpotId,
+    required this.imageAspect,
+    required this.pxFromNormalized,
+    required this.spotColor,
+    required this.spotLabel,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final posto in spots) {
+      final cell = baseSlotMap[posto.slotNumber];
+      if (cell == null) continue;
+
+      final polyN = LaneGridMask.cellBlockPolygonNormalized(
+        c: cell.c,
+        r: cell.r,
+        halfCols: 2,
+        halfRows: 1,
+      );
+
+      final pts = polyN.map((p) => pxFromNormalized(p, size)).toList();
+      if (pts.length < 4) continue;
+
+      final path = Path()
+        ..moveTo(pts[0].dx, pts[0].dy)
+        ..lineTo(pts[1].dx, pts[1].dy)
+        ..lineTo(pts[2].dx, pts[2].dy)
+        ..lineTo(pts[3].dx, pts[3].dy)
+        ..close();
+
+      final color = spotColor(posto);
+
+      final glow = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8
+        ..strokeJoin = StrokeJoin.round
+        ..color = color.withOpacity(0.22);
+
+      final fill = Paint()
+        ..style = PaintingStyle.fill
+        ..color = color.withOpacity(0.35);
+
+      final stroke = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeJoin = StrokeJoin.round
+        ..color = color.withOpacity(0.95);
+
+      canvas.drawPath(path, glow);
+      canvas.drawPath(path, fill);
+      canvas.drawPath(path, stroke);
+
+      final center = Offset(
+        (pts[0].dx + pts[1].dx + pts[2].dx + pts[3].dx) / 4,
+        (pts[0].dy + pts[1].dy + pts[2].dy + pts[3].dy) / 4,
+      );
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: spotLabel(posto),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      textPainter.paint(
+        canvas,
+        Offset(
+          center.dx - textPainter.width / 2,
+          center.dy - textPainter.height / 2,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OperatorParkingSlotsPainter oldDelegate) {
+    return oldDelegate.spots != spots ||
+        oldDelegate.selectedSpotId != selectedSpotId ||
+        oldDelegate.imageAspect != imageAspect;
   }
 }

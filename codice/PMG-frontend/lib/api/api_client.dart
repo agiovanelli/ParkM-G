@@ -513,4 +513,58 @@ class ApiClient {
         .map((e) => PrenotazioneResponse.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  Future<List<Map<String, dynamic>>> getLogAnalitiche(
+    String analiticaId,
+  ) async {
+    final url = Uri.parse('$_baseUrl/analitiche/$analiticaId/log');
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore nel caricamento dei log');
+    }
+
+    final jsonList = jsonDecode(response.body);
+    if (jsonList is! List) {
+      throw Exception('Il backend non ha restituito una lista JSON');
+    }
+
+    return jsonList.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> updateLogSeverity(String logId, String severity) async {
+    final url = Uri.parse('$_baseUrl/log/$logId/severity?severity=$severity');
+    final response = await http.put(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore aggiornamento severity: ${response.statusCode}');
+    }
+  }
+
+  Future<void> updateLogCategory(String logId, String category) async {
+    final url = Uri.parse('$_baseUrl/log/$logId/category?category=$category');
+    final response = await http.put(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore aggiornamento category: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getAnaliticaByParcheggioId(
+    String parcheggioId,
+  ) async {
+    final url = Uri.parse('$_baseUrl/analitiche/parcheggio/$parcheggioId');
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore nel caricamento analitica del parcheggio');
+    }
+
+    final jsonMap = jsonDecode(response.body);
+    if (jsonMap is! Map<String, dynamic>) {
+      throw Exception('Il backend non ha restituito un\'analitica valida');
+    }
+
+    return jsonMap;
+  }
 }

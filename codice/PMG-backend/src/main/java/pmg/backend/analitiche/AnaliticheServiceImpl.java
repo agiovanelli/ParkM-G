@@ -33,4 +33,10 @@ public class AnaliticheServiceImpl implements AnaliticheService{
         return repository.save(entity);
     }
 
+    @Override
+    public Analitiche getByParcheggioId(String parcheggioId) {
+        return repository.findByParcheggioId(parcheggioId)
+                .orElseThrow(() -> new RuntimeException("Analitiche non trovata per parcheggioId: " + parcheggioId));
+    }
+
 }

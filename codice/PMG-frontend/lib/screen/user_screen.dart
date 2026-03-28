@@ -37,7 +37,8 @@ class UserScreen extends StatefulWidget {
   State<UserScreen> createState() => _UserScreenState();
 }
 
-class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
+class _UserScreenState extends State<UserScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final GlobalKey _gearKey = GlobalKey();
   GoogleMapController? _mapController;
@@ -85,12 +86,14 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
   BitmapDescriptor? _parkingIcon;
   BitmapDescriptor? _parkingIconSelected;
   int _sessionToken = 0;
+  Timer? _bookingStatusTimer;
   late final IndoorMapDefinition _indoorDef = buildDefaultIndoorMapDefinition();
   final IndoorAssignmentProvider _assignmentProvider =
       const IndoorAssignmentProvider();
 
   bool get _showIndoorMap {
     final b = _activeBooking;
+    debugPrint('SHOW INDOOR? stato=${b?.stato} posto=${b?.posto}');
     if (b == null) return false;
     return b.stato == StatoPrenotazione.IN_CORSO;
   }
@@ -109,6 +112,19 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
     final hsl = HSLColor.fromColor(_baseBlue);
     return hsl.withHue(120).toColor();
   }();
+
+  void _startBookingStatusPolling() {
+    _bookingStatusTimer?.cancel();
+
+    _bookingStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      await _refreshActiveBookingAndMaybeEnterIndoor();
+    });
+  }
+
+  void _stopBookingStatusPolling() {
+    _bookingStatusTimer?.cancel();
+    _bookingStatusTimer = null;
+  }
 
   void _showOnlyBookedParking(Map<String, dynamic> p) {
     final markerId = 'p_${p['id']}';
@@ -145,6 +161,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
   // -------------------- utils --------------------
 
   void _enterIndoorModeIfNeeded() {
+    debugPrint('ENTER INDOOR called, showIndoor=$_showIndoorMap');
     if (!mounted) return;
     if (!_showIndoorMap) return;
     _stopReturnOverlay();
@@ -428,6 +445,8 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         _arrivalHandled = true;
         _stopReturnOverlay();
 
+        _startBookingStatusPolling();
+
         await _showMapLockedDialog<void>(
           show: () async {
             final updated = await widget.apiClient
@@ -440,7 +459,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
 
             if (updated != null) {
               setState(() => _activeBooking = updated);
-              _enterIndoorModeIfNeeded();
             }
 
             return PrenotazioneDialog.mostra(
@@ -452,7 +470,34 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
             );
           },
         );
+
+        await _refreshActiveBookingAndMaybeEnterIndoor();
+        _stopBookingStatusPolling();
         _openingQrDialog = false;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _refreshActiveBookingAndMaybeEnterIndoor() async {
+    if (!mounted || _activeBooking == null) return;
+
+    try {
+      final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
+        widget.utente.id,
+        _activeBooking!.id,
+      );
+
+      if (!mounted || updated == null) return;
+
+      final changed = _activeBooking!.stato != updated.stato;
+
+      setState(() {
+        _activeBooking = updated;
+      });
+
+      if (changed && updated.stato == StatoPrenotazione.IN_CORSO) {
+        _stopBookingStatusPolling();
+        _enterIndoorModeIfNeeded();
       }
     } catch (_) {}
   }
@@ -481,7 +526,11 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _startReturnOverlay();
+      Future.microtask(() async {
+        await _restoreActiveBookingFromBackend();
+        _enterIndoorModeIfNeeded();
+        _startReturnOverlay();
+      });
     }
   }
 
@@ -489,13 +538,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
     _lastMe = me;
 
     setState(() {
-      // aggiorna PULSE con il nuovo centro (subito)
       _circles.removeWhere((c) => c.circleId.value == 'pulse');
       _circles.add(
         Circle(
           circleId: const CircleId('pulse'),
           center: me,
-          radius: _pulseAnimation.value, // raggio attuale dell'animazione
+          radius: _pulseAnimation.value,
           fillColor: Colors.blue.withOpacity(0.25),
           strokeColor: Colors.blue.withOpacity(0.1),
           strokeWidth: 1,
@@ -503,7 +551,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         ),
       );
 
-      // aggiorna PALLINO BLU con lo stesso centro (subito)
       _circles.removeWhere((c) => c.circleId.value == 'blue_dot');
       _circles.add(
         Circle(
@@ -517,9 +564,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         ),
       );
     });
-
-    // opzionale: se non ti serve più il marker "me", puoi anche rimuoverlo del tutto
-    // _updateMeMarkerThrottled(me);
   }
 
   static const String _mapStyleNoPoi = '''
@@ -565,8 +609,12 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
       _focusSub = html.window.onFocus.listen((_) {
         if (!mounted) return;
         if (_openingQrDialog) return;
-        if (!_qrShownOnLogin && _activeBooking != null) {}
-        _startReturnOverlay();
+
+        Future.microtask(() async {
+          await _restoreActiveBookingFromBackend();
+          _enterIndoorModeIfNeeded();
+          _startReturnOverlay();
+        });
       });
     }
 
@@ -648,6 +696,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
     _trackSub?.cancel();
     _focusSub?.cancel();
     _returnOverlayTimer?.cancel();
+    _bookingStatusTimer?.cancel();
     super.dispose();
   }
 
@@ -1289,16 +1338,21 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
 
     try {
       // 1. Recupera tutto lo storico dal backend
-      final storico = await widget.apiClient.getStoricoPrenotazioni(widget.utente.id);
+      final storico = await widget.apiClient.getStoricoPrenotazioni(
+        widget.utente.id,
+      );
 
       // Chiudi il loading
       if (mounted) Navigator.of(context).pop();
 
       // 2. Filtra solo quelle che richiedono azione (IN_CORSO o PAGATO)
-      final attive = storico.where((p) => 
-        p.stato == StatoPrenotazione.IN_CORSO || 
-        p.stato == StatoPrenotazione.PAGATO
-      ).toList();
+      final attive = storico
+          .where(
+            (p) =>
+                p.stato == StatoPrenotazione.IN_CORSO ||
+                p.stato == StatoPrenotazione.PAGATO,
+          )
+          .toList();
 
       if (attive.isEmpty) {
         UiFeedback.showError(context, "Nessuna sosta attiva trovata.");
@@ -1313,7 +1367,6 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         // Se ce n'è più di una, mostra la lista di scelta
         _mostraListaSelezione(attive);
       }
-
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // Chiudi loading se errore
       UiFeedback.showError(context, "Impossibile recuperare le soste: $e");
@@ -1334,8 +1387,14 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Seleziona Veicolo", 
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              "Seleziona Veicolo",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: ListView.builder(
@@ -1343,21 +1402,38 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
                 itemBuilder: (context, index) {
                   final p = lista[index];
                   final isPagato = p.stato == StatoPrenotazione.PAGATO;
-                  
+
                   return Card(
                     color: AppColors.bgDark2,
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: isPagato ? Colors.green : Colors.orange,
-                        child: Icon(isPagato ? Icons.check : Icons.local_parking, color: Colors.white),
+                        backgroundColor: isPagato
+                            ? Colors.green
+                            : Colors.orange,
+                        child: Icon(
+                          isPagato ? Icons.check : Icons.local_parking,
+                          color: Colors.white,
+                        ),
                       ),
-                      title: Text("Parcheggio #${p.parcheggioId.substring(0, 4).toUpperCase()}",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      title: Text(
+                        "Parcheggio #${p.parcheggioId.substring(0, 4).toUpperCase()}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       subtitle: Text(
-                          isPagato ? "Pronto per l'uscita" : "In sosta - Da pagare",
-                          style: const TextStyle(color: Colors.grey)),
-                      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                        isPagato
+                            ? "Pronto per l'uscita"
+                            : "In sosta - Da pagare",
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white54,
+                        size: 16,
+                      ),
                       onTap: () {
                         Navigator.pop(ctx); // Chiudi la lista
                         _apriAzioneSosta(p); // Procedi con quella scelta
@@ -1382,7 +1458,7 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
         apiClient: widget.apiClient,
         utenteId: widget.utente.id,
         // lockActions e onCancelled potrebbero essere richiesti o opzionali a seconda della tua implementazione attuale
-        onCancelled: () {}, 
+        onCancelled: () {},
       );
     } else if (p.stato == StatoPrenotazione.IN_CORSO) {
       _showPaymentSheet(p);
@@ -1407,76 +1483,116 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 50, height: 5,
+              width: 50,
+              height: 5,
               margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: Colors.grey[700],
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            const Text("Cassa Automatica", 
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              "Cassa Automatica",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 30),
-            
+
             // FutureBuilder per il calcolo del prezzo in tempo reale
             FutureBuilder<double>(
               future: widget.apiClient.calcolaImporto(p.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator(color: AppColors.accentCyan);
+                  return const CircularProgressIndicator(
+                    color: AppColors.accentCyan,
+                  );
                 }
                 if (snapshot.hasError) {
-                  return const Text("Errore calcolo tariffa.\nRiprova più tardi.", 
-                    textAlign: TextAlign.center, style: TextStyle(color: Colors.redAccent));
+                  return const Text(
+                    "Errore calcolo tariffa.\nRiprova più tardi.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.redAccent),
+                  );
                 }
 
                 final importo = snapshot.data ?? 0.0;
 
                 return Column(
                   children: [
-                    Text("€ ${importo.toStringAsFixed(2)}", 
-                      style: const TextStyle(color: AppColors.accentCyan, fontSize: 48, fontWeight: FontWeight.bold)),
+                    Text(
+                      "€ ${importo.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        color: AppColors.accentCyan,
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    const Text("Tariffa calcolata in tempo reale", style: TextStyle(color: Colors.grey)),
+                    const Text(
+                      "Tariffa calcolata in tempo reale",
+                      style: TextStyle(color: Colors.grey),
+                    ),
                     const SizedBox(height: 40),
-                    
+
                     SizedBox(
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
                           elevation: 5,
                         ),
                         icon: const Icon(Icons.payment, color: Colors.white),
-                        label: const Text("PAGA ORA (Simulato)", 
-                           style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          "PAGA ORA (Simulato)",
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () async {
                           try {
                             // Chiamata al backend per pagare
-                            final aggiornata = await widget.apiClient.pagaPrenotazione(p.id, importo);
-                            
+                            final aggiornata = await widget.apiClient
+                                .pagaPrenotazione(p.id, importo);
+
                             Navigator.pop(ctx); // Chiudi foglio pagamento
-                            
+
                             // Feedback utente
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Pagamento riuscito! Hai 10 minuti per uscire."),
+                                content: Text(
+                                  "Pagamento riuscito! Hai 10 minuti per uscire.",
+                                ),
                                 backgroundColor: Colors.green,
-                              )
+                              ),
                             );
-                            
+
                             // Aggiorna subito lo stato dell'app (opzionale ma consigliato)
                             setState(() {
                               _activeBooking = aggiornata;
                             });
 
                             // Riapri subito il dialog mostrando il QR code aggiornato
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              _apriAzioneSosta(aggiornata);
-                            });
-
+                            Future.delayed(
+                              const Duration(milliseconds: 300),
+                              () {
+                                _apriAzioneSosta(aggiornata);
+                              },
+                            );
                           } catch (e) {
                             Navigator.pop(ctx);
-                            UiFeedback.showError(context, "Errore pagamento: $e");
+                            UiFeedback.showError(
+                              context,
+                              "Errore pagamento: $e",
+                            );
                           }
                         },
                       ),
@@ -1506,23 +1622,26 @@ class _UserScreenState extends State<UserScreen> with TickerProviderStateMixin, 
     final bool isFullSelected = postiDispSelected <= 0;
     final bool hasActiveBooking = _bookedParkingMarkerId != null;
 
-
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
 
       //  AGGIUNTA BOTTONE "LE MIE SOSTE"
-      floatingActionButton: !_showIndoorMap // Nascondi se sei in navigazione indoor
+      floatingActionButton:
+          !_showIndoorMap // Nascondi se sei in navigazione indoor
           ? FloatingActionButton.extended(
-              backgroundColor: AppColors.accentCyan, // O Colors.orange se preferisci
+              backgroundColor:
+                  AppColors.accentCyan, // O Colors.orange se preferisci
               foregroundColor: Colors.black, // Testo scuro su bottone ciano
               elevation: 6,
               icon: const Icon(Icons.receipt_long),
-              label: const Text("Le mie Soste", style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                "Le mie Soste",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               onPressed: _handleGestioneSoste, // Chiama il metodo creato sopra
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      
 
       body: Container(
         decoration: const BoxDecoration(

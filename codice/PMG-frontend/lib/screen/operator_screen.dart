@@ -4,8 +4,6 @@ import 'package:park_mg/models/posto.dart';
 import 'package:park_mg/utils/theme.dart';
 import 'package:park_mg/widgets/operator_parking_image_map.dart';
 import '../models/operatore.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'qr_scanner_screen.dart';
 import 'package:park_mg/api/api_client.dart';
 import '../models/prenotazione.dart';
@@ -122,25 +120,17 @@ class _OperatorScreenState extends State<OperatorScreen> {
   late List<ParkingLogItem> _items;
   List<Posto> _realSpots = [];
   bool _isLoadingSpots = false;
-
-  // Nuova pagina: stats
   late ParkingStats _stats;
-
-  // Auto refresh + last fetch
   Timer? _autoRefreshTimer;
   DateTime? _lastFetchAt;
-
-  static const String _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
-  );
+  String? _analiticaId;
 
   @override
   void initState() {
     super.initState();
     _apiClient = ApiClient();
     _items = [];
-    _loadLogs();
+    _loadInitialData();
     _stats = const ParkingStats(
       totalSpots: 0,
       availableSpots: 0,
@@ -190,19 +180,34 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
+  Future<void> _loadInitialData() async {
+    await _loadAnaliticaId();
+    await _loadLogs();
+  }
+
+  Future<void> _loadAnaliticaId() async {
+    try {
+      final analitica = await _apiClient.getAnaliticaByParcheggioId(
+        widget.operatore.parcheggioId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _analiticaId = analitica['id'] as String?;
+      });
+    } catch (e) {
+      debugPrint('Errore caricamento analiticaId: $e');
+      _showToast('Errore caricamento analitica del parcheggio');
+    }
+  }
+
   Future<List<ParkingLogItem>> _fetchLogItems() async {
-    final url = Uri.parse('$_baseUrl/analitiche/694aa3eeb7b5590ae69d9379/log');
-
-    final response = await http.get(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore nel caricamento dei log');
+    if (_analiticaId == null || _analiticaId!.isEmpty) {
+      throw Exception('Analitica non disponibile per questo parcheggio');
     }
 
-    final jsonList = jsonDecode(response.body);
-    if (jsonList is! List) {
-      throw Exception('Il backend non ha restituito una lista JSON');
-    }
+    final jsonList = await _apiClient.getLogAnalitiche(_analiticaId!);
 
     return jsonList.map((json) => ParkingLogItem.fromJson(json)).toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -1550,20 +1555,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
     ParkingLogItem log,
     LogSeverity newSeverity,
   ) async {
-    final url = Uri.parse(
-      '$_baseUrl/log/${log.id}/severity?severity=${newSeverity.name}',
-    );
+    try {
+      await _apiClient.updateLogSeverity(log.id, newSeverity.name);
 
-    final response = await http.put(url);
-
-    if (response.statusCode == 200) {
-      // Aggiorno localmente
+      if (!mounted) return;
       setState(() {
         log.severity = newSeverity;
       });
-    } else {
-      // Gestione errore
-      debugPrint('Errore aggiornamento severity: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('Errore aggiornamento severity: $e');
+      _showToast('Errore aggiornamento severità');
     }
   }
 
@@ -1571,20 +1572,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
     ParkingLogItem log,
     LogCategory newCategory,
   ) async {
-    final url = Uri.parse(
-      '$_baseUrl/log/${log.id}/category?category=${newCategory.name}',
-    );
+    try {
+      await _apiClient.updateLogCategory(log.id, newCategory.name);
 
-    final response = await http.put(url);
-
-    if (response.statusCode == 200) {
-      // Aggiorno localmente
+      if (!mounted) return;
       setState(() {
         log.category = newCategory;
       });
-    } else {
-      // Gestione errore
-      debugPrint('Errore aggiornamento category: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('Errore aggiornamento category: $e');
+      _showToast('Errore aggiornamento categoria');
     }
   }
 

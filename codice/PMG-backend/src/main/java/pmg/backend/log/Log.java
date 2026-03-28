@@ -10,7 +10,6 @@ public class Log {
 
     @Id
     private String id;
-
     private String analiticaId;
     private LogCategoria tipo; 
     private LogSeverità severita;
@@ -44,6 +43,10 @@ public class Log {
     
     public LocalDateTime getData() {
         return data;
+    }
+    
+    public void setAnaliticaId(String analiticaId) {
+        this.analiticaId = analiticaId;
     }
     
     public void setTipo(LogCategoria tipo) {

@@ -6,6 +6,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import pmg.backend.analitiche.Analitiche;
+import pmg.backend.analitiche.AnaliticheRepository;
+import pmg.backend.log.LogCategoria;
+import pmg.backend.log.LogRequest;
+import pmg.backend.log.LogService;
+import pmg.backend.log.LogSeverità;
 import pmg.backend.parcheggio.Parcheggio;
 import pmg.backend.parcheggio.ParcheggioRepository;
 
@@ -26,13 +32,21 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
     private final PrenotazioneRepository prenotazioneRepository;
     private final ParcheggioRepository parcheggioRepository;
     private final UtenteRepository utenteRepository;
+    private final LogService logService;
+    private final AnaliticheRepository analiticheRepository;
 
-    public PrenotazioneServiceImpl(PrenotazioneRepository prenotazioneRepository, ParcheggioRepository parcheggioRepository,
-            UtenteRepository utenteRepository) {
-		this.prenotazioneRepository = prenotazioneRepository;
-		this.parcheggioRepository = parcheggioRepository;
-		this.utenteRepository = utenteRepository;
-	}
+    public PrenotazioneServiceImpl(
+            PrenotazioneRepository prenotazioneRepository,
+            ParcheggioRepository parcheggioRepository,
+            UtenteRepository utenteRepository,
+            LogService logService,
+            AnaliticheRepository analiticheRepository) {
+        this.prenotazioneRepository = prenotazioneRepository;
+        this.parcheggioRepository = parcheggioRepository;
+        this.utenteRepository = utenteRepository;
+        this.logService = logService;
+        this.analiticheRepository = analiticheRepository;
+    }
 
     @Override
     public List<PrenotazioneResponse> getStoricoUtente(String utenteId) {
@@ -75,21 +89,26 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
  
     @Override
     public PrenotazioneResponse validaIngresso(String codiceQr) {
-        // 1. Cerca la prenotazione tramite QR
         Prenotazione prenotazione = prenotazioneRepository.findByCodiceQr(codiceQr)
                 .orElseThrow(() -> new RuntimeException("QR Code non valido o inesistente"));
 
-        // 2. Verifica che sia ancora ATTIVA (non scaduta o già usata)
         if (prenotazione.getStato() != StatoPrenotazione.ATTIVA) {
             throw new RuntimeException("La prenotazione non è più valida (Stato: " + prenotazione.getStato() + ")");
         }
 
-        // 3. Aggiorna lo stato e registra l'orario di ingresso
         prenotazione.setStato(StatoPrenotazione.IN_CORSO);
         prenotazione.setDataIngresso(LocalDateTime.now());
 
-        // 4. Salva e ritorna la risposta
         Prenotazione salvata = prenotazioneRepository.save(prenotazione);
+
+        salvaLogEvento(
+                salvata.getParcheggioId(),
+                LogCategoria.EVENTO,
+                LogSeverità.VEICOLO,
+                "Ingresso veicolo",
+                "Ingresso validato per prenotazione " + salvata.getId()
+        );
+
         return convertiInResponse(salvata);
     }
 
@@ -225,9 +244,18 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
         p.setImportoPagato(importo);
         p.setDataPagamento(LocalDateTime.now());
-        p.setStato(StatoPrenotazione.PAGATO); // CAMBIO STATO
+        p.setStato(StatoPrenotazione.PAGATO);
 
         Prenotazione salvata = prenotazioneRepository.save(p);
+
+        salvaLogEvento(
+                salvata.getParcheggioId(),
+                LogCategoria.EVENTO,
+                LogSeverità.PAGAMENTO,
+                "Pagamento registrato",
+                "Pagamento di €" + importo + " registrato per prenotazione " + salvata.getId()
+        );
+
         return convertiInResponse(salvata);
     }
 
@@ -238,33 +266,37 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                 .orElseThrow(() -> new RuntimeException("QR Code non valido"));
 
         if (p.getStato() != StatoPrenotazione.PAGATO) {
-            // Se è ancora in corso, deve pagare prima
             if (p.getStato() == StatoPrenotazione.IN_CORSO) {
-                 throw new IllegalStateException("Devi pagare prima di uscire!");
+                throw new IllegalStateException("Devi pagare prima di uscire!");
             }
-             throw new IllegalStateException("Stato non valido per l'uscita: " + p.getStato());
+            throw new IllegalStateException("Stato non valido per l'uscita: " + p.getStato());
         }
 
-        // Controllo timer 10 minuti dal pagamento
         LocalDateTime scadenzaUscita = p.getDataPagamento().plusMinutes(10);
         if (LocalDateTime.now().isAfter(scadenzaUscita)) {
-            // Qui potresti resettare a IN_CORSO per far pagare la differenza, 
-            // ma per ora lanciamo eccezione come da specifica
             throw new IllegalStateException("Tempo massimo per l'uscita scaduto! Contatta l'assistenza.");
         }
 
-        // TUTTO OK: USCITA
         p.setStato(StatoPrenotazione.CONCLUSA);
         p.setDataUscita(LocalDateTime.now());
-        
-        // Libera il posto
+
         Parcheggio park = parcheggioRepository.findById(p.getParcheggioId())
                 .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
-        
+
         park.setPostiDisponibili(Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1));
         parcheggioRepository.save(park);
 
-        return convertiInResponse(prenotazioneRepository.save(p));
+        Prenotazione salvata = prenotazioneRepository.save(p);
+
+        salvaLogEvento(
+                salvata.getParcheggioId(),
+                LogCategoria.EVENTO,
+                LogSeverità.VEICOLO,
+                "Uscita veicolo",
+                "Uscita validata per prenotazione " + salvata.getId()
+        );
+
+        return convertiInResponse(salvata);
     }
     
     
@@ -381,5 +413,32 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	            p.getImportoPagato(),
 	            null
 	    );
+	}
+	
+	private String getAnaliticaIdByParcheggioId(String parcheggioId) {
+	    Analitiche analitica = analiticheRepository.findByParcheggioId(parcheggioId)
+	            .orElseThrow(() -> new RuntimeException(
+	                    "Analitica non trovata per parcheggioId: " + parcheggioId));
+
+	    return analitica.getId();
+	}
+
+	private void salvaLogEvento(
+	        String parcheggioId,
+	        LogCategoria categoria,
+	        LogSeverità severita,
+	        String titolo,
+	        String descrizione) {
+
+	    String analiticaId = getAnaliticaIdByParcheggioId(parcheggioId);
+
+	    logService.salvaLog(new LogRequest(
+	            analiticaId,
+	            categoria,
+	            severita,
+	            titolo,
+	            descrizione,
+	            LocalDateTime.now()
+	    ));
 	}
 }

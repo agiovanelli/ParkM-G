@@ -74,4 +74,9 @@ public class AnaliticheController {
                 ))
                 .toList();
     }
+    
+    @GetMapping("/parcheggio/{parcheggioId}")
+    public Analitiche getByParcheggioId(@PathVariable String parcheggioId) {
+        return analiticheService.getByParcheggioId(parcheggioId);
+    }
 }

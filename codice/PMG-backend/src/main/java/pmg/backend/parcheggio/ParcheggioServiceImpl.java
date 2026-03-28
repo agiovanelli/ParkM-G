@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import pmg.backend.analitiche.Analitiche;
+import pmg.backend.analitiche.AnaliticheRepository;
 import pmg.backend.log.LogCategoria;
 import pmg.backend.log.LogRequest;
 import pmg.backend.log.LogService;
@@ -33,8 +35,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final ParcheggioRepository parcheggioRepository;
     private final PrenotazioneRepository prenotazioneRepository;
     private final LogService logService;
-    private final PostoRepository postoRepository;
     private final UtenteRepository utenteRepository;
+    private final AnaliticheRepository analiticheRepository;
     
     // Aggiorna il costruttore per iniettare entrambi i repository
     public ParcheggioServiceImpl(
@@ -42,13 +44,14 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             PrenotazioneRepository prenotazioneRepository,
             LogService logService,
             PostoRepository postoRepository,
-            UtenteRepository utenteRepository) {
+            UtenteRepository utenteRepository,
+            AnaliticheRepository analiticheRepository) {
 
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
         this.logService = logService;
-        this.postoRepository = postoRepository;
         this.utenteRepository = utenteRepository;
+        this.analiticheRepository = analiticheRepository;
     }
 
     @Override
@@ -139,14 +142,16 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 
         if (stato) {
             // Adattamento al tuo record LogRequest specifico
-            LogRequest logReq = new LogRequest(
-                parcheggioId,                // analiticaId
-                LogCategoria.ALLARME,        // tipo (Enum)
-                LogSeverità.CRITICO,         // severita (Enum)
-                "BLOCCO EMERGENZA",          // titolo
-                "Parcheggio " + p.getNome() + " chiuso. Motivo: " + (motivo != null ? motivo : "N/D"), // descrizione
-                LocalDateTime.now()          // data
-            );
+        	String analiticaId = getAnaliticaIdByParcheggioId(parcheggioId);
+
+        	LogRequest logReq = new LogRequest(
+        	    analiticaId,
+        	    LogCategoria.ALLARME,
+        	    LogSeverità.CRITICO,
+        	    "BLOCCO EMERGENZA",
+        	    "Parcheggio " + p.getNome() + " chiuso. Motivo: " + (motivo != null ? motivo : "N/D"),
+        	    LocalDateTime.now()
+        	);
             
             logService.salvaLog(logReq); 
             LOGGER.error("EMERGENZA ATTIVATA: {}", p.getNome());
@@ -381,7 +386,15 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 	}
 	
 	private record SelectedPosto(
-		    Posto posto,
-		    PostoResponse response
-		) {}
+			Posto posto,
+		PostoResponse response
+	) {}
+	
+	private String getAnaliticaIdByParcheggioId(String parcheggioId) {
+	    Analitiche analitica = analiticheRepository.findByParcheggioId(parcheggioId)
+	            .orElseThrow(() -> new IllegalArgumentException(
+	                    "Analitica non trovata per parcheggioId: " + parcheggioId));
+
+	    return analitica.getId();
+	}
 }
