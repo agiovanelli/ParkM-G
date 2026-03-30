@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class Posto {
 
     private boolean disponibile;
+    private boolean disabilitato;
     private boolean riservatoDisabili;
     private boolean riservatoIncinta;
 
@@ -13,11 +14,12 @@ public class Posto {
 
     public Posto() {}
 
-    public Posto(boolean disponibile,
+    public Posto(boolean disponibile, boolean disabilitato,
                  boolean riservatoDisabili,
                  boolean riservatoIncinta,
                  int distanzaUscita) {
         this.disponibile = disponibile;
+        this.disabilitato = disabilitato;
         this.riservatoDisabili = riservatoDisabili;
         this.riservatoIncinta = riservatoIncinta;
         this.distanzaUscita = distanzaUscita;
@@ -26,6 +28,9 @@ public class Posto {
     // Getter & Setter
     public boolean isDisponibile() { return disponibile; }
     public void setDisponibile(boolean disponibile) { this.disponibile = disponibile; }
+    
+    public boolean isDisabilitato() { return disabilitato; }
+    public void setDisabilitato(boolean disabilitato) { this.disabilitato = disabilitato; }
 
     public boolean isRiservatoDisabili() { return riservatoDisabili; }
     public void setRiservatoDisabili(boolean riservatoDisabili) { this.riservatoDisabili = riservatoDisabili; }

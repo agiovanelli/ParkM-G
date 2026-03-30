@@ -44,4 +44,16 @@ public class PostoServiceImpl implements PostoService {
 		// TODO Auto-generated method stub
 		return null;
 	}
+
+	@Override
+	public PostoResponse aggiornaDisabiliato(String id, boolean disabilitato) {
+		Posto posto = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Posto non trovato"));
+
+        posto.setDisabilitato(disabilitato);
+        posto.setDisponibile(false);
+        repository.save(posto);
+
+        return mapToResponse(posto);
+	}
 }

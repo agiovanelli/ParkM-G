@@ -35,4 +35,11 @@ public class PostoController {
             @RequestParam boolean disponibile) {
         return service.aggiornaDisponibilita(id, disponibile);
     }
+    
+    @PatchMapping("/{id}/disabilitato")
+    public PostoResponse updateDisabilitato(
+            @PathVariable String id,
+            @RequestParam boolean disabilitato) {
+        return service.aggiornaDisponibilita(id, disabilitato);
+    }
 }

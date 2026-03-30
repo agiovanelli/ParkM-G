@@ -6,6 +6,7 @@ public class PostoResponse {
     private int floor;
     private String slotNumber;
     private int distanzaUscita;
+    private boolean disabilitato;
     private boolean riservatoDisabili;
     private boolean riservatoIncinta;
     private boolean disponibile;
@@ -22,6 +23,7 @@ public class PostoResponse {
         this.riservatoDisabili = p.isRiservatoDisabili();
         this.riservatoIncinta = p.isRiservatoIncinta();
         this.disponibile = p.isDisponibile();
+        this.disabilitato = p.isDisabilitato();
     }
 
     // Costruttore completo: serve a ParcheggioServiceImpl
@@ -38,6 +40,7 @@ public class PostoResponse {
         this.riservatoDisabili = p.isRiservatoDisabili();
         this.riservatoIncinta = p.isRiservatoIncinta();
         this.disponibile = p.isDisponibile();
+        this.disabilitato = p.isDisabilitato();
     }
 
     public String getSlotId() {
@@ -68,6 +71,10 @@ public class PostoResponse {
         return disponibile;
     }
     
+    public boolean isDisabilitato() {
+        return disabilitato;
+    }
+    
     public void setSlotId(String slotId) { this.slotId = slotId; }
     public void setFloor(int floor) { this.floor = floor; }
     public void setSlotNumber(String slotNumber) { this.slotNumber = slotNumber; }
@@ -75,4 +82,5 @@ public class PostoResponse {
     public void setRiservatoDisabili(boolean riservatoDisabili) { this.riservatoDisabili = riservatoDisabili; }
     public void setRiservatoIncinta(boolean riservatoIncinta) { this.riservatoIncinta = riservatoIncinta; }
     public void setDisponibile(boolean disponibile) { this.disponibile = disponibile; }
+    public void setDisabilitato(boolean disabilitato) { this.disabilitato = disabilitato; }
 }

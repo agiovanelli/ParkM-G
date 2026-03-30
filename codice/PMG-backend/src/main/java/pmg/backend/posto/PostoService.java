@@ -11,4 +11,6 @@ public interface PostoService {
     void eliminaPosto(String id);
 
     PostoResponse aggiornaDisponibilita(String id, boolean disponibile);
+    
+    PostoResponse aggiornaDisabiliato(String id, boolean disabilitato);
 }
