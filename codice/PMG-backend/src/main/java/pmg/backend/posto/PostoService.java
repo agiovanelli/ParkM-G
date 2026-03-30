@@ -12,5 +12,5 @@ public interface PostoService {
 
     PostoResponse aggiornaDisponibilita(String id, boolean disponibile);
     
-    PostoResponse aggiornaDisabiliato(String id, boolean disabilitato);
+    PostoResponse aggiornaDisabilitato(String id, boolean disabilitato);
 }

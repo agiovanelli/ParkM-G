@@ -24,22 +24,17 @@ public class PostoController {
         return service.creaPosto(posto);
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable String id) {
-        service.eliminaPosto(id);
-    }
-
-    @PatchMapping("/{id}/disponibilita")
+    @PatchMapping("/parcheggio/{parcheggioId}/disponibilita")
     public PostoResponse updateDisponibilita(
             @PathVariable String id,
             @RequestParam boolean disponibile) {
         return service.aggiornaDisponibilita(id, disponibile);
     }
     
-    @PatchMapping("/{id}/disabilitato")
+    @PatchMapping("/parcheggio/{parcheggioId}/disabilitato")
     public PostoResponse updateDisabilitato(
             @PathVariable String id,
             @RequestParam boolean disabilitato) {
-        return service.aggiornaDisponibilita(id, disabilitato);
+        return service.aggiornaDisabilitato(id, disabilitato);
     }
 }

@@ -46,7 +46,7 @@ public class PostoServiceImpl implements PostoService {
 	}
 
 	@Override
-	public PostoResponse aggiornaDisabiliato(String id, boolean disabilitato) {
+	public PostoResponse aggiornaDisabilitato(String id, boolean disabilitato) {
 		Posto posto = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Posto non trovato"));
 
