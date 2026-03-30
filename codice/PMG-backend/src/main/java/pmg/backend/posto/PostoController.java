@@ -19,22 +19,4 @@ public class PostoController {
         return service.getPostiByParcheggio(parcheggioId);
     }
 
-    @PostMapping
-    public PostoResponse create(@RequestBody Posto posto) {
-        return service.creaPosto(posto);
-    }
-
-    @PatchMapping("/parcheggio/{parcheggioId}/disponibilita")
-    public PostoResponse updateDisponibilita(
-            @PathVariable String id,
-            @RequestParam boolean disponibile) {
-        return service.aggiornaDisponibilita(id, disponibile);
-    }
-    
-    @PatchMapping("/parcheggio/{parcheggioId}/disabilitato")
-    public PostoResponse updateDisabilitato(
-            @PathVariable String id,
-            @RequestParam boolean disabilitato) {
-        return service.aggiornaDisabilitato(id, disabilitato);
-    }
 }

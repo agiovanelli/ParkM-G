@@ -37,6 +37,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final LogService logService;
     private final UtenteRepository utenteRepository;
     private final AnaliticheRepository analiticheRepository;
+    private final PostoRepository postoRepository;
     
     // Aggiorna il costruttore per iniettare entrambi i repository
     public ParcheggioServiceImpl(
@@ -52,6 +53,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         this.logService = logService;
         this.utenteRepository = utenteRepository;
         this.analiticheRepository = analiticheRepository;
+        this.postoRepository = postoRepository;
     }
 
     @Override
@@ -396,5 +398,32 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 	                    "Analitica non trovata per parcheggioId: " + parcheggioId));
 
 	    return analitica.getId();
+	}
+	
+    @Override
+    public PostoResponse aggiornaDisponibilita(String id, boolean disponibile) {
+        Posto posto = postoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Posto non trovato"));
+
+        posto.setDisponibile(disponibile);
+        postoRepository.save(posto);
+
+        return mapToResponse(posto);
+    }
+
+    private PostoResponse mapToResponse(Posto posto) {
+        return new PostoResponse(posto);
+    }
+
+	@Override
+	public PostoResponse aggiornaDisabilitato(String id, boolean disabilitato) {
+		Posto posto = postoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Posto non trovato"));
+
+        posto.setDisabilitato(disabilitato);
+        posto.setDisponibile(false);
+        postoRepository.save(posto);
+
+        return mapToResponse(posto);
 	}
 }

@@ -22,4 +22,8 @@ public interface ParcheggioService {
 	ParcheggioResponse getById(String id);
 	
 	List<PostoResponse> getPosti(String parcheggioId, Integer piano);
+	
+    PostoResponse aggiornaDisponibilita(String id, boolean disponibile);
+    
+    PostoResponse aggiornaDisabilitato(String id, boolean disabilitato);
 }
