@@ -12,6 +12,7 @@ class OperatorParkingImageMap extends StatefulWidget {
   final List<Posto> spots;
   final String? selectedSpotId;
   final ValueChanged<String> onSpotTap;
+  final ValueChanged<String> onDisableSpot;
   final String assetPath;
 
   const OperatorParkingImageMap({
@@ -22,6 +23,7 @@ class OperatorParkingImageMap extends StatefulWidget {
     required this.spots,
     required this.selectedSpotId,
     required this.onSpotTap,
+    required this.onDisableSpot,
     this.assetPath = 'assets/parking/floor.png',
   });
 
@@ -88,9 +90,17 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
     return Offset(r.left + n.dx * r.width, r.top + n.dy * r.height);
   }
 
+  bool _isDisabled(Posto posto) {
+    return posto.disabilitato;
+  }
+
   Color _spotColor(Posto posto) {
+    if (_isDisabled(posto)) {
+      return const Color(0xFF9CA3AF);
+    }
+
     if (widget.selectedSpotId == posto.slotId) {
-      return AppColors.accentCyan;
+      return const Color(0xFFFACC15);
     }
 
     if (!posto.disponibile) {
@@ -98,7 +108,7 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
     }
 
     if (posto.riservatoDisabili) {
-      return const Color(0xFFFACC15);
+      return AppColors.accentCyan;
     }
 
     if (posto.riservatoIncinta) {
@@ -132,8 +142,44 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
     return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
+  String _spotStatusLabel(Posto posto) {
+    if (_isDisabled(posto)) {
+      return 'Disabilitato';
+    }
+
+    if (!posto.disponibile) {
+      return 'Occupato';
+    }
+
+    if (posto.riservatoDisabili) {
+      return 'Libero - Disabili';
+    }
+
+    if (posto.riservatoIncinta) {
+      return 'Libero - Donna incinta';
+    }
+
+    return 'Libero';
+  }
+
   @override
   Widget build(BuildContext context) {
+    Posto? selectedSpot;
+    if (widget.selectedSpotId != null) {
+      try {
+        selectedSpot = widget.spots.firstWhere(
+          (s) => s.slotId == widget.selectedSpotId,
+        );
+      } catch (_) {
+        selectedSpot = null;
+      }
+    }
+
+    final canDisableSelected =
+        selectedSpot != null &&
+        selectedSpot.disponibile &&
+        !selectedSpot.disabilitato;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -189,7 +235,6 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                             fit: BoxFit.contain,
                           ),
                         ),
-
                         CustomPaint(
                           painter: _OperatorParkingSlotsPainter(
                             spots: widget.spots,
@@ -200,7 +245,6 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                             spotLabel: _spotLabel,
                           ),
                         ),
-
                         ...widget.spots.map((posto) {
                           final cell = baseSlotMap[posto.slotNumber];
                           if (cell == null) return const SizedBox.shrink();
@@ -215,17 +259,12 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                             height: tapRect.height,
                             child: Tooltip(
                               message:
-                                  'Posto ${posto.slotNumber} • '
-                                  '${!posto.disponibile
-                                      ? "Occupato"
-                                      : posto.riservatoDisabili
-                                      ? "Libero - Disabili"
-                                      : posto.riservatoIncinta
-                                      ? "Libero - Donna incinta"
-                                      : "Libero"}',
+                                  'Posto ${posto.slotNumber} • ${_spotStatusLabel(posto)}',
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
-                                onTap: () => widget.onSpotTap(posto.slotId),
+                                onTap: posto.disabilitato
+                                    ? null
+                                    : () => widget.onSpotTap(posto.slotId),
                                 child: const SizedBox.expand(),
                               ),
                             ),
@@ -239,15 +278,38 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
             ),
           ),
           const SizedBox(height: 16),
+          if (canDisableSelected)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  widget.onDisableSpot(widget.selectedSpotId!);
+                },
+                icon: const Icon(Icons.block),
+                label: const Text('Disabilita posto selezionato'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6B7280),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
           Wrap(
             spacing: 16,
             runSpacing: 8,
             children: [
               _legendItem(const Color(0xFF22C55E), 'Disponibile'),
-              _legendItem(const Color(0xFFFACC15), 'Disabili'),
+              _legendItem(AppColors.accentCyan, 'Disabili'),
               _legendItem(const Color(0xFFF9A8D4), 'Donna incinta'),
               _legendItem(const Color(0xFFEF4444), 'Occupato'),
-              _legendItem(AppColors.accentCyan, 'Selezionato'),
+              _legendItem(const Color(0xFFFACC15), 'Selezionato'),
+              _legendItem(const Color(0xFF9CA3AF), 'Disabilitato'),
             ],
           ),
         ],

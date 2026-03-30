@@ -6,6 +6,7 @@ class Posto {
   final bool riservatoDisabili;
   final bool riservatoIncinta;
   final bool disponibile;
+  final bool disabilitato;
 
   const Posto({
     required this.slotId,
@@ -15,6 +16,7 @@ class Posto {
     required this.riservatoDisabili,
     required this.riservatoIncinta,
     required this.disponibile,
+    required this.disabilitato,
   });
 
   factory Posto.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class Posto {
       riservatoDisabili: json['riservatoDisabili'] as bool? ?? false,
       riservatoIncinta: json['riservatoIncinta'] as bool? ?? false,
       disponibile: json['disponibile'] as bool? ?? false,
+      disabilitato: json['disabilitato'] as bool? ?? false
     );
   }
 }
