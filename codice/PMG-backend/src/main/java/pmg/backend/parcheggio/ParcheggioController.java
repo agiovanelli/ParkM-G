@@ -77,14 +77,14 @@ public class ParcheggioController {
         return ResponseEntity.ok(parcheggioService.getPosti(id, piano));
     }
     
-    @PatchMapping("/{id}/posti/disponibilita")
+    @PatchMapping("/{id}/posti/{slotId}/disponibilita")
     public PostoResponse updateDisponibilita(
             @PathVariable String id,
             @RequestParam boolean disponibile) {
         return parcheggioService.aggiornaDisponibilita(id, disponibile);
     }
     
-    @PatchMapping("/{id}/posti/disabilitato")
+    @PatchMapping("/{id}/posti/{slotId}/disabilitato")
     public PostoResponse updateDisabilitato(
             @PathVariable String id,
             @RequestParam boolean disabilitato) {
