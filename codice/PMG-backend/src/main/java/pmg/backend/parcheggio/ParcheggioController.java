@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import pmg.backend.posto.PostoResponse;
+import pmg.backend.posto.PostoService;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
 
@@ -75,4 +76,20 @@ public class ParcheggioController {
         LOGGER.info("HTTP GET /api/parcheggi/{}/posti?piano={}", id, piano);
         return ResponseEntity.ok(parcheggioService.getPosti(id, piano));
     }
+    
+    @PatchMapping("/{id}/posti/disponibilita")
+    public PostoResponse updateDisponibilita(
+            @PathVariable String id,
+            @RequestParam boolean disponibile) {
+        return parcheggioService.aggiornaDisponibilita(id, disponibile);
+    }
+    
+    @PatchMapping("/{id}/posti/disabilitato")
+    public PostoResponse updateDisabilitato(
+            @PathVariable String id,
+            @RequestParam boolean disabilitato) {
+        return parcheggioService.aggiornaDisabilitato(id, disabilitato);
+    }
+    
+    
 }
