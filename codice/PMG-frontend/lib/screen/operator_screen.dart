@@ -1237,17 +1237,46 @@ class _OperatorScreenState extends State<OperatorScreen> {
             OperatorParkingImageMap(
               selectedFloor: _selectedFloor,
               floors: const [1, 2, 3],
-              onFloorChanged: (v) => _changeFloor(v),
+              onFloorChanged: _changeFloor,
               spots: _realSpots,
               selectedSpotId: _selectedSpotId,
               onSpotTap: (slotId) {
                 final tapped = _realSpots.firstWhere((s) => s.slotId == slotId);
 
                 if (!tapped.disponibile) return;
+                if (tapped.disabilitato) return;
 
                 setState(() {
                   _selectedSpotId = (_selectedSpotId == slotId) ? null : slotId;
                 });
+              },
+              onDisableSpot: (slotId) async {
+                try {
+                  await _apiClient.updatePostoDisabilitato(
+                    postoId: slotId,
+                    disabilitato: true,
+                  );
+
+                  final updatedSpots = await _apiClient.getPostiParcheggio(
+                    widget.operatore.parcheggioId,
+                    piano: _selectedFloor,
+                  );
+
+                  if (!mounted) return;
+
+                  setState(() {
+                    _realSpots = updatedSpots;
+                    if (_selectedSpotId == slotId) {
+                      _selectedSpotId = null;
+                    }
+                  });
+
+                  _showToast('Posto disabilitato correttamente');
+                  await _loadParkingStats();
+                } catch (e) {
+                  if (!mounted) return;
+                  _showToast('Errore disabilitazione posto: $e');
+                }
               },
             ),
         ],

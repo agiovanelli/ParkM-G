@@ -567,4 +567,28 @@ class ApiClient {
 
     return jsonMap;
   }
+
+  Future<Posto> updatePostoDisabilitato({
+    required String postoId,
+    required bool disabilitato,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/posti/$postoId/disabilitato',
+    ).replace(queryParameters: {'disabilitato': disabilitato.toString()});
+
+    final resp = await _client.patch(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      return Posto.fromJson(json);
+    }
+
+    throw ApiException(
+      'Errore aggiornamento stato disabilitato posto: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
+  }
 }
