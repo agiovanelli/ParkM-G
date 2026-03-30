@@ -485,14 +485,16 @@ class ApiClient {
           : '$_baseUrl/parcheggi/$parcheggioId/posti?piano=$piano',
     );
 
-    final response = await http.get(uri);
+    final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
-      throw Exception('Errore recupero posti parcheggio');
+      throw ApiException(
+        'Errore recupero posti parcheggio: HTTP ${response.statusCode}',
+        response.statusCode,
+      );
     }
 
     final data = jsonDecode(response.body) as List<dynamic>;
-
     return data.map((e) => Posto.fromJson(e as Map<String, dynamic>)).toList();
   }
 
@@ -569,11 +571,13 @@ class ApiClient {
   }
 
   Future<Posto> updatePostoDisabilitato({
-    required String postoId,
+    required String parcheggioId,
+    required int piano,
+    required int numero,
     required bool disabilitato,
   }) async {
     final uri = Uri.parse(
-      '$_baseUrl/posti/$postoId/disabilitato',
+      '$_baseUrl/posti/parcheggio/$parcheggioId/piano/$piano/numero/$numero/disabilitato',
     ).replace(queryParameters: {'disabilitato': disabilitato.toString()});
 
     final resp = await _client.patch(
@@ -588,6 +592,32 @@ class ApiClient {
 
     throw ApiException(
       'Errore aggiornamento stato disabilitato posto: HTTP ${resp.statusCode}',
+      resp.statusCode,
+    );
+  }
+
+  Future<Posto> updatePostoDisponibilita({
+    required String parcheggioId,
+    required int piano,
+    required int numero,
+    required bool disponibile,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/posti/parcheggio/$parcheggioId/piano/$piano/numero/$numero/disponibilita',
+    ).replace(queryParameters: {'disponibile': disponibile.toString()});
+
+    final resp = await _client.patch(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      return Posto.fromJson(json);
+    }
+
+    throw ApiException(
+      'Errore aggiornamento disponibilità posto: HTTP ${resp.statusCode}',
       resp.statusCode,
     );
   }

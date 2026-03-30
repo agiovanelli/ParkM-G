@@ -1252,8 +1252,14 @@ class _OperatorScreenState extends State<OperatorScreen> {
               },
               onDisableSpot: (slotId) async {
                 try {
+                  final selected = _realSpots.firstWhere(
+                    (s) => s.slotId == slotId,
+                  );
+
                   await _apiClient.updatePostoDisabilitato(
-                    postoId: slotId,
+                    parcheggioId: widget.operatore.parcheggioId,
+                    piano: selected.piano,
+                    numero: selected.numero,
                     disabilitato: true,
                   );
 
