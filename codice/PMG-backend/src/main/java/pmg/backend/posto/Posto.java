@@ -8,8 +8,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class Posto {
 
 	@Id
-	private ObjectId id;
-	private ObjectId parcheggioId;
+	private String id;
+	private String parcheggioId;
 	private int numero;
 	private int piano;
     private boolean disponibile;
@@ -20,7 +20,7 @@ public class Posto {
 
     public Posto() {}
 
-    public Posto(ObjectId id, ObjectId parcheggioId, int numero, int piano, boolean disponibile, boolean disabilitato,
+    public Posto(String id, String parcheggioId, int numero, int piano, boolean disponibile, boolean disabilitato,
                  boolean riservatoDisabili,
                  boolean riservatoIncinta,
                  int distanzaUscita) {
@@ -51,8 +51,8 @@ public class Posto {
     public int getDistanzaUscita() { return distanzaUscita; }
     public void setDistanzaUscita(int distanzaUscita) { this.distanzaUscita = distanzaUscita; }
     
-    public ObjectId getParcheggioId() { return parcheggioId; }
-    public void setParcheggioId(ObjectId parcheggioId) { this.parcheggioId = parcheggioId; }
+    public String getParcheggioId() { return parcheggioId; }
+    public void setParcheggioId(String parcheggioId) { this.parcheggioId = parcheggioId; }
     
     public int getNumero() { return numero; }
     public void setNumero(int numero) { this.numero = numero; }
@@ -60,5 +60,5 @@ public class Posto {
     public int getPiano() { return piano; }
     public void setPiano(int piano) { this.piano = piano; }
     
-    public ObjectId getId() { return id; }
+    public String getId() { return id; }
 }
