@@ -33,9 +33,9 @@ class ParcheggioServiceImplTest {
 
     @Test
     void cercaPerAreaTest() {
-        Parcheggio p1 = new Parcheggio("A", "Centro", 100, 50, 45.5, 9.1, null);
+        Parcheggio p1 = new Parcheggio("A", "Centro", 100, 50, 45.5, 9.1);
         p1.setId("1");
-        Parcheggio p2 = new Parcheggio("B", "Centro", 80, 20, 45.6, 9.2, null);
+        Parcheggio p2 = new Parcheggio("B", "Centro", 80, 20, 45.6, 9.2);
         p2.setId("2");
 
         when(parcheggioRepository.findByAreaContainingIgnoreCase("Centro")).thenReturn(List.of(p1, p2));
@@ -51,7 +51,7 @@ class ParcheggioServiceImplTest {
     void effettuaPrenotazioneTest() {
         LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
 
-        Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 10, 45.5, 9.1, null);
+        Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 10, 45.5, 9.1);
         parcheggio.setId("p1");
         when(parcheggioRepository.findById("p1")).thenReturn(Optional.of(parcheggio));
         when(parcheggioRepository.save(any(Parcheggio.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -77,7 +77,7 @@ class ParcheggioServiceImplTest {
     void effettuaPrenotazionePostiEsauritiTest() {
         LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 11, 0);
 
-        Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 0, 45.5, 9.1, null);
+        Parcheggio parcheggio = new Parcheggio("A", "Centro", 100, 0, 45.5, 9.1);
         parcheggio.setId("p2");
         when(parcheggioRepository.findById("p2")).thenReturn(Optional.of(parcheggio));
 
@@ -105,8 +105,8 @@ class ParcheggioServiceImplTest {
 
     @Test
     void cercaViciniTest() {
-        Parcheggio vicino = new Parcheggio("Vicino", "Centro", 50, 10, 45.50, 9.20, null);
-        Parcheggio lontano = new Parcheggio("Lontano", "Centro", 50, 10, 46.00, 10.00, null);
+        Parcheggio vicino = new Parcheggio("Vicino", "Centro", 50, 10, 45.50, 9.20);
+        Parcheggio lontano = new Parcheggio("Lontano", "Centro", 50, 10, 46.00, 10.00);
         when(parcheggioRepository.findAll()).thenReturn(List.of(vicino, lontano));
 
         List<ParcheggioResponse> result = service.cercaVicini(45.50, 9.20, 500.0);

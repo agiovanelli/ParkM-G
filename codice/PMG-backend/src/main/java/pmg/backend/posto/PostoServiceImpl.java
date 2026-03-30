@@ -7,10 +7,10 @@ import java.util.List;
 @Service
 public class PostoServiceImpl implements PostoService {
 
-    private final PostoRepository repository;
+    private final PostoRepository postoRepository;
 
-    public PostoServiceImpl(PostoRepository repository) {
-        this.repository = repository;
+    public PostoServiceImpl(PostoRepository postoRepository) {
+        this.postoRepository = postoRepository;
     }
 
 	@Override

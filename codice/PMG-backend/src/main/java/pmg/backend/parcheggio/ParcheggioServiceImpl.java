@@ -87,20 +87,20 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         Map<String, String> preferenze = utente.getPreferenze();
 
         // 3️ Mappe
-        Map<String, Map<String, Posto>> listaPosti = parcheggio.getListaPosti();
+        //Map<String, Map<String, Posto>> listaPosti = parcheggio.getListaPosti();
 
         // 4️ Scansione posti
-        SelectedPosto selected = assegnaPostoOttimale(preferenze, listaPosti);
+        //SelectedPosto selected = assegnaPostoOttimale(preferenze, listaPosti);
 
-        if (selected == null) {
+        /*if (selected == null) {
             throw new IllegalStateException("Posti esauriti");
         }
 
         Posto migliorPosto = selected.posto();
-        PostoResponse postoAssegnato = selected.response();
+        PostoResponse postoAssegnato = selected.response();*/
 
         // ora migliorPosto NON può essere null
-        migliorPosto.setDisponibile(false);
+        //migliorPosto.setDisponibile(false);
 
         parcheggio.setPostiDisponibili(parcheggio.getPostiDisponibili() - 1);
         parcheggioRepository.save(parcheggio);
@@ -114,7 +114,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 codiceQr
         );
 
-        entity.setPosto(postoAssegnato);
+        //entity.setPosto(postoAssegnato);
 
         Prenotazione salvata = prenotazioneRepository.save(entity);
 
@@ -171,8 +171,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             p.getPostiDisponibili(),
             p.getLatitudine(),
             p.getLongitudine(),
-            p.isInEmergenza(),
-            p.getListaPosti()
+            p.isInEmergenza()
         );
     }
     
@@ -307,7 +306,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         return toResponse(p);
     }
 	
-	public List<PostoResponse> getPosti(String parcheggioId, Integer piano) {
+	/*public List<PostoResponse> getPosti(String parcheggioId, Integer piano) {
 	    Parcheggio parcheggio = parcheggioRepository.findById(parcheggioId)
 	            .orElseThrow(() -> new RuntimeException("Parcheggio non trovato: " + parcheggioId));
 
@@ -353,7 +352,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 	    );
 
 	    return result;
-	}
+	}*/
 
     private int extractFloorNumber(String pianoKey) {
         if (pianoKey == null || pianoKey.isBlank()) {
@@ -425,5 +424,11 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         postoRepository.save(posto);
 
         return mapToResponse(posto);
+	}
+
+	@Override
+	public List<PostoResponse> getPosti(String parcheggioId, Integer piano) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

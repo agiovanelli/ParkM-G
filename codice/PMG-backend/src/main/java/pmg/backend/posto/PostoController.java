@@ -8,15 +8,15 @@ import java.util.List;
 @RequestMapping("/api/posti")
 public class PostoController {
 
-    private final PostoService service;
+    private final PostoService postoService;
 
-    public PostoController(PostoService service) {
-        this.service = service;
+    public PostoController(PostoService postoService) {
+        this.postoService = postoService;
     }
 
-    @GetMapping("/parcheggio/{parcheggioId}")
-    public List<PostoResponse> getByParcheggio(@PathVariable String parcheggioId) {
-        return service.getPostiByParcheggio(parcheggioId);
+    @GetMapping("/{id}")
+    public List<PostoResponse> getById(@PathVariable String postoId) {
+        return postoService.getPostiByParcheggio(postoId);
     }
 
 }
