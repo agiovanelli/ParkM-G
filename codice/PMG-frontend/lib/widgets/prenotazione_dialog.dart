@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:park_mg/api/api_client.dart';
+import 'package:park_mg/models/posto.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/prenotazione.dart';
@@ -39,12 +40,8 @@ class _PrenotazioneDialogContent extends StatefulWidget {
   final PrenotazioneResponse prenotazione;
   final ApiClient apiClient;
   final String utenteId;
-
-  // ✅ ora opzionali
   final VoidCallback? onCancelled;
   final VoidCallback? onClosed;
-
-  // ✅ nuovo
   final bool lockActions;
 
   const _PrenotazioneDialogContent({
@@ -68,12 +65,15 @@ class _PrenotazioneDialogContentState
   bool _isCancelling = false;
   Timer? _pollTimer;
   late PrenotazioneResponse _current;
-  bool _polling = false; // evita doppi start
+  bool _polling = false;
+  String? _parcheggioNome;
+  bool _loadingParcheggio = false;
 
   @override
   void initState() {
     super.initState();
     _current = widget.prenotazione;
+    _loadParcheggioNome();
     _startPolling();
     if (_current.stato == StatoPrenotazione.ATTIVA) {
       _calcolaTempoRimanente();
@@ -84,6 +84,32 @@ class _PrenotazioneDialogContentState
         if (_remainingTime.inSeconds <= 0) {
           timer.cancel();
         }
+      });
+    }
+  }
+
+  Future<void> _loadParcheggioNome() async {
+    if (_current.parcheggioId.trim().isEmpty) return;
+
+    setState(() => _loadingParcheggio = true);
+
+    try {
+      final json = await widget.apiClient.getParcheggioById(
+        _current.parcheggioId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _parcheggioNome = (json['nome'] ?? '').toString();
+        _loadingParcheggio = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingParcheggio = false;
+        _parcheggioNome = null;
       });
     }
   }
@@ -207,6 +233,73 @@ class _PrenotazioneDialogContentState
     _remainingTime = diff.isNegative ? Duration.zero : diff;
   }
 
+  Widget _buildPostoDettaglio(Posto posto) {
+    String? tipoPosto;
+
+    if (posto.riservatoDisabili) {
+      tipoPosto = "Disabili";
+    } else if (posto.riservatoIncinta) {
+      tipoPosto = "Gravidanza";
+    } else if (posto.disabilitato) {
+      tipoPosto = "Disabilitato";
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.accentCyan.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentCyan, width: 1.4),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.local_parking,
+            color: AppColors.accentCyan,
+            size: 20,
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Posto prenotato",
+            style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Piano ${posto.piano} · Posto ${posto.numero}",
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (tipoPosto != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.bgDark,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.accentCyan),
+              ),
+              child: Text(
+                tipoPosto,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -219,6 +312,12 @@ class _PrenotazioneDialogContentState
     const double maxDialogWidth = 300.0;
     final p = _current;
 
+    final shouldShowQr =
+        (p.codiceQr ?? '').isNotEmpty &&
+        (p.stato == StatoPrenotazione.ATTIVA ||
+            p.stato == StatoPrenotazione.IN_CORSO ||
+            p.stato == StatoPrenotazione.PAGATO);
+
     return Dialog(
       backgroundColor: AppColors.bgDark2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -227,32 +326,42 @@ class _PrenotazioneDialogContentState
         constraints: const BoxConstraints(maxWidth: maxDialogWidth),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _buildStatoBadge(p),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
                 if (p.stato == StatoPrenotazione.ATTIVA) _buildTimer(),
 
                 _buildDettaglio(
                   Icons.directions_car,
                   "Parcheggio",
-                  p.parcheggioId,
+                  _loadingParcheggio
+                      ? "Caricamento..."
+                      : ((_parcheggioNome != null &&
+                                _parcheggioNome!.trim().isNotEmpty)
+                            ? _parcheggioNome!
+                            : p.parcheggioId),
                 ),
+
+                if (p.posto != null) _buildPostoDettaglio(p.posto!),
+
                 _buildDettaglio(
                   Icons.event,
                   "Creazione",
                   _formatDT(p.dataCreazione),
                 ),
+
                 if (p.dataIngresso != null)
                   _buildDettaglio(
                     Icons.login,
                     "Ingresso",
                     _formatDT(p.dataIngresso),
                   ),
+
                 if (p.dataUscita != null)
                   _buildDettaglio(
                     Icons.logout,
@@ -262,9 +371,9 @@ class _PrenotazioneDialogContentState
 
                 const SizedBox(height: 12),
 
-                if ((p.codiceQr ?? '').isNotEmpty) _buildQrCode(p),
+                if (shouldShowQr) _buildQrCode(p),
 
-                if ((p.codiceQr ?? '').isNotEmpty) const SizedBox(height: 12),
+                if (shouldShowQr) const SizedBox(height: 12),
 
                 if (!widget.lockActions)
                   Row(
@@ -450,17 +559,17 @@ class _PrenotazioneDialogContentState
 
   Widget _buildDettaglio(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.accentCyan, size: 18),
-          const SizedBox(height: 4),
+          Icon(icon, color: AppColors.accentCyan, size: 16),
+          const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             value,
             maxLines: 2,
@@ -468,7 +577,7 @@ class _PrenotazioneDialogContentState
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
-              fontSize: 13,
+              fontSize: 12,
             ),
             textAlign: TextAlign.center,
           ),
@@ -495,88 +604,82 @@ class _PrenotazioneDialogContentState
   }
 
   Widget _buildQrCode(PrenotazioneResponse p) {
-  final code = (p.codiceQr ?? '').trim();
+    final code = (p.codiceQr ?? '').trim();
 
-  return Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.accentCyan, width: 2),
-    ),
-    child: Column(
-      children: [
-        const Text(
-          "Codice QR",
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 6),
-
-        GestureDetector(
-          onLongPress: () async {
-            if (_isCancelling) return;
-
-            final s = p.stato;
-            final canCancel =
-                s == StatoPrenotazione.ATTIVA ||
-                s == StatoPrenotazione.IN_CORSO;
-
-            if (!canCancel) {
-              UiFeedback.showError(
-                context,
-                "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
-              );
-              return;
-            }
-
-            await _annullaPrenotazione();
-          },
-          child: QrImageView(
-            data: code, 
-            version: QrVersions.auto,
-            size: 200.0,
-            backgroundColor: Colors.white,
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: Colors.black,
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentCyan, width: 2),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            "Codice QR",
+            style: TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
             ),
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: Colors.black,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          GestureDetector(
+            onLongPress: () async {
+              if (_isCancelling) return;
+
+              final s = p.stato;
+              final canCancel =
+                  s == StatoPrenotazione.ATTIVA ||
+                  s == StatoPrenotazione.IN_CORSO;
+
+              if (!canCancel) {
+                UiFeedback.showError(
+                  context,
+                  "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
+                );
+                return;
+              }
+
+              await _annullaPrenotazione();
+            },
+            child: QrImageView(
+              data: code,
+              version: QrVersions.auto,
+              size: 160,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
             ),
           ),
-        ),
-
-        const SizedBox(height: 8),
-
-       
-        SelectableText(
-          code,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            fontFamily: 'monospace',
-            color: Colors.black54,
+          const SizedBox(height: 6),
+          SelectableText(
+            code,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10,
+              fontFamily: 'monospace',
+              color: Colors.black54,
+            ),
           ),
-        ),
-
-        const SizedBox(height: 6),
-
-        const Text(
-          "Mostra questo codice all'ingresso",
-          style: TextStyle(color: Colors.black54, fontSize: 10),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    ),
-  );
-}
-
+          const SizedBox(height: 4),
+          const Text(
+            "Mostra questo codice all'ingresso",
+            style: TextStyle(color: Colors.black54, fontSize: 9),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
   String _formatDT(DateTime? dt) {
     if (dt == null) return "Data non disponibile";

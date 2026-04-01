@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:park_mg/models/posto.dart';
+import 'package:park_mg/screen/home_page.dart';
 import 'package:park_mg/utils/theme.dart';
+import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:park_mg/widgets/operator_parking_image_map.dart';
 import '../models/operatore.dart';
 import 'qr_scanner_screen.dart';
@@ -171,8 +173,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
       setState(() {
         _realSpots = spots;
       });
+      debugPrint(
+        'spots loaded floor=$_selectedFloor -> ${spots.map((s) => '${s.numero}:${s.disponibile}:${s.disabilitato}').join(', ')}',
+      );
     } catch (e) {
-      _showToast('Errore caricamento posti: $e');
+      UiFeedback.showError(context, 'Errore caricamento posti: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoadingSpots = false);
@@ -198,7 +203,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
       });
     } catch (e) {
       debugPrint('Errore caricamento analiticaId: $e');
-      _showToast('Errore caricamento analitica del parcheggio');
+      UiFeedback.showError(
+        context,
+        'Errore caricamento analitica del parcheggio',
+      );
     }
   }
 
@@ -281,11 +289,32 @@ class _OperatorScreenState extends State<OperatorScreen> {
     } catch (e, st) {
       debugPrint('errore _loadParkingStats: $e');
       debugPrintStack(stackTrace: st);
-      _showToast('Errore caricamento statistiche: $e');
+      UiFeedback.showError(context, 'Errore caricamento statistiche: $e');
     }
   }
 
-  void _logout() => Navigator.of(context).pop();
+  Future<void> _logout() async {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
+
+    if (!mounted) return;
+
+    setState(() {
+      _isProcessing = false;
+      _isRefreshing = false;
+      _isLoadingSpots = false;
+      _selectedSpotId = null;
+      _pageIndex = 0;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => HomePage(apiClient: _apiClient)),
+        (route) => false,
+      );
+    });
+  }
 
   void _changeFloor(int floor) {
     setState(() {
@@ -328,7 +357,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
 
-    if (res == true && mounted) _logout();
+    if (res == true && mounted) await _logout();
   }
 
   void _showStrutturaDialog() {
@@ -504,21 +533,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isRefreshing = false);
-      _showToast('Errore refresh: $e');
+      UiFeedback.showError(context, 'Errore refresh: $e');
     }
-  }
-
-  void _showToast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: AppColors.bgDark,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
   // ---- UI ----
 
@@ -1235,6 +1251,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
             )
           else
             OperatorParkingImageMap(
+              key: ValueKey(
+                '${_selectedFloor}_${_realSpots.map((s) => '${s.id}:${s.disponibile}:${s.disabilitato}').join('|')}',
+              ),
               selectedFloor: _selectedFloor,
               floors: const [1, 2, 3],
               onFloorChanged: _changeFloor,
@@ -1243,8 +1262,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               onSpotTap: (slotId) {
                 final tapped = _realSpots.firstWhere((s) => s.slotId == slotId);
 
-                if (!tapped.disponibile) return;
-                if (tapped.disabilitato) return;
+                if (!tapped.disponibile && !tapped.disabilitato) return;
 
                 setState(() {
                   _selectedSpotId = (_selectedSpotId == slotId) ? null : slotId;
@@ -1277,11 +1295,57 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     }
                   });
 
-                  _showToast('Posto disabilitato correttamente');
+                  UiFeedback.showSuccess(
+                    context,
+                    'Posto disabilitato correttamente',
+                  );
                   await _loadParkingStats();
                 } catch (e) {
                   if (!mounted) return;
-                  _showToast('Errore disabilitazione posto: $e');
+                  UiFeedback.showError(
+                    context,
+                    'Errore disabilitazione posto: $e',
+                  );
+                }
+              },
+              onEnableSpot: (slotId) async {
+                try {
+                  final selected = _realSpots.firstWhere(
+                    (s) => s.slotId == slotId,
+                  );
+
+                  await _apiClient.updatePostoDisabilitato(
+                    parcheggioId: widget.operatore.parcheggioId,
+                    piano: selected.piano,
+                    numero: selected.numero,
+                    disabilitato: false,
+                  );
+
+                  final updatedSpots = await _apiClient.getPostiParcheggio(
+                    widget.operatore.parcheggioId,
+                    piano: _selectedFloor,
+                  );
+
+                  if (!mounted) return;
+
+                  setState(() {
+                    _realSpots = updatedSpots;
+                    if (_selectedSpotId == slotId) {
+                      _selectedSpotId = null;
+                    }
+                  });
+
+                  UiFeedback.showSuccess(
+                    context,
+                    'Posto riabilitato correttamente',
+                  );
+                  await _loadParkingStats();
+                } catch (e) {
+                  if (!mounted) return;
+                  UiFeedback.showError(
+                    context,
+                    'Errore riabilitazione posto: $e',
+                  );
                 }
               },
             ),
@@ -1599,7 +1663,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
       });
     } catch (e) {
       debugPrint('Errore aggiornamento severity: $e');
-      _showToast('Errore aggiornamento severità');
+      UiFeedback.showError(context, 'Errore aggiornamento severità');
     }
   }
 
@@ -1616,7 +1680,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
       });
     } catch (e) {
       debugPrint('Errore aggiornamento category: $e');
-      _showToast('Errore aggiornamento categoria');
+      UiFeedback.showError(context, 'Errore aggiornamento categoria');
     }
   }
 
@@ -2253,9 +2317,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
           motivo,
         );
         _refresh();
-        _showToast("EMERGENZA ATTIVATA");
+        UiFeedback.showSuccess(context, "EMERGENZA ATTIVATA");
       } catch (e) {
-        _showToast("Errore: $e");
+        UiFeedback.showError(context, "Errore: $e");
       }
     }
   }

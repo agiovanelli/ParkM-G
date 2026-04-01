@@ -14,6 +14,8 @@ import pmg.backend.log.LogService;
 import pmg.backend.log.LogSeverità;
 import pmg.backend.parcheggio.Parcheggio;
 import pmg.backend.parcheggio.ParcheggioRepository;
+import pmg.backend.posto.Posto;
+import pmg.backend.posto.PostoRepository;
 
 import java.time.LocalDateTime;
 
@@ -34,18 +36,21 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
     private final UtenteRepository utenteRepository;
     private final LogService logService;
     private final AnaliticheRepository analiticheRepository;
+    private final PostoRepository postoRepository;
 
     public PrenotazioneServiceImpl(
             PrenotazioneRepository prenotazioneRepository,
             ParcheggioRepository parcheggioRepository,
             UtenteRepository utenteRepository,
             LogService logService,
-            AnaliticheRepository analiticheRepository) {
+            AnaliticheRepository analiticheRepository,
+            PostoRepository postoRepository) {
         this.prenotazioneRepository = prenotazioneRepository;
         this.parcheggioRepository = parcheggioRepository;
         this.utenteRepository = utenteRepository;
         this.logService = logService;
         this.analiticheRepository = analiticheRepository;
+        this.postoRepository = postoRepository;
     }
 
     @Override
@@ -70,19 +75,42 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                 .toList();
     }
     
-    @Scheduled(fixedRate = 60000) // Esegue il controllo ogni minuto
+    @Scheduled(fixedRate = 60000)
     public void controllaPrenotazioniScadute() {
         LocalDateTime limite = LocalDateTime.now().minusMinutes(10);
-        
-        // Trova le prenotazioni ancora ATTIVE fatte più di 10 minuti fa
+
         List<Prenotazione> scadute = prenotazioneRepository.findByStatoAndDataCreazioneBefore(
             StatoPrenotazione.ATTIVA, limite
         );
-        
+
         for (Prenotazione p : scadute) {
+            boolean postoLiberato = false;
+
+            if (p.getPosto() != null && p.getPosto().getId() != null) {
+                Posto posto = postoRepository
+                    .findByIdAndParcheggioId(p.getPosto().getId(), p.getParcheggioId())
+                    .orElse(null);
+
+                if (posto != null && !posto.isDisponibile()) {
+                    posto.setDisponibile(true);
+                    postoRepository.save(posto);
+                    postoLiberato = true;
+                }
+            }
+
             p.setStato(StatoPrenotazione.SCADUTA);
+            if (p.getPosto() != null) {
+                p.getPosto().setDisponibile(true);
+            }
             prenotazioneRepository.save(p);
-            // Qui potresti anche loggare l'evento o liberare il posto nel parcheggio
+
+            if (postoLiberato) {
+                parcheggioRepository.findById(p.getParcheggioId()).ifPresent(park -> {
+                    int nuoviDisp = Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1);
+                    park.setPostiDisponibili(nuoviDisp);
+                    parcheggioRepository.save(park);
+                });
+            }
         }
     }
     
@@ -128,6 +156,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         );
     }
     
+    @Override
     @Transactional
     public PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId) {
         Prenotazione p = prenotazioneRepository
@@ -136,21 +165,46 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
         if (p.getStato() != StatoPrenotazione.ATTIVA && p.getStato() != StatoPrenotazione.IN_CORSO) {
             throw new IllegalStateException(
-                "Puoi annullare solo prenotazioni ATTIVE (stato attuale: " + p.getStato() + ")"
+                "Puoi annullare solo prenotazioni ATTIVE o IN_CORSO (stato attuale: " + p.getStato() + ")"
             );
         }
 
-        // 1) cambia stato
-        p.setStato(StatoPrenotazione.ANNULLATA);
-        Prenotazione salvata = prenotazioneRepository.save(p);
+        boolean postoLiberato = false;
 
-        // 2) libera posto nel parcheggio (con clamp a postiTotali)
+        // 1) libera il posto reale nella collection "posti"
+        if (p.getPosto() != null && p.getPosto().getId() != null) {
+            String postoId = p.getPosto().getId();
+
+            Posto posto = postoRepository
+                .findByIdAndParcheggioId(postoId, p.getParcheggioId())
+                .orElseThrow(() -> new RuntimeException("Posto associato alla prenotazione non trovato"));
+
+            if (!posto.isDisponibile()) {
+                posto.setDisponibile(true);
+                postoRepository.save(posto);
+                postoLiberato = true;
+            }
+        }
+
+        // 2) aggiorna contatore del parcheggio
         Parcheggio park = parcheggioRepository.findById(p.getParcheggioId())
             .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
 
-        int nuoviDisp = Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1);
-        park.setPostiDisponibili(nuoviDisp);
-        parcheggioRepository.save(park);
+        if (postoLiberato) {
+            int nuoviDisp = Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1);
+            park.setPostiDisponibili(nuoviDisp);
+            parcheggioRepository.save(park);
+        }
+
+        // 3) aggiorna stato prenotazione
+        p.setStato(StatoPrenotazione.ANNULLATA);
+
+        // aggiorna anche la copia del posto dentro la prenotazione
+        if (p.getPosto() != null) {
+            p.getPosto().setDisponibile(true);
+        }
+
+        Prenotazione salvata = prenotazioneRepository.save(p);
 
         return convertiInResponse(salvata);
     }
@@ -277,14 +331,36 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             throw new IllegalStateException("Tempo massimo per l'uscita scaduto! Contatta l'assistenza.");
         }
 
+        boolean postoLiberato = false;
+
+        if (p.getPosto() != null && p.getPosto().getId() != null) {
+            String postoId = p.getPosto().getId();
+
+            Posto posto = postoRepository
+                .findByIdAndParcheggioId(postoId, p.getParcheggioId())
+                .orElseThrow(() -> new RuntimeException("Posto associato alla prenotazione non trovato"));
+
+            if (!posto.isDisponibile()) {
+                posto.setDisponibile(true);
+                postoRepository.save(posto);
+                postoLiberato = true;
+            }
+        }
+
         p.setStato(StatoPrenotazione.CONCLUSA);
         p.setDataUscita(LocalDateTime.now());
+
+        if (p.getPosto() != null) {
+            p.getPosto().setDisponibile(true);
+        }
 
         Parcheggio park = parcheggioRepository.findById(p.getParcheggioId())
                 .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
 
-        park.setPostiDisponibili(Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1));
-        parcheggioRepository.save(park);
+        if (postoLiberato) {
+            park.setPostiDisponibili(Math.min(park.getPostiTotali(), park.getPostiDisponibili() + 1));
+            parcheggioRepository.save(park);
+        }
 
         Prenotazione salvata = prenotazioneRepository.save(p);
 
@@ -411,7 +487,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	            p.getDataIngresso(),
 	            p.getDataUscita(),
 	            p.getImportoPagato(),
-	            null
+	            p.getPosto()
 	    );
 	}
 	

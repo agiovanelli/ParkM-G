@@ -13,6 +13,7 @@ class OperatorParkingImageMap extends StatefulWidget {
   final String? selectedSpotId;
   final ValueChanged<String> onSpotTap;
   final ValueChanged<String> onDisableSpot;
+  final ValueChanged<String> onEnableSpot;
   final String assetPath;
 
   const OperatorParkingImageMap({
@@ -24,6 +25,7 @@ class OperatorParkingImageMap extends StatefulWidget {
     required this.selectedSpotId,
     required this.onSpotTap,
     required this.onDisableSpot,
+    required this.onEnableSpot,
     this.assetPath = 'assets/parking/floor.png',
   });
 
@@ -180,6 +182,8 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
         selectedSpot.disponibile &&
         !selectedSpot.disabilitato;
 
+    final canEnableSelected = selectedSpot != null && selectedSpot.disabilitato;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -262,9 +266,7 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                                   'Posto ${posto.slotNumber} • ${_spotStatusLabel(posto)}',
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
-                                onTap: posto.disabilitato
-                                    ? null
-                                    : () => widget.onSpotTap(posto.slotId),
+                                onTap: () => widget.onSpotTap(posto.slotId),
                                 child: const SizedBox.expand(),
                               ),
                             ),
@@ -289,6 +291,29 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                 label: const Text('Disabilita posto selezionato'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6B7280),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+
+          if (canEnableSelected)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  widget.onEnableSpot(widget.selectedSpotId!);
+                },
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Riabilita posto selezionato'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -435,8 +460,25 @@ class _OperatorParkingSlotsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OperatorParkingSlotsPainter oldDelegate) {
-    return oldDelegate.spots != spots ||
-        oldDelegate.selectedSpotId != selectedSpotId ||
-        oldDelegate.imageAspect != imageAspect;
+    if (oldDelegate.selectedSpotId != selectedSpotId) return true;
+    if (oldDelegate.imageAspect != imageAspect) return true;
+    if (oldDelegate.spots.length != spots.length) return true;
+
+    for (int i = 0; i < spots.length; i++) {
+      final a = oldDelegate.spots[i];
+      final b = spots[i];
+
+      if (a.id != b.id ||
+          a.disponibile != b.disponibile ||
+          a.disabilitato != b.disabilitato ||
+          a.riservatoDisabili != b.riservatoDisabili ||
+          a.riservatoIncinta != b.riservatoIncinta ||
+          a.numero != b.numero ||
+          a.piano != b.piano) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

@@ -1787,7 +1787,7 @@ class _UserScreenState extends State<UserScreen>
                               IndoorParkingView(
                                 def: _indoorDef,
                                 assignment: _assignmentProvider.fromSlotId(
-                                  '1-01',
+                                  _activeBooking!.posto!.slotId,
                                 ),
                                 userFloor: 1,
                                 showGridDebug: false,

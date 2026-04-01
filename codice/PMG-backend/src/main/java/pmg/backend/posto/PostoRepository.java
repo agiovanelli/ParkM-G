@@ -12,4 +12,6 @@ public interface PostoRepository extends MongoRepository<Posto, String> {
     List<Posto> findByParcheggioIdAndPianoOrderByNumeroAsc(String parcheggioId, int piano);
 
     Optional<Posto> findByParcheggioIdAndPianoAndNumero(String parcheggioId, int piano, int numero);
+    
+    Optional<Posto> findByIdAndParcheggioId(String id, String parcheggioId);
 }

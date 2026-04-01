@@ -105,6 +105,8 @@ public class PostoServiceImpl implements PostoService {
 
         if (disabilitato) {
             posto.setDisponibile(false);
+        } else {
+            posto.setDisponibile(true);
         }
 
         postoRepository.save(posto);
@@ -116,9 +118,13 @@ public class PostoServiceImpl implements PostoService {
 
         if (!oldDisabilitato && disabilitato && oldDisponibile) {
             disponibili--;
+        } else if (oldDisabilitato && !disabilitato) {
+            disponibili++;
         }
 
-        parcheggio.setPostiDisponibili(Math.max(0, disponibili));
+        parcheggio.setPostiDisponibili(
+                Math.max(0, Math.min(parcheggio.getPostiTotali(), disponibili))
+        );
         parcheggioRepository.save(parcheggio);
 
         return new PostoResponse(posto);
