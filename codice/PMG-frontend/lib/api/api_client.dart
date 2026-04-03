@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:park_mg/models/log.dart';
@@ -620,5 +621,43 @@ class ApiClient {
       'Errore aggiornamento disponibilità posto: HTTP ${resp.statusCode}',
       resp.statusCode,
     );
+  }
+
+  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
+    final uri = Uri.parse(
+      '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
+    );
+
+    try {
+      final response = await http
+          .post(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        final body = response.body.trim();
+        throw ApiException(
+          body.isNotEmpty
+              ? 'Errore conferma parcheggio: $body'
+              : 'Errore conferma parcheggio (${response.statusCode})',
+        );
+      }
+
+      if (response.body.trim().isEmpty) {
+        throw ApiException(
+          'Risposta vuota dal server durante la conferma parcheggio.',
+        );
+      }
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return PrenotazioneResponse.fromJson(json);
+    } on TimeoutException {
+      throw ApiException('Timeout durante la conferma del parcheggio.');
+    } on FormatException {
+      throw ApiException('Risposta non valida dal server.');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Errore conferma parcheggio: $e');
+    }
   }
 }

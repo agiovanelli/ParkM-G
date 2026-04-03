@@ -14,6 +14,7 @@ import 'package:park_mg/indoor/ui/indoor_parking_view.dart';
 import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/screen/home_page.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
+import 'package:park_mg/widgets/gestione_sosta_inline_view.dart';
 import 'package:park_mg/widgets/preferenze_dialog.dart';
 
 import 'package:park_mg/utils/theme.dart';
@@ -87,16 +88,25 @@ class _UserScreenState extends State<UserScreen>
   BitmapDescriptor? _parkingIconSelected;
   int _sessionToken = 0;
   Timer? _bookingStatusTimer;
+  bool _showGestioneSostaView = false;
+  final GlobalKey<IndoorParkingViewState> _indoorKey =
+      GlobalKey<IndoorParkingViewState>();
+
+  Timer? _parkedConfirmTimer;
+  bool _parkingConfirmVisible = false;
+  bool _forceHideIndoorMap = false;
   late final IndoorMapDefinition _indoorDef = buildDefaultIndoorMapDefinition();
   final IndoorAssignmentProvider _assignmentProvider =
       const IndoorAssignmentProvider();
 
   bool get _showIndoorMap {
     final b = _activeBooking;
-    debugPrint('SHOW INDOOR? stato=${b?.stato} posto=${b?.posto}');
+    if (_forceHideIndoorMap) return false;
     if (b == null) return false;
     return b.stato == StatoPrenotazione.IN_CORSO;
   }
+
+  bool get _showMainMapView => !_showIndoorMap && !_showGestioneSostaView;
 
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -124,6 +134,108 @@ class _UserScreenState extends State<UserScreen>
   void _stopBookingStatusPolling() {
     _bookingStatusTimer?.cancel();
     _bookingStatusTimer = null;
+  }
+
+  void _handleIndoorArrivedToSlot() {
+    if (!mounted) return;
+    if (_parkingConfirmVisible) return;
+
+    _parkedConfirmTimer?.cancel();
+    _parkedConfirmTimer = Timer(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      if (_parkingConfirmVisible) return;
+
+      _parkingConfirmVisible = true;
+      await _showParkedConfirmationPopup();
+      _parkingConfirmVisible = false;
+    });
+  }
+
+  Future<void> _openGestioneSostaInline() async {
+    if (!mounted || _activeBooking == null) return;
+
+    try {
+      final aggiornata = await widget.apiClient.confermaParcheggio(
+        _activeBooking!.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _activeBooking = aggiornata;
+        _forceHideIndoorMap = true;
+        _showGestioneSostaView = true;
+        _blockMapInteractions = false;
+        _lockMapGestures = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Errore conferma parcheggio: $e');
+    }
+  }
+
+  Future<void> _showParkedConfirmationPopup() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Hai parcheggiato?',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: const Text(
+          'Se hai completato il parcheggio, prosegui alla gestione della sosta.',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'No',
+              style: TextStyle(color: Colors.orangeAccent),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentCyan,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sì'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      await _openGestioneSostaInline();
+    } else {
+      _restartIndoorAnimation();
+    }
+  }
+
+  void _restartIndoorAnimation() {
+    _parkedConfirmTimer?.cancel();
+    _indoorKey.currentState?.restartRouteAnimation();
+  }
+
+  String _formatDistance(double? meters) {
+    if (meters == null) return 'Calcolo distanza…';
+
+    if (meters >= 1000) {
+      final km = meters / 1000;
+      final hasDecimal = (km * 10) % 10 != 0;
+      return 'Distanza: ${hasDecimal ? km.toStringAsFixed(1) : km.toStringAsFixed(0)} km';
+    }
+
+    return 'Distanza: ${meters.toStringAsFixed(0)} m';
   }
 
   void _showOnlyBookedParking(Map<String, dynamic> p) {
@@ -164,6 +276,7 @@ class _UserScreenState extends State<UserScreen>
     debugPrint('ENTER INDOOR called, showIndoor=$_showIndoorMap');
     if (!mounted) return;
     if (!_showIndoorMap) return;
+
     _stopReturnOverlay();
 
     final nav = Navigator.of(context);
@@ -183,6 +296,10 @@ class _UserScreenState extends State<UserScreen>
     if (_qrShownOnLogin) return;
     if (_activeBooking == null) return;
     if (_activeParkingLatLng == null) return;
+    if (_activeBooking!.stato == StatoPrenotazione.PARCHEGGIATO ||
+        _activeBooking!.stato == StatoPrenotazione.PAGATO) {
+      return;
+    }
 
     _qrShownOnLogin = true;
     _openingQrDialog = true;
@@ -303,19 +420,21 @@ class _UserScreenState extends State<UserScreen>
     }
   }
 
-  bool _isActiveState(StatoPrenotazione s) {
-    return s == StatoPrenotazione.ATTIVA ||
-        s == StatoPrenotazione.IN_CORSO ||
-        s == StatoPrenotazione.PAGATO;
-  }
-
   Future<void> _restoreActiveBookingFromBackend() async {
     try {
       final storico = await widget.apiClient.getStoricoPrenotazioni(
         widget.utente.id,
       );
 
-      final attive = storico.where((p) => _isActiveState(p.stato)).toList();
+      final attive = storico
+          .where(
+            (p) =>
+                p.stato == StatoPrenotazione.ATTIVA ||
+                p.stato == StatoPrenotazione.IN_CORSO ||
+                p.stato == StatoPrenotazione.PARCHEGGIATO ||
+                p.stato == StatoPrenotazione.PAGATO,
+          )
+          .toList();
 
       if (attive.isEmpty) {
         if (!mounted) return;
@@ -326,6 +445,8 @@ class _UserScreenState extends State<UserScreen>
           _bookedParkingMarkerId = null;
           _bookedMarkerLocked = false;
           _externalNavOpened = false;
+          _forceHideIndoorMap = false;
+          _showGestioneSostaView = false;
         });
         return;
       }
@@ -333,7 +454,7 @@ class _UserScreenState extends State<UserScreen>
       attive.sort((a, b) {
         final da = a.dataCreazione ?? DateTime.fromMillisecondsSinceEpoch(0);
         final db = b.dataCreazione ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return db.compareTo(da); // desc
+        return db.compareTo(da);
       });
 
       final booking = attive.first;
@@ -347,16 +468,22 @@ class _UserScreenState extends State<UserScreen>
 
       if (!mounted) return;
 
+      final bool showGestione =
+          booking.stato == StatoPrenotazione.PARCHEGGIATO ||
+          booking.stato == StatoPrenotazione.PAGATO;
+
       setState(() {
         _activeBooking = booking;
         _activeParkingLatLng = LatLng(lat, lng);
-        _arrivalHandled = false;
-
+        _arrivalHandled = showGestione;
         _externalNavOpened = false;
         _distanceToParkingM = null;
         _returnOverlay = false;
         _bookedMarkerLocked = true;
+        _forceHideIndoorMap = showGestione;
+        _showGestioneSostaView = showGestione;
       });
+
       _enterIndoorModeIfNeeded();
       _showOnlyBookedParking(park);
     } catch (_) {}
@@ -369,10 +496,17 @@ class _UserScreenState extends State<UserScreen>
     if (_activeBooking == null || _activeParkingLatLng == null) return;
     if (_arrivalHandled) return;
 
+    final stato = _activeBooking!.stato;
+    if (stato == StatoPrenotazione.PARCHEGGIATO ||
+        stato == StatoPrenotazione.PAGATO) {
+      return;
+    }
+
     setState(() {
       _returnOverlay = true;
       _arrivalUiDone = false;
     });
+
     _returnOverlayTimer?.cancel();
     _updateDistanceAndMaybeArrive();
     _returnOverlayTimer = Timer.periodic(const Duration(milliseconds: 1500), (
@@ -495,9 +629,25 @@ class _UserScreenState extends State<UserScreen>
         _activeBooking = updated;
       });
 
-      if (changed && updated.stato == StatoPrenotazione.IN_CORSO) {
+      if (!changed) return;
+
+      if (updated.stato == StatoPrenotazione.IN_CORSO) {
+        _showGestioneSostaView = false;
+        _forceHideIndoorMap = false;
+        _arrivalHandled = false;
         _stopBookingStatusPolling();
         _enterIndoorModeIfNeeded();
+        return;
+      }
+
+      if (updated.stato == StatoPrenotazione.PARCHEGGIATO ||
+          updated.stato == StatoPrenotazione.PAGATO) {
+        _showGestioneSostaView = true;
+        _forceHideIndoorMap = true;
+        _arrivalHandled = true;
+        _stopReturnOverlay();
+        _stopBookingStatusPolling();
+        return;
       }
     } catch (_) {}
   }
@@ -577,6 +727,7 @@ class _UserScreenState extends State<UserScreen>
     Map<String, dynamic>? _,
   ]) async {
     _stopReturnOverlay();
+
     setState(() {
       _activeBooking = null;
       _activeParkingLatLng = null;
@@ -592,6 +743,9 @@ class _UserScreenState extends State<UserScreen>
 
       _showParkings = true;
       _lockMapGestures = false;
+
+      _forceHideIndoorMap = false;
+      _showGestioneSostaView = false;
 
       _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
     });
@@ -648,7 +802,7 @@ class _UserScreenState extends State<UserScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _bootstrapMyLocation();
       await _restoreActiveBookingFromBackend();
-      if (!_showIndoorMap) {
+      if (_showMainMapView) {
         await _showQrOnLoginIfNeeded();
       }
     });
@@ -697,6 +851,7 @@ class _UserScreenState extends State<UserScreen>
     _focusSub?.cancel();
     _returnOverlayTimer?.cancel();
     _bookingStatusTimer?.cancel();
+    _parkedConfirmTimer?.cancel();
     super.dispose();
   }
 
@@ -893,8 +1048,6 @@ class _UserScreenState extends State<UserScreen>
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
-  // -------------------- routes --------------------
-
   // -------------------- parkings --------------------
 
   Future<void> _toggleParkings() async {
@@ -1071,10 +1224,8 @@ class _UserScreenState extends State<UserScreen>
             });
           },
           onClosed: () {
-            // Se l'ha annullata nel dialog, non attivare nulla
             if (_bookingCancelledInDialog) return;
 
-            // ✅ ATTIVA la prenotazione "globale" SOLO ORA (dopo Chiudi del QR)
             setState(() {
               _activeBooking = risposta;
               _activeParkingLatLng = LatLng(destLat, destLng);
@@ -1082,12 +1233,10 @@ class _UserScreenState extends State<UserScreen>
             });
 
             setState(() {
-              _distanceToParkingM = null; // ✅ pulisci distanza
-              _returnOverlay =
-                  false; // ✅ overlay deve comparire solo al ritorno
+              _distanceToParkingM = null;
+              _returnOverlay = false;
             });
 
-            // evita doppio open
             if (_externalNavOpened) return;
             _externalNavOpened = true;
 
@@ -1325,288 +1474,6 @@ class _UserScreenState extends State<UserScreen>
     }
   }
 
-  /// Avviato dal FloatingActionButton. Scarica lo storico e decide cosa mostrare.
-  Future<void> _handleGestioneSoste() async {
-    // Mostra loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => const Center(
-        child: CircularProgressIndicator(color: AppColors.accentCyan),
-      ),
-    );
-
-    try {
-      // 1. Recupera tutto lo storico dal backend
-      final storico = await widget.apiClient.getStoricoPrenotazioni(
-        widget.utente.id,
-      );
-
-      // Chiudi il loading
-      if (mounted) Navigator.of(context).pop();
-
-      // 2. Filtra solo quelle che richiedono azione (IN_CORSO o PAGATO)
-      final attive = storico
-          .where(
-            (p) =>
-                p.stato == StatoPrenotazione.IN_CORSO ||
-                p.stato == StatoPrenotazione.PAGATO,
-          )
-          .toList();
-
-      if (attive.isEmpty) {
-        UiFeedback.showError(context, "Nessuna sosta attiva trovata.");
-        return;
-      }
-
-      // 3. Decisione flusso
-      if (attive.length == 1) {
-        // Se c'è solo un'auto, apri direttamente l'azione corretta
-        _apriAzioneSosta(attive.first);
-      } else {
-        // Se ce n'è più di una, mostra la lista di scelta
-        _mostraListaSelezione(attive);
-      }
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop(); // Chiudi loading se errore
-      UiFeedback.showError(context, "Impossibile recuperare le soste: $e");
-    }
-  }
-
-  /// Mostra un foglio dal basso per scegliere quale auto gestire (se > 1)
-  void _mostraListaSelezione(List<PrenotazioneResponse> lista) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(16),
-        height: 400,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Seleziona Veicolo",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView.builder(
-                itemCount: lista.length,
-                itemBuilder: (context, index) {
-                  final p = lista[index];
-                  final isPagato = p.stato == StatoPrenotazione.PAGATO;
-
-                  return Card(
-                    color: AppColors.bgDark2,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isPagato
-                            ? Colors.green
-                            : Colors.orange,
-                        child: Icon(
-                          isPagato ? Icons.check : Icons.local_parking,
-                          color: Colors.white,
-                        ),
-                      ),
-                      title: Text(
-                        "Parcheggio #${p.parcheggioId.substring(0, 4).toUpperCase()}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Text(
-                        isPagato
-                            ? "Pronto per l'uscita"
-                            : "In sosta - Da pagare",
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                      onTap: () {
-                        Navigator.pop(ctx); // Chiudi la lista
-                        _apriAzioneSosta(p); // Procedi con quella scelta
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _apriAzioneSosta(PrenotazioneResponse p) {
-    if (p.stato == StatoPrenotazione.PAGATO) {
-      // CORREZIONE: Usa .mostra invece di showDialog manuale
-      PrenotazioneDialog.mostra(
-        context,
-        prenotazione: p,
-        apiClient: widget.apiClient,
-        utenteId: widget.utente.id,
-        // lockActions e onCancelled potrebbero essere richiesti o opzionali a seconda della tua implementazione attuale
-        onCancelled: () {},
-      );
-    } else if (p.stato == StatoPrenotazione.IN_CORSO) {
-      _showPaymentSheet(p);
-    }
-  }
-
-  /// UI del Pagamento: Calcola prezzo live e permette di pagare
-  void _showPaymentSheet(PrenotazioneResponse p) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: 380,
-        decoration: const BoxDecoration(
-          color: AppColors.bgDark,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [BoxShadow(blurRadius: 20, color: Colors.black54)],
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 50,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[700],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const Text(
-              "Cassa Automatica",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            // FutureBuilder per il calcolo del prezzo in tempo reale
-            FutureBuilder<double>(
-              future: widget.apiClient.calcolaImporto(p.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator(
-                    color: AppColors.accentCyan,
-                  );
-                }
-                if (snapshot.hasError) {
-                  return const Text(
-                    "Errore calcolo tariffa.\nRiprova più tardi.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.redAccent),
-                  );
-                }
-
-                final importo = snapshot.data ?? 0.0;
-
-                return Column(
-                  children: [
-                    Text(
-                      "€ ${importo.toStringAsFixed(2)}",
-                      style: const TextStyle(
-                        color: AppColors.accentCyan,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Tariffa calcolata in tempo reale",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 40),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          elevation: 5,
-                        ),
-                        icon: const Icon(Icons.payment, color: Colors.white),
-                        label: const Text(
-                          "PAGA ORA (Simulato)",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        onPressed: () async {
-                          try {
-                            // Chiamata al backend per pagare
-                            final aggiornata = await widget.apiClient
-                                .pagaPrenotazione(p.id, importo);
-
-                            Navigator.pop(ctx); // Chiudi foglio pagamento
-
-                            // Feedback utente
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Pagamento riuscito! Hai 10 minuti per uscire.",
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-
-                            // Aggiorna subito lo stato dell'app (opzionale ma consigliato)
-                            setState(() {
-                              _activeBooking = aggiornata;
-                            });
-
-                            // Riapri subito il dialog mostrando il QR code aggiornato
-                            Future.delayed(
-                              const Duration(milliseconds: 300),
-                              () {
-                                _apriAzioneSosta(aggiornata);
-                              },
-                            );
-                          } catch (e) {
-                            Navigator.pop(ctx);
-                            UiFeedback.showError(
-                              context,
-                              "Errore pagamento: $e",
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // -------------------- UI --------------------
 
   @override
@@ -1624,25 +1491,6 @@ class _UserScreenState extends State<UserScreen>
 
     return Scaffold(
       backgroundColor: AppColors.bgDark2,
-
-      //  AGGIUNTA BOTTONE "LE MIE SOSTE"
-      floatingActionButton:
-          !_showIndoorMap // Nascondi se sei in navigazione indoor
-          ? FloatingActionButton.extended(
-              backgroundColor:
-                  AppColors.accentCyan, // O Colors.orange se preferisci
-              foregroundColor: Colors.black, // Testo scuro su bottone ciano
-              elevation: 6,
-              icon: const Icon(Icons.receipt_long),
-              label: const Text(
-                "Le mie Soste",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onPressed: _handleGestioneSoste, // Chiama il metodo creato sopra
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -1783,14 +1631,21 @@ class _UserScreenState extends State<UserScreen>
                         absorbing: _blockMapInteractions || _returnOverlay,
                         child: Stack(
                           children: [
-                            if (_showIndoorMap)
+                            if (_showGestioneSostaView)
+                              GestioneSostaInlineView(
+                                utente: widget.utente,
+                                apiClient: widget.apiClient,
+                              )
+                            else if (_showIndoorMap)
                               IndoorParkingView(
+                                key: _indoorKey,
                                 def: _indoorDef,
                                 assignment: _assignmentProvider.fromSlotId(
                                   _activeBooking!.posto!.slotId,
                                 ),
                                 userFloor: 1,
                                 showGridDebug: false,
+                                onArrivedToSlot: _handleIndoorArrivedToSlot,
                               )
                             else
                               GoogleMap(
@@ -1852,7 +1707,7 @@ class _UserScreenState extends State<UserScreen>
                                   ),
                                 ),
                               ),
-                            if (!_showIndoorMap)
+                            if (_showMainMapView)
                               Align(
                                 alignment: Alignment.topRight,
                                 child: Padding(
@@ -1881,7 +1736,8 @@ class _UserScreenState extends State<UserScreen>
                                 ),
                               ),
 
-                            if (!_showIndoorMap && _selectedParkingData != null)
+                            if (_showMainMapView &&
+                                _selectedParkingData != null)
                               Positioned(
                                 bottom: 40,
                                 left: 20,
@@ -1949,9 +1805,9 @@ class _UserScreenState extends State<UserScreen>
                                           Text(
                                             _arrivalUiDone
                                                 ? 'Apro il QR…'
-                                                : (_distanceToParkingM == null
-                                                      ? 'Calcolo distanza…'
-                                                      : 'Distanza: ${_distanceToParkingM!.toStringAsFixed(0)} m'),
+                                                : _formatDistance(
+                                                    _distanceToParkingM,
+                                                  ),
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(
                                               color: Colors.white70,

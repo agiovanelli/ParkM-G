@@ -97,5 +97,17 @@ public class PrenotazioneController {
         List<PrenotazioneResponse> prenotazioni = prenotazioneService.getByParcheggio(parcheggioId);
         return ResponseEntity.ok(prenotazioni);
     }
+    
+    @PostMapping("/{id}/parcheggiato")
+    public ResponseEntity<?> confermaParcheggio(@PathVariable String id) {
+        try {
+            PrenotazioneResponse res = prenotazioneService.confermaParcheggio(id);
+            return ResponseEntity.ok(res);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
 
 }

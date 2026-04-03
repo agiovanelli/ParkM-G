@@ -11,6 +11,8 @@ class IndoorParkingView extends StatefulWidget {
   final IndoorAssignment assignment;
   final int userFloor;
   final bool showGridDebug;
+  final VoidCallback? onArrivedToSlot;
+  final int animationDurationSeconds;
 
   const IndoorParkingView({
     super.key,
@@ -18,13 +20,15 @@ class IndoorParkingView extends StatefulWidget {
     required this.assignment,
     this.userFloor = 1,
     this.showGridDebug = false,
+    this.onArrivedToSlot,
+    this.animationDurationSeconds = 6,
   });
 
   @override
-  State<IndoorParkingView> createState() => _IndoorParkingViewState();
+  State<IndoorParkingView> createState() => IndoorParkingViewState();
 }
 
-class _IndoorParkingViewState extends State<IndoorParkingView>
+class IndoorParkingViewState extends State<IndoorParkingView>
     with TickerProviderStateMixin {
   late int _floor;
   List<Offset> _path = const [];
@@ -35,6 +39,7 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
   late final AnimationController _userCtrl;
   late final Animation<double> _userT;
   static const Offset _floorLabelN = Offset(0.285, 0.305);
+  bool _arrivalNotified = false;
 
   Rect _imageRect(Size size, double imageAspect) {
     final dstW = size.width;
@@ -99,12 +104,21 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
 
     _userCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 6), // regola tu
+      duration: Duration(seconds: widget.animationDurationSeconds),
     );
 
     _userCtrl.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        _autoAdvanceStep();
+        final isLastStep = _stepIndex >= _steps.length - 1;
+
+        if (isLastStep) {
+          if (!_arrivalNotified) {
+            _arrivalNotified = true;
+            widget.onArrivedToSlot?.call();
+          }
+        } else {
+          _autoAdvanceStep();
+        }
       }
     });
 
@@ -154,6 +168,17 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
     }
   }
 
+  void restartRouteAnimation() {
+    if (!mounted) return;
+
+    _arrivalNotified = false;
+    _stepIndex = 0;
+    _floor = widget.userFloor;
+
+    _userCtrl.stop();
+    _recompute();
+  }
+
   @override
   void didUpdateWidget(covariant IndoorParkingView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -171,6 +196,7 @@ class _IndoorParkingViewState extends State<IndoorParkingView>
       if (slotChanged) {
         _stepIndex = 0;
         _floor = 1;
+        _arrivalNotified = false;
       }
       _recompute();
     }

@@ -38,15 +38,12 @@ class PrenotazioneResponse {
       id: (json['id'] ?? '') as String,
       utenteId: (json['utenteId'] ?? '') as String,
       parcheggioId: (json['parcheggioId'] ?? '') as String,
-
       dataCreazione: _parseDT(json['dataCreazione']),
       codiceQr: json['codiceQr'] as String?,
-
       stato: StatoPrenotazione.values.firstWhere(
         (e) => e.name == (json['stato'] ?? 'ATTIVA'),
         orElse: () => StatoPrenotazione.ATTIVA,
       ),
-
       dataIngresso: _parseDT(json['dataIngresso']),
       dataUscita: _parseDT(json['dataUscita']),
       posto: json['posto'] != null
@@ -57,12 +54,13 @@ class PrenotazioneResponse {
 }
 
 enum StatoPrenotazione {
-  ATTIVA, // Prenotata (attesa entro 10 min)
-  IN_CORSO, // Utente entrato (timer avviato)
-  PAGATO, // Saldo effettuato (pronto per uscire)
-  CONCLUSA, // Utente uscito (posto liberato)
-  SCADUTA, // Tempo per l'ingresso esaurito
-  ANNULLATA, // Cancellata dall'utente
+  ATTIVA,
+  IN_CORSO,
+  PARCHEGGIATO,
+  PAGATO,
+  CONCLUSA,
+  SCADUTA,
+  ANNULLATA,
 }
 
 extension StatoPrenotazioneExtension on StatoPrenotazione {
@@ -71,7 +69,9 @@ extension StatoPrenotazioneExtension on StatoPrenotazione {
       case StatoPrenotazione.ATTIVA:
         return 'Attiva';
       case StatoPrenotazione.IN_CORSO:
-        return 'In Corso';
+        return 'In corso';
+      case StatoPrenotazione.PARCHEGGIATO:
+        return 'Parcheggiato';
       case StatoPrenotazione.PAGATO:
         return 'Pagato';
       case StatoPrenotazione.CONCLUSA:
@@ -89,6 +89,8 @@ extension StatoPrenotazioneExtension on StatoPrenotazione {
         return Colors.orange;
       case StatoPrenotazione.IN_CORSO:
         return Colors.blue;
+      case StatoPrenotazione.PARCHEGGIATO:
+        return Colors.deepPurple;
       case StatoPrenotazione.PAGATO:
         return Colors.green;
       case StatoPrenotazione.CONCLUSA:
@@ -98,5 +100,10 @@ extension StatoPrenotazioneExtension on StatoPrenotazione {
       case StatoPrenotazione.ANNULLATA:
         return Colors.deepOrange;
     }
+  }
+
+  bool get isGestibileDopoParcheggio {
+    return this == StatoPrenotazione.PARCHEGGIATO ||
+        this == StatoPrenotazione.PAGATO;
   }
 }

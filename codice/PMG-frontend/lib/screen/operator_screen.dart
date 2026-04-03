@@ -257,9 +257,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
         switch (p.stato) {
           case StatoPrenotazione.ATTIVA:
           case StatoPrenotazione.IN_CORSO:
+          case StatoPrenotazione.PARCHEGGIATO:
           case StatoPrenotazione.PAGATO:
             activeReservations++;
             break;
+
           case StatoPrenotazione.CONCLUSA:
           case StatoPrenotazione.SCADUTA:
           case StatoPrenotazione.ANNULLATA:
@@ -1748,13 +1750,13 @@ class _OperatorScreenState extends State<OperatorScreen> {
       );
       final prenotazioneId = prenotazioneData['id'] as String;
 
-      // 2. Gestisci in base allo stato
       switch (stato) {
         case StatoPrenotazione.ATTIVA:
           await _handleIngresso(qrCode);
           break;
 
         case StatoPrenotazione.IN_CORSO:
+        case StatoPrenotazione.PARCHEGGIATO:
           await _handlePagamento(prenotazioneId, qrCode);
           break;
 
@@ -2232,6 +2234,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
         return 'Attiva';
       case StatoPrenotazione.IN_CORSO:
         return 'In Corso';
+      case StatoPrenotazione.PARCHEGGIATO:
+        return 'Parcheggiato';
       case StatoPrenotazione.PAGATO:
         return 'Pagato';
       case StatoPrenotazione.CONCLUSA:

@@ -163,11 +163,13 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             .findByIdAndUtenteId(prenotazioneId, utenteId)
             .orElseThrow(() -> new RuntimeException("Prenotazione non trovata"));
 
-        if (p.getStato() != StatoPrenotazione.ATTIVA && p.getStato() != StatoPrenotazione.IN_CORSO) {
-            throw new IllegalStateException(
-                "Puoi annullare solo prenotazioni ATTIVE o IN_CORSO (stato attuale: " + p.getStato() + ")"
-            );
-        }
+        if (p.getStato() != StatoPrenotazione.ATTIVA &&
+        	    p.getStato() != StatoPrenotazione.IN_CORSO &&
+        	    p.getStato() != StatoPrenotazione.PARCHEGGIATO) {
+        	    throw new IllegalStateException(
+        	        "Puoi annullare solo prenotazioni ATTIVE, IN_CORSO o PARCHEGGIATO (stato attuale: " + p.getStato() + ")"
+        	    );
+        	}
 
         boolean postoLiberato = false;
 
@@ -292,7 +294,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
                 .orElseThrow(() -> new RuntimeException("Prenotazione non trovata"));
 
-        if (p.getStato() != StatoPrenotazione.IN_CORSO) {
+        if (p.getStato() != StatoPrenotazione.PARCHEGGIATO) {
             throw new IllegalStateException("Puoi pagare solo prenotazioni IN CORSO. Stato attuale: " + p.getStato());
         }
 
@@ -516,5 +518,34 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	            descrizione,
 	            LocalDateTime.now()
 	    ));
+	}
+	
+	@Override
+	public PrenotazioneResponse confermaParcheggio(String prenotazioneId) {
+	    Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
+	            .orElseThrow(() -> new RuntimeException("Prenotazione non trovata"));
+
+	    if (p.getStato() != StatoPrenotazione.IN_CORSO) {
+	        if (p.getStato() == StatoPrenotazione.PARCHEGGIATO) {
+	            return convertiInResponse(p);
+	        }
+	        throw new IllegalStateException(
+	                "Puoi confermare il parcheggio solo per prenotazioni IN_CORSO. Stato attuale: " + p.getStato()
+	        );
+	    }
+
+	    p.setStato(StatoPrenotazione.PARCHEGGIATO);
+
+	    Prenotazione salvata = prenotazioneRepository.save(p);
+
+	    salvaLogEvento(
+	            salvata.getParcheggioId(),
+	            LogCategoria.EVENTO,
+	            LogSeverità.VEICOLO,
+	            "Parcheggio confermato",
+	            "Utente arrivato al posto per prenotazione " + salvata.getId()
+	    );
+
+	    return convertiInResponse(salvata);
 	}
 }

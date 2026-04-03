@@ -375,7 +375,7 @@ class _PrenotazioneDialogContentState
 
                 if (shouldShowQr) const SizedBox(height: 12),
 
-                if (!widget.lockActions)
+                if (!widget.lockActions && p.stato != StatoPrenotazione.PAGATO)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -592,6 +592,8 @@ class _PrenotazioneDialogContentState
         return Icons.access_time;
       case StatoPrenotazione.IN_CORSO:
         return Icons.directions_car;
+      case StatoPrenotazione.PARCHEGGIATO:
+        return Icons.local_parking;
       case StatoPrenotazione.PAGATO:
         return Icons.payment;
       case StatoPrenotazione.CONCLUSA:
@@ -633,12 +635,13 @@ class _PrenotazioneDialogContentState
               final s = p.stato;
               final canCancel =
                   s == StatoPrenotazione.ATTIVA ||
-                  s == StatoPrenotazione.IN_CORSO;
+                  s == StatoPrenotazione.IN_CORSO ||
+                  s == StatoPrenotazione.PARCHEGGIATO;
 
               if (!canCancel) {
                 UiFeedback.showError(
                   context,
-                  "Puoi annullare solo se la prenotazione è ATTIVA o IN_CORSO.",
+                  "Puoi annullare solo se la prenotazione è ATTIVA, IN_CORSO o PARCHEGGIATO.",
                 );
                 return;
               }
@@ -671,9 +674,11 @@ class _PrenotazioneDialogContentState
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            "Mostra questo codice all'ingresso",
-            style: TextStyle(color: Colors.black54, fontSize: 9),
+          Text(
+            p.stato == StatoPrenotazione.PAGATO
+                ? "Mostra questo codice all'uscita"
+                : "Mostra questo codice all'ingresso",
+            style: const TextStyle(color: Colors.black54, fontSize: 9),
             textAlign: TextAlign.center,
           ),
         ],
