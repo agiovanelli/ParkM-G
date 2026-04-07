@@ -16,8 +16,10 @@ public class Utente {
     private String email;
     private String username;
     private String password;
+    
+    private UtenteService us;
 
-    // Preferenze come mappa (equivalente al tuo "preferenze" annidato)
+    // Preferenze come mappa
     private Map<String, String> preferenze;
 
     public Utente() {

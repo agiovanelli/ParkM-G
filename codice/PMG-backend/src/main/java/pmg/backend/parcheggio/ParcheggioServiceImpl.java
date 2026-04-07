@@ -21,6 +21,7 @@ import pmg.backend.prenotazione.Prenotazione;
 import pmg.backend.prenotazione.PrenotazioneRepository;
 import pmg.backend.utente.Utente;
 import pmg.backend.utente.UtenteRepository;
+import pmg.backend.utente.UtenteService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +37,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final PrenotazioneRepository prenotazioneRepository;
     private final LogService logService;
     private final UtenteRepository utenteRepository;
+    private final UtenteService utenteService;
     private final AnaliticheRepository analiticheRepository;
     private final PostoRepository postoRepository;
 
@@ -44,13 +46,14 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             PrenotazioneRepository prenotazioneRepository,
             LogService logService,
             PostoRepository postoRepository,
-            UtenteRepository utenteRepository,
+            UtenteRepository utenteRepository, UtenteService utenteService,
             AnaliticheRepository analiticheRepository) {
 
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
         this.logService = logService;
         this.utenteRepository = utenteRepository;
+        this.utenteService = utenteService;
         this.analiticheRepository = analiticheRepository;
         this.postoRepository = postoRepository;
     }
@@ -80,7 +83,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         Utente utente = utenteRepository.findById(req.utenteId())
                 .orElseThrow(() -> new IllegalArgumentException("Utente non trovato"));
 
-        Map<String, String> preferenze = utente.getPreferenze();
+        Map<String, String> preferenze = utenteService.getPreferenze(utente.getId());
 
         List<Posto> posti = postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(req.parcheggioId());
         Posto migliorPosto = selezionaPostoOttimale(preferenze, posti);
@@ -227,12 +230,14 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             if (posto.isDisabilitato()) continue;
 
             if (disabile && !posto.isRiservatoDisabili()) continue;
+            if (!disabile && posto.isRiservatoDisabili()) continue;
             if (incinta && !posto.isRiservatoIncinta()) continue;
+            if (!incinta && posto.isRiservatoIncinta()) continue;
 
             int punteggio = 0;
 
-            if (disabile && posto.isRiservatoDisabili()) punteggio += 50;
-            if (incinta && posto.isRiservatoIncinta()) punteggio += 30;
+            if (disabile && posto.isRiservatoDisabili()) punteggio += 8;
+            if (incinta && posto.isRiservatoIncinta()) punteggio += 5;
 
             int differenza = Math.abs(posto.getDistanzaUscita() - distanzaPreferita);
             punteggio -= differenza;
