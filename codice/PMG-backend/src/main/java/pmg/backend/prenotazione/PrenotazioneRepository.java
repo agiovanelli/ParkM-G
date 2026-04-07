@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface PrenotazioneRepository extends MongoRepository<Prenotazione, String> {
     List<Prenotazione> findByUtenteId(String utenteId);
 
-    List<Prenotazione> findByStatoAndDataCreazioneBefore(StatoPrenotazione stato, LocalDateTime dataCreazione);
+    List<Prenotazione> findByStatoAndDataCreazioneBefore(StatoPrenotazione stato, LocalDateTime scadenzaArrivo);
 
     Optional<Prenotazione> findByCodiceQr(String codiceQr);
     

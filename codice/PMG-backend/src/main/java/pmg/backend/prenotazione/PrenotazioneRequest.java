@@ -5,5 +5,7 @@ import java.time.LocalDateTime;
 public record PrenotazioneRequest(
     String utenteId,
     String parcheggioId,
-    LocalDateTime dataCreazione
+    LocalDateTime dataCreazione,
+    Double originLat,
+    Double originLng
 ) {}

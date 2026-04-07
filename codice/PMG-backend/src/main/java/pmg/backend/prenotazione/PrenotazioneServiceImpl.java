@@ -69,7 +69,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                         p.getDataIngresso(),
                         p.getDataUscita(),
                         p.getImportoPagato(),
-                        p.getPosto()
+                        p.getPosto(),
+                        p.getScadenzaArrivo()
                         )
                 	)
                 .toList();
@@ -152,7 +153,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             p.getDataIngresso(),
             p.getDataUscita(),
             p.getImportoPagato(),
-            p.getPosto()
+            p.getPosto(),
+            p.getScadenzaArrivo()
         );
     }
     
@@ -400,7 +402,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             prenotazione.getDataIngresso(),
             prenotazione.getDataUscita(),
             prenotazione.getImportoPagato(),
-            prenotazione.getPosto()
+            prenotazione.getPosto(),
+            prenotazione.getScadenzaArrivo()
         );
     }
 
@@ -489,7 +492,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	            p.getDataIngresso(),
 	            p.getDataUscita(),
 	            p.getImportoPagato(),
-	            p.getPosto()
+	            p.getPosto(),
+	            p.getScadenzaArrivo()
 	    );
 	}
 	

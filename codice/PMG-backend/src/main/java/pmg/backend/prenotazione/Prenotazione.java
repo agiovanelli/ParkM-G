@@ -12,22 +12,17 @@ public class Prenotazione {
 
     @Id
     private String id;
-
     private String utenteId;
     private String parcheggioId;
-
     private LocalDateTime dataCreazione;
     private String codiceQr;
-
     private StatoPrenotazione stato = StatoPrenotazione.ATTIVA;
-
     private LocalDateTime dataIngresso;
     private LocalDateTime dataUscita;
-    
     private Double importoPagato;
     private LocalDateTime dataPagamento;
-
     private PostoResponse posto;
+    private LocalDateTime scadenzaArrivo;
     
     // Costruttore vuoto richiesto da Spring / Mongo
     public Prenotazione() {}
@@ -134,4 +129,12 @@ public class Prenotazione {
     public void setDataPagamento(LocalDateTime dataPagamento) { this.dataPagamento = dataPagamento; }
     public PostoResponse getPosto() { return posto; }
     public void setPosto(PostoResponse posto) { this.posto = posto; }
+    
+    public LocalDateTime getScadenzaArrivo() {
+        return scadenzaArrivo;
+    }
+
+    public void setScadenzaArrivo(LocalDateTime scadenzaArrivo) {
+        this.scadenzaArrivo = scadenzaArrivo;
+    }
 }

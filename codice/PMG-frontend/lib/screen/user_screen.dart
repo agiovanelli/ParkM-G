@@ -1260,9 +1260,11 @@ class _UserScreenState extends State<UserScreen>
     try {
       final risposta = await widget.apiClient
           .prenotaParcheggio(
-            widget.utente.id,
-            parcheggioId,
-            DateTime.now().toIso8601String(),
+            utenteId: widget.utente.id,
+            parcheggioId: parcheggioId,
+            dataCreazione: DateTime.now().toIso8601String(),
+            originLat: origin?.latitude,
+            originLng: origin?.longitude,
           )
           .timeout(const Duration(seconds: 12));
 
@@ -1522,11 +1524,28 @@ class _UserScreenState extends State<UserScreen>
       final lng = (first['lng'] as num).toDouble();
 
       final target = LatLng(lat, lng);
-      _mapController?.animateCamera(
+
+      setState(() {
+        _showParkings = false;
+        _selectedParkingData = null;
+        _selectedParkingMarkerId = null;
+        _lastParkingsJson = null;
+
+        _markers.removeWhere(
+          (m) =>
+              m.markerId.value.startsWith('p_') &&
+              m.markerId.value != _bookedParkingMarkerId,
+        );
+      });
+
+      await _mapController?.animateCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(target: target, zoom: 15),
         ),
       );
+
+      _searchController.clear();
+      FocusScope.of(context).unfocus();
     } catch (_) {
       UiFeedback.showError(context, 'Errore durante la ricerca.');
     }

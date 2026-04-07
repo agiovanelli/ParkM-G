@@ -14,5 +14,6 @@ public record PrenotazioneResponse(
     LocalDateTime dataIngresso,
     LocalDateTime dataUscita,
     Double importoPagato,
-    PostoResponse posto
+    PostoResponse posto,
+    LocalDateTime scadenzaArrivo
 ) {}

@@ -14,6 +14,9 @@ import pmg.backend.log.LogCategoria;
 import pmg.backend.log.LogRequest;
 import pmg.backend.log.LogService;
 import pmg.backend.log.LogSeverità;
+import pmg.backend.maps.DirectionsResponseDto;
+import pmg.backend.maps.MapsService;
+import pmg.backend.maps.RouteDto;
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoRepository;
 import pmg.backend.posto.PostoResponse;
@@ -40,14 +43,17 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final UtenteService utenteService;
     private final AnaliticheRepository analiticheRepository;
     private final PostoRepository postoRepository;
+    private final MapsService mapsService;
 
     public ParcheggioServiceImpl(
             ParcheggioRepository parcheggioRepository,
             PrenotazioneRepository prenotazioneRepository,
             LogService logService,
             PostoRepository postoRepository,
-            UtenteRepository utenteRepository, UtenteService utenteService,
-            AnaliticheRepository analiticheRepository) {
+            UtenteRepository utenteRepository, 
+            UtenteService utenteService,
+            AnaliticheRepository analiticheRepository,
+            MapsService mapsService) {
 
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
@@ -56,6 +62,42 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         this.utenteService = utenteService;
         this.analiticheRepository = analiticheRepository;
         this.postoRepository = postoRepository;
+        this.mapsService = mapsService;
+    }
+    
+    private static final int FALLBACK_VALIDITA_ARRIVO_SECONDS = 10 * 60;
+    private static final int BUFFER_VALIDITA_ARRIVO_SECONDS = 10 * 60;
+    
+    private int computeFallbackArrivalValiditySeconds() {
+        return FALLBACK_VALIDITA_ARRIVO_SECONDS;
+    }
+
+    private int computeArrivalValiditySecondsFromRoute(RouteDto route) {
+        int travelSeconds = route.durationInTrafficSeconds() != null
+                ? route.durationInTrafficSeconds()
+                : route.durationSeconds();
+
+        return travelSeconds + BUFFER_VALIDITA_ARRIVO_SECONDS;
+    }
+
+    private int computeDynamicArrivalValiditySeconds(
+            double originLat,
+            double originLng,
+            double destLat,
+            double destLng
+    ) {
+        try {
+            DirectionsResponseDto directions = mapsService.getDirections(originLat, originLng, destLat, destLng);
+
+            if (directions == null || directions.routes() == null || directions.routes().isEmpty()) {
+                return computeFallbackArrivalValiditySeconds();
+            }
+
+            RouteDto bestRoute = directions.routes().get(0);
+            return computeArrivalValiditySecondsFromRoute(bestRoute);
+        } catch (Exception e) {
+            return computeFallbackArrivalValiditySeconds();
+        }
     }
 
     @Override
@@ -100,14 +142,30 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 
         String codiceQr = UUID.randomUUID().toString();
 
+        LocalDateTime now = LocalDateTime.now();
+
         Prenotazione entity = new Prenotazione(
                 req.utenteId(),
                 req.parcheggioId(),
-                LocalDateTime.now(),
+                now,
                 codiceQr
         );
 
         entity.setPosto(new PostoResponse(migliorPosto));
+
+        int validitaArrivoSecondi;
+        if (req.originLat() != null && req.originLng() != null) {
+            validitaArrivoSecondi = computeDynamicArrivalValiditySeconds(
+                    req.originLat(),
+                    req.originLng(),
+                    parcheggio.getLatitudine(),
+                    parcheggio.getLongitudine()
+            );
+        } else {
+            validitaArrivoSecondi = computeFallbackArrivalValiditySeconds();
+        }
+
+        entity.setScadenzaArrivo(now.plusSeconds(validitaArrivoSecondi));
 
         Prenotazione salvata = prenotazioneRepository.save(entity);
 
@@ -121,7 +179,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 salvata.getDataIngresso(),
                 salvata.getDataUscita(),
                 salvata.getImportoPagato(),
-                salvata.getPosto()
+                salvata.getPosto(),
+                salvata.getScadenzaArrivo()
         );
     }
 

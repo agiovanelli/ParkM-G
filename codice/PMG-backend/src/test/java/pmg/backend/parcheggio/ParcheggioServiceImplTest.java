@@ -60,7 +60,7 @@ class ParcheggioServiceImplTest {
         prenotazione.setId("pr1");
         when(prenotazioneRepository.save(any(Prenotazione.class))).thenReturn(prenotazione);
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p1", dataCreazione);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p1", dataCreazione, null, null);
         PrenotazioneResponse resp = service.effettuaPrenotazione(req);
 
         assertEquals("pr1", resp.id());
@@ -81,7 +81,7 @@ class ParcheggioServiceImplTest {
         parcheggio.setId("p2");
         when(parcheggioRepository.findById("p2")).thenReturn(Optional.of(parcheggio));
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p2", dataCreazione);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "p2", dataCreazione, null, null);
 
         assertThrows(IllegalStateException.class, () -> service.effettuaPrenotazione(req));
         verify(parcheggioRepository).findById("p2");
@@ -95,7 +95,7 @@ class ParcheggioServiceImplTest {
 
         when(parcheggioRepository.findById("missing")).thenReturn(Optional.empty());
 
-        PrenotazioneRequest req = new PrenotazioneRequest("u1", "missing", dataCreazione);
+        PrenotazioneRequest req = new PrenotazioneRequest("u1", "missing", dataCreazione, null, null);
 
         assertThrows(IllegalArgumentException.class, () -> service.effettuaPrenotazione(req));
         verify(parcheggioRepository).findById("missing");

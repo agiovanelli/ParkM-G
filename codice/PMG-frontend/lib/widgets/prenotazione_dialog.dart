@@ -228,7 +228,12 @@ class _PrenotazioneDialogContentState
       return;
     }
 
-    final scadenza = dc.add(const Duration(minutes: 10));
+    final scadenza = _current.scadenzaArrivo;
+    if (scadenza == null) {
+      _remainingTime = Duration.zero;
+      return;
+    }
+
     final diff = scadenza.difference(DateTime.now());
     _remainingTime = diff.isNegative ? Duration.zero : diff;
   }
@@ -476,9 +481,21 @@ class _PrenotazioneDialogContentState
   }
 
   Widget _buildTimer() {
-    final minutes = _remainingTime.inMinutes;
-    final seconds = _remainingTime.inSeconds % 60;
-    final isUrgent = _remainingTime.inMinutes < 3;
+    final totalSeconds = _remainingTime.inSeconds;
+    final totalMinutes = _remainingTime.inMinutes;
+    final seconds = totalSeconds % 60;
+    final hours = totalMinutes ~/ 60;
+    final minutesOnly = totalMinutes % 60;
+
+    final isUrgent = totalMinutes < 3;
+
+    String timerText;
+    if (totalMinutes >= 60) {
+      timerText = "${hours}h ${minutesOnly.toString().padLeft(2, '0')}min";
+    } else {
+      timerText =
+          "${totalMinutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -516,7 +533,7 @@ class _PrenotazioneDialogContentState
               ),
               const SizedBox(width: 6),
               Text(
-                "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}",
+                timerText,
                 style: TextStyle(
                   color: isUrgent ? Colors.red : AppColors.accentCyan,
                   fontSize: 28,

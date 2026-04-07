@@ -5,15 +5,13 @@ class PrenotazioneResponse {
   final String id;
   final String utenteId;
   final String parcheggioId;
-
   final DateTime? dataCreazione;
   final String? codiceQr;
   final StatoPrenotazione stato;
-
   final DateTime? dataIngresso;
   final DateTime? dataUscita;
-
   final Posto? posto;
+  final DateTime? scadenzaArrivo;
 
   PrenotazioneResponse({
     required this.id,
@@ -25,6 +23,7 @@ class PrenotazioneResponse {
     required this.dataIngresso,
     required this.dataUscita,
     required this.posto,
+    required this.scadenzaArrivo,
   });
 
   static DateTime? _parseDT(dynamic v) {
@@ -48,6 +47,9 @@ class PrenotazioneResponse {
       dataUscita: _parseDT(json['dataUscita']),
       posto: json['posto'] != null
           ? Posto.fromJson(json['posto'] as Map<String, dynamic>)
+          : null,
+      scadenzaArrivo: json['scadenzaArrivo'] != null
+          ? DateTime.parse(json['scadenzaArrivo'])
           : null,
     );
   }

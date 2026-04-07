@@ -229,16 +229,20 @@ class ApiClient {
 
   //-------------------- PRENOTAZIONI --------------------
   /// Prenota un parcheggio: POST /api/parcheggi/prenota
-  Future<PrenotazioneResponse> prenotaParcheggio(
-    String utenteId,
-    String parcheggioId,
-    String dataCreazione,
-  ) async {
+  Future<PrenotazioneResponse> prenotaParcheggio({
+    required String utenteId,
+    required String parcheggioId,
+    required String dataCreazione,
+    double? originLat,
+    double? originLng,
+  }) async {
     final uri = Uri.parse('$_baseUrl/parcheggi/prenota');
     final body = jsonEncode({
       'utenteId': utenteId,
       'parcheggioId': parcheggioId,
       'dataCreazione': dataCreazione,
+      'originLat': originLat,
+      'originLng': originLng,
     });
 
     final resp = await _client.post(
@@ -251,7 +255,6 @@ class ApiClient {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return PrenotazioneResponse.fromJson(json);
     } else if (resp.statusCode == 400) {
-      // Ad esempio: parcheggio già occupato o dati mancanti
       throw ApiException(
         'Dati prenotazione non validi o parcheggio non disponibile',
         resp.statusCode,
