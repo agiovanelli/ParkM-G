@@ -9,11 +9,13 @@ import 'package:park_mg/widgets/prenotazione_dialog.dart';
 class GestioneSostaInlineView extends StatefulWidget {
   final Utente utente;
   final ApiClient apiClient;
+  final Future<void> Function()? onPaymentCompleted;
 
   const GestioneSostaInlineView({
     super.key,
     required this.utente,
     required this.apiClient,
+    this.onPaymentCompleted,
   });
 
   @override
@@ -89,16 +91,25 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
 
       if (!mounted) return;
 
-      UiFeedback.showSuccess(context, "Pagamento riuscito! Hai 10 minuti per uscire.");
-      
+      UiFeedback.showSuccess(
+        context,
+        "Pagamento riuscito! Hai 10 minuti per uscire.",
+      );
+
       await PrenotazioneDialog.mostra(
         context,
         prenotazione: aggiornata,
         apiClient: widget.apiClient,
         utenteId: widget.utente.id,
         onCancelled: () {},
+        onClosed: () async {
+          if (widget.onPaymentCompleted != null) {
+            await widget.onPaymentCompleted!();
+          }
+        },
       );
 
+      if (!mounted) return;
       await _loadSoste();
     } catch (e) {
       if (!mounted) return;

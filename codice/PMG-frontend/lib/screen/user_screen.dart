@@ -89,6 +89,7 @@ class _UserScreenState extends State<UserScreen>
   int _sessionToken = 0;
   Timer? _bookingStatusTimer;
   bool _showGestioneSostaView = false;
+  bool _waitingPaymentDialogClose = false;
   final GlobalKey<IndoorParkingViewState> _indoorKey =
       GlobalKey<IndoorParkingViewState>();
 
@@ -172,6 +173,35 @@ class _UserScreenState extends State<UserScreen>
       if (!mounted) return;
       UiFeedback.showError(context, 'Errore conferma parcheggio: $e');
     }
+  }
+
+  Future<void> _resetMapAfterPayment() async {
+    if (!mounted) return;
+
+    setState(() {
+      _activeBooking = null;
+      _activeParkingLatLng = null;
+      _arrivalHandled = false;
+
+      _bookedParkingMarkerId = null;
+      _bookedMarkerLocked = false;
+
+      _selectedParkingData = null;
+      _selectedParkingMarkerId = null;
+
+      _showParkings = false;
+      _showGestioneSostaView = false;
+      _forceHideIndoorMap = false;
+
+      _distanceToParkingM = null;
+      _returnOverlay = false;
+      _arrivalUiDone = false;
+      _externalNavOpened = false;
+
+      _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
+    });
+
+    await _bootstrapMyLocation();
   }
 
   Future<void> _showParkedConfirmationPopup() async {
@@ -431,13 +461,17 @@ class _UserScreenState extends State<UserScreen>
             (p) =>
                 p.stato == StatoPrenotazione.ATTIVA ||
                 p.stato == StatoPrenotazione.IN_CORSO ||
-                p.stato == StatoPrenotazione.PARCHEGGIATO ||
-                p.stato == StatoPrenotazione.PAGATO,
+                p.stato == StatoPrenotazione.PARCHEGGIATO,
           )
           .toList();
 
       if (attive.isEmpty) {
         if (!mounted) return;
+
+        if (_waitingPaymentDialogClose) {
+          return;
+        }
+
         setState(() {
           _activeBooking = null;
           _activeParkingLatLng = null;
@@ -468,9 +502,7 @@ class _UserScreenState extends State<UserScreen>
 
       if (!mounted) return;
 
-      final bool showGestione =
-          booking.stato == StatoPrenotazione.PARCHEGGIATO ||
-          booking.stato == StatoPrenotazione.PAGATO;
+      final bool showGestione = booking.stato == StatoPrenotazione.PARCHEGGIATO;
 
       setState(() {
         _activeBooking = booking;
@@ -632,19 +664,34 @@ class _UserScreenState extends State<UserScreen>
       if (!changed) return;
 
       if (updated.stato == StatoPrenotazione.IN_CORSO) {
-        _showGestioneSostaView = false;
-        _forceHideIndoorMap = false;
-        _arrivalHandled = false;
+        setState(() {
+          _showGestioneSostaView = false;
+          _forceHideIndoorMap = false;
+          _arrivalHandled = false;
+        });
         _stopBookingStatusPolling();
         _enterIndoorModeIfNeeded();
         return;
       }
 
-      if (updated.stato == StatoPrenotazione.PARCHEGGIATO ||
-          updated.stato == StatoPrenotazione.PAGATO) {
-        _showGestioneSostaView = true;
-        _forceHideIndoorMap = true;
-        _arrivalHandled = true;
+      if (updated.stato == StatoPrenotazione.PARCHEGGIATO) {
+        setState(() {
+          _showGestioneSostaView = true;
+          _forceHideIndoorMap = true;
+          _arrivalHandled = true;
+        });
+        _stopReturnOverlay();
+        _stopBookingStatusPolling();
+        return;
+      }
+
+      if (updated.stato == StatoPrenotazione.PAGATO) {
+        setState(() {
+          _showGestioneSostaView = true;
+          _forceHideIndoorMap = true;
+          _arrivalHandled = true;
+          _waitingPaymentDialogClose = true;
+        });
         _stopReturnOverlay();
         _stopBookingStatusPolling();
         return;
@@ -676,6 +723,13 @@ class _UserScreenState extends State<UserScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!mounted) return;
+      if (_openingQrDialog) return;
+      if (_showGestioneSostaView) return;
+      if (_showIndoorMap) return;
+      if (_waitingPaymentDialogClose) return;
+      if (_blockMapInteractions) return;
+
       Future.microtask(() async {
         await _restoreActiveBookingFromBackend();
         _enterIndoorModeIfNeeded();
@@ -763,6 +817,10 @@ class _UserScreenState extends State<UserScreen>
       _focusSub = html.window.onFocus.listen((_) {
         if (!mounted) return;
         if (_openingQrDialog) return;
+        if (_showGestioneSostaView) return;
+        if (_showIndoorMap) return;
+        if (_waitingPaymentDialogClose) return;
+        if (_blockMapInteractions) return;
 
         Future.microtask(() async {
           await _restoreActiveBookingFromBackend();
@@ -1563,50 +1621,52 @@ class _UserScreenState extends State<UserScreen>
                 ),
                 const SizedBox(height: 14),
 
-                TextField(
-                  controller: _searchController,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  cursorColor: AppColors.accentCyan,
-                  decoration: InputDecoration(
-                    hintText: 'Search your Park',
-                    hintStyle: TextStyle(
-                      color: AppColors.textMuted.withOpacity(0.9),
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: AppColors.textMuted,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward,
-                        color: AppColors.accentCyan,
+                if (_showMainMapView) ...[
+                  TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    cursorColor: AppColors.accentCyan,
+                    decoration: InputDecoration(
+                      hintText: 'Search your Park',
+                      hintStyle: TextStyle(
+                        color: AppColors.textMuted.withOpacity(0.9),
                       ),
-                      onPressed: () => _searchAndGo(_searchController.text),
-                    ),
-                    filled: true,
-                    fillColor: AppColors.bgDark2.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(
-                        color: AppColors.borderField,
-                        width: 1,
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.textMuted,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          Icons.arrow_forward,
+                          color: AppColors.accentCyan,
+                        ),
+                        onPressed: () => _searchAndGo(_searchController.text),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.bgDark2.withOpacity(0.35),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: const BorderSide(
+                          color: AppColors.borderField,
+                          width: 1,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: const BorderSide(
+                          color: AppColors.accentCyan,
+                          width: 1.2,
+                        ),
                       ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      borderSide: const BorderSide(
-                        color: AppColors.accentCyan,
-                        width: 1.2,
-                      ),
-                    ),
+                    onSubmitted: _searchAndGo,
                   ),
-                  onSubmitted: _searchAndGo,
-                ),
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
+                ],
 
                 Expanded(
                   child: Container(
@@ -1635,6 +1695,15 @@ class _UserScreenState extends State<UserScreen>
                               GestioneSostaInlineView(
                                 utente: widget.utente,
                                 apiClient: widget.apiClient,
+                                onPaymentCompleted: () async {
+                                  if (!mounted) return;
+
+                                  setState(() {
+                                    _waitingPaymentDialogClose = false;
+                                  });
+
+                                  await _resetMapAfterPayment();
+                                },
                               )
                             else if (_showIndoorMap)
                               IndoorParkingView(
