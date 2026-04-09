@@ -284,7 +284,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         
         boolean disabile = "Si".equalsIgnoreCase(preferenzeUtente.get("disabile"));
         boolean incinta = "Si".equalsIgnoreCase(preferenzeUtente.get("donnaIncinta"));
-        int distanzaPreferita = parseIntOrDefault(preferenzeUtente.get("distanzaPreferita"), 0);
+        int distanzaPreferita = parseIntOrDefault(preferenzeUtente.get("distanzaPreferita"), 1);
 
         Posto migliorPosto = null;
         int punteggioMassimo = Integer.MIN_VALUE;
