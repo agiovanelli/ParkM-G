@@ -40,7 +40,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
 
     final prefs = widget.utente.preferenze;
     if (prefs != null && prefs.isNotEmpty) {
-      _eta = prefs['età'] ?? _eta;
+      _eta = prefs['eta'] ?? _eta;
       _piano = prefs['piano'] ?? _piano;
       _distanza = double.tryParse(prefs['distanza'] ?? '') ?? _distanza;
       _disabile = (prefs['disabile'] ?? 'No') == 'Si';
@@ -52,7 +52,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
 
   Future<void> _onSalva() async {
     final prefs = <String, String>{
-      'età': _eta,
+      'eta': _eta,
       'piano': _piano,
       'distanza': _distanza.toStringAsFixed(2),
       'disabile': _disabile ? 'Si' : 'No',
