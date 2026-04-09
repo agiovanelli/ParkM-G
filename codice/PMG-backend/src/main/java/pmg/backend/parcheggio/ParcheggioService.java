@@ -3,6 +3,7 @@ package pmg.backend.parcheggio;
 import java.util.List;
 import java.util.Map;
 
+import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
@@ -17,7 +18,7 @@ public interface ParcheggioService {
 
     void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo);
 
-    PostoResponse assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze);
+    Posto assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze);
 
     ParcheggioResponse getById(String id);
 

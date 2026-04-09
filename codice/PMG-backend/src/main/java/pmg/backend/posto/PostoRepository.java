@@ -17,5 +17,5 @@ public interface PostoRepository extends MongoRepository<Posto, String> {
     
     int countByParcheggioId(String parcheggioId);
     
-    int  countByParcheggioIdAndDisponibileTrueAndDisabilitatoFalse(String parcheggioId);
+    int countByParcheggioIdAndDisponibileTrueAndDisabilitatoFalse(String parcheggioId);
 }

@@ -126,9 +126,11 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 .orElseThrow(() -> new IllegalArgumentException("Utente non trovato"));
 
         Map<String, String> preferenze = utenteService.getPreferenze(utente.getId());
+        
+        LOGGER.info("Preferenze utente: preferenzeUtente={}",
+                preferenze);
 
-        List<Posto> posti = postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(req.parcheggioId());
-        Posto migliorPosto = selezionaPostoOttimale(preferenze, posti);
+        Posto migliorPosto = assegnaPostoOttimale(req.parcheggioId(), preferenze);
 
         if (migliorPosto == null) {
             throw new IllegalStateException("Posti esauriti");
@@ -230,10 +232,12 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     }
 
     @Override
-    public PostoResponse assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze) {
+    public Posto assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze) {
         List<Posto> posti = postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(parcheggioId);
+        LOGGER.info("Preferenze utente: preferenzeUtente={}",
+                preferenze);
         Posto posto = selezionaPostoOttimale(preferenze, posti);
-        return posto == null ? null : new PostoResponse(posto);
+        return posto == null ? null : posto;
     }
 
     @Override
@@ -268,6 +272,8 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     }
 
     private Posto selezionaPostoOttimale(Map<String, String> preferenzeUtente, List<Posto> posti) {
+    	LOGGER.info("Preferenze utente: preferenzeUtente={}",
+                preferenzeUtente);
         if (posti == null || posti.isEmpty()) {
             return null;
         }
@@ -275,9 +281,13 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         if (preferenzeUtente == null) {
             preferenzeUtente = Map.of();
         }
-
-        boolean disabile = Boolean.parseBoolean(preferenzeUtente.getOrDefault("disabile", "false"));
-        boolean incinta = Boolean.parseBoolean(preferenzeUtente.getOrDefault("incinta", "false"));
+        
+        boolean disabile = "Si".equalsIgnoreCase(preferenzeUtente.get("disabile"));
+        LOGGER.info("Disabile: disabile={}",
+                disabile);
+        boolean incinta = "Si".equalsIgnoreCase(preferenzeUtente.get("incinta"));
+        LOGGER.info("Incinta: incinta={}",
+                incinta);
         int distanzaPreferita = parseIntOrDefault(preferenzeUtente.get("distanzaPreferita"), 0);
 
         Posto migliorPosto = null;

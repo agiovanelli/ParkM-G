@@ -43,8 +43,8 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
       _eta = prefs['età'] ?? _eta;
       _piano = prefs['piano'] ?? _piano;
       _distanza = double.tryParse(prefs['distanza'] ?? '') ?? _distanza;
-      _disabile = (prefs['disabile'] ?? 'No') == 'Sì';
-      _donnaIncinta = (prefs['donnaIncinta'] ?? 'No') == 'Sì';
+      _disabile = (prefs['disabile'] ?? 'No') == 'Si';
+      _donnaIncinta = (prefs['donnaIncinta'] ?? 'No') == 'Si';
       _occupazione = prefs['occupazione'] ?? _occupazione;
       if (!_occupazioni.contains(_occupazione)) _occupazione = 'Studente';
     }
@@ -55,8 +55,8 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
       'età': _eta,
       'piano': _piano,
       'distanza': _distanza.toStringAsFixed(2),
-      'disabile': _disabile ? 'Sì' : 'No',
-      'donnaIncinta': _donnaIncinta ? 'Sì' : 'No',
+      'disabile': _disabile ? 'Si' : 'No',
+      'donnaIncinta': _donnaIncinta ? 'Si' : 'No',
       'occupazione': _occupazione,
     };
 
