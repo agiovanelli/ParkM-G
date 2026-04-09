@@ -238,7 +238,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         if (utente != null && utente.getPreferenze() != null) {
             Map<String, String> prefs = utente.getPreferenze();
             
-            // Esempio parsing età (salvata come stringa nelle preferenze)
+            // Eta
             if (prefs.containsKey("eta")) {
                 try {
                     int eta = Integer.parseInt(prefs.get("eta"));
@@ -246,7 +246,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                     else if (eta > 65) totale *= 0.80; // Sconto 20% senior
                 } catch (NumberFormatException ignored) {}
             }
-            // Esempio occupazione
+            
+            // Occupazione
             if ("studente".equalsIgnoreCase(prefs.get("occupazione"))) {
                 totale *= 0.85; // Sconto 15% studenti
             }
@@ -277,7 +278,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         // 5. Penale ritardo convalida (> 10 min)
         long attesaEffettiva = Duration.between(p.getDataCreazione(), p.getDataIngresso()).toMinutes();
         if (attesaEffettiva > 10) {
-            totale += (attesaEffettiva - 10) * 0.05;
+            totale += (attesaEffettiva - 10) * 0.5;
         }
 
         // 6. Sconto durata complessiva
