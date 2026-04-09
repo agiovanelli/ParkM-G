@@ -282,12 +282,7 @@ class _UserScreenState extends State<UserScreen>
       infoWindow: const InfoWindow(title: ''),
       onTap: _bookedMarkerLocked
           ? null
-          : () {
-              setState(() {
-                _selectedParkingMarkerId = markerId;
-                _selectedParkingData = p;
-              });
-            },
+          : () => _selectParking(p),
       consumeTapEvents: true,
     );
     setState(() {
@@ -297,6 +292,43 @@ class _UserScreenState extends State<UserScreen>
       _selectedParkingMarkerId = markerId;
       _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
       _markers.add(bookedMarker);
+    });
+  }
+
+  Future<Map<String, dynamic>> _enrichParkingWithSpotStats(
+    Map<String, dynamic> parking,
+  ) async {
+    final parkingId = parking['id']?.toString();
+    if (parkingId == null || parkingId.isEmpty) return parking;
+
+    try {
+      final spots = await widget.apiClient.getPostiParcheggio(parkingId);
+      final total = spots.length;
+      final available = spots
+          .where((posto) => posto.disponibile && !posto.disabilitato)
+          .length;
+
+      final enriched = Map<String, dynamic>.from(parking);
+      enriched['postiTotali'] = total;
+      enriched['postiDisponibili'] = available;
+      return enriched;
+    } catch (e) {
+      debugPrint('Errore caricamento stats posti per parcheggio $parkingId: $e');
+      return parking;
+    }
+  }
+
+  Future<void> _selectParking(Map<String, dynamic> parking) async {
+    setState(() {
+      _selectedParkingMarkerId = 'p_${parking['id']}';
+      _selectedParkingData = parking;
+    });
+
+    final enrichedParking = await _enrichParkingWithSpotStats(parking);
+    if (!mounted) return;
+
+    setState(() {
+      _selectedParkingData = enrichedParking;
     });
   }
 
@@ -1215,11 +1247,7 @@ class _UserScreenState extends State<UserScreen>
           infoWindow: const InfoWindow(title: ''),
           consumeTapEvents: true,
           onTap: () {
-            // NIENTE rete qui
-            setState(() {
-              _selectedParkingMarkerId = markerId;
-              _selectedParkingData = p;
-            });
+            _selectParking(p);
 
             // aggiorna solo le icone localmente
             _rebuildParkingMarkersFromLastData();

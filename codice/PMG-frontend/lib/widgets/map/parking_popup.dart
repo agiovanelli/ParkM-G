@@ -31,6 +31,16 @@ class ParkingPopup extends StatelessWidget {
       label = canBook ? 'Prenota parcheggio' : 'Nessun posto disponibile';
     }
 
+    final int postiDisponibili = (parking['postiDisponibili'] as num?)?.toInt() ??
+        (parking['posti_disponibili'] as num?)?.toInt() ??
+        -1;
+    final int postiTotali = (parking['postiTotali'] as num?)?.toInt() ??
+        (parking['posti_totali'] as num?)?.toInt() ??
+        -1;
+
+    final postiDisponibiliText = postiDisponibili >= 0 ? postiDisponibili.toString() : '—';
+    final postiTotaliText = postiTotali >= 0 ? postiTotali.toString() : '—';
+
     return Container(
       key: const ValueKey('popup'),
       padding: const EdgeInsets.all(16),
@@ -73,7 +83,7 @@ class ParkingPopup extends StatelessWidget {
             style: const TextStyle(color: AppColors.textMuted),
           ),
           Text(
-            'Posti disponibili: ${parking['postiDisponibili']}/${parking['postiTotali']}',
+            'Posti disponibili: $postiDisponibiliText/$postiTotaliText',
             style: const TextStyle(color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
