@@ -241,9 +241,9 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             // Eta
             if (prefs.containsKey("eta")) {
                 try {
-                    int eta = Integer.parseInt(prefs.get("eta"));
-                    if (eta < 25) totale *= 0.90; // Sconto 10% giovani
-                    else if (eta > 65) totale *= 0.80; // Sconto 20% senior
+                    String eta = prefs.get("eta");
+                    if (eta.equals("under30")) totale *= 0.90; // Sconto 10% giovani
+                    else if (eta.equals("over60")) totale *= 0.80; // Sconto 20% senior
                 } catch (NumberFormatException ignored) {}
             }
             
