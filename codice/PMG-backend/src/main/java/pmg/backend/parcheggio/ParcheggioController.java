@@ -68,4 +68,11 @@ public class ParcheggioController {
         LOGGER.info("HTTP GET /api/parcheggi/{}/posti?piano={}", id, piano);
         return ResponseEntity.ok(parcheggioService.getPosti(id, piano));
     }
+    
+    //da chiamare quando un posto cambia stato o quando c'è da syncronizzare o refreshare
+    @PutMapping("/{id}/sync")
+    public ResponseEntity<Void> syncPosti(@PathVariable String id) {
+        parcheggioService.syncPostiStats(id);
+        return ResponseEntity.ok().build();
+    }
 }

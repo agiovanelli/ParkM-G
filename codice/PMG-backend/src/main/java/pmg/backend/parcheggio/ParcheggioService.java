@@ -22,4 +22,6 @@ public interface ParcheggioService {
     ParcheggioResponse getById(String id);
 
     List<PostoResponse> getPosti(String parcheggioId, Integer piano);
+
+	void syncPostiStats(String parcheggioId);
 }

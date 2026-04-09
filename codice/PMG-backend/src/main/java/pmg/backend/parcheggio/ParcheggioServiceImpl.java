@@ -336,4 +336,16 @@ public class ParcheggioServiceImpl implements ParcheggioService {
 
         return analitica.getId();
     }
+    
+    public void syncPostiStats(String parcheggioId) {
+        long total = postoRepository.countByParcheggioId(parcheggioId);
+        long available = postoRepository
+                .countByParcheggioIdAndDisponibileTrueAndDisabilitatoFalse(parcheggioId);
+
+        parcheggioRepository.findById(parcheggioId).ifPresent(parcheggio -> {
+            parcheggio.setPostiTotali((int) total);
+            parcheggio.setPostiDisponibili((int) available);
+            parcheggioRepository.save(parcheggio);
+        });
+    }
 }

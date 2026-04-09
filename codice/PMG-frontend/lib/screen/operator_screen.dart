@@ -121,6 +121,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
   bool _isRefreshing = false;
   late List<ParkingLogItem> _items;
   List<Posto> _realSpots = [];
+  List<Posto> _allSpots = [];
   bool _isLoadingSpots = false;
   late ParkingStats _stats;
   Timer? _autoRefreshTimer;
@@ -272,11 +273,20 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
       if (!mounted) return;
 
+      final allSpots = await _apiClient.getPostiParcheggio(
+        widget.operatore.parcheggioId,
+      );
+      final totalSpots = allSpots.length;
+      final availableSpots = allSpots
+          .where((posto) => posto.disponibile && !posto.disabilitato)
+          .length;
+
+      if (!mounted) return;
       setState(() {
+        _allSpots = allSpots;
         _stats = ParkingStats(
-          totalSpots: (parcheggio['postiTotali'] as num?)?.toInt() ?? 0,
-          availableSpots:
-              (parcheggio['postiDisponibili'] as num?)?.toInt() ?? 0,
+          totalSpots: totalSpots,
+          availableSpots: availableSpots,
           activeReservations: activeReservations,
           inactiveReservations: inactiveReservations,
         );

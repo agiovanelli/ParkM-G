@@ -14,4 +14,8 @@ public interface PostoRepository extends MongoRepository<Posto, String> {
     Optional<Posto> findByParcheggioIdAndPianoAndNumero(String parcheggioId, int piano, int numero);
     
     Optional<Posto> findByIdAndParcheggioId(String id, String parcheggioId);
+    
+    int countByParcheggioId(String parcheggioId);
+    
+    int  countByParcheggioIdAndDisponibileTrueAndDisabilitatoFalse(String parcheggioId);
 }
