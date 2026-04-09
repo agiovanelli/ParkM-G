@@ -285,7 +285,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         boolean disabile = "Si".equalsIgnoreCase(preferenzeUtente.get("disabile"));
         LOGGER.info("Disabile: disabile={}",
                 disabile);
-        boolean incinta = "Si".equalsIgnoreCase(preferenzeUtente.get("incinta"));
+        boolean incinta = "Si".equalsIgnoreCase(preferenzeUtente.get("donnaIncinta"));
         LOGGER.info("Incinta: incinta={}",
                 incinta);
         int distanzaPreferita = parseIntOrDefault(preferenzeUtente.get("distanzaPreferita"), 0);
