@@ -244,7 +244,7 @@ class _PrenotazioneDialogContentState
     if (posto.riservatoDisabili) {
       tipoPosto = "Disabili";
     } else if (posto.riservatoIncinta) {
-      tipoPosto = "Gravidanza";
+      tipoPosto = "Incinta";
     } else if (posto.disabilitato) {
       tipoPosto = "Disabilitato";
     }

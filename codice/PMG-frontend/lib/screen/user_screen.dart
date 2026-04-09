@@ -88,6 +88,8 @@ class _UserScreenState extends State<UserScreen>
   BitmapDescriptor? _parkingIconSelected;
   int _sessionToken = 0;
   Timer? _bookingStatusTimer;
+  Timer? _fakeArrivalTimer;
+  bool _fakeArrivalTriggered = false;
   bool _showGestioneSostaView = false;
   bool _waitingPaymentDialogClose = false;
   final GlobalKey<IndoorParkingViewState> _indoorKey =
@@ -566,6 +568,9 @@ class _UserScreenState extends State<UserScreen>
       return;
     }
 
+    _fakeArrivalTimer?.cancel();
+    _fakeArrivalTriggered = false;
+
     setState(() {
       _returnOverlay = true;
       _arrivalUiDone = false;
@@ -601,6 +606,58 @@ class _UserScreenState extends State<UserScreen>
 
     if (_arrivalUiDone) return;
 
+    // TEST: se resta troppo tempo su "calcolo distanza", forza l'arrivo
+    if (_distanceToParkingM == null && !_fakeArrivalTriggered) {
+      _fakeArrivalTriggered = true;
+      _fakeArrivalTimer?.cancel();
+      _fakeArrivalTimer = Timer(const Duration(seconds: 5), () async {
+        if (!mounted) return;
+        if (_arrivalHandled || _arrivalUiDone || _openingQrDialog) return;
+
+        _openingQrDialog = true;
+        setState(() {
+          _arrivalUiDone = true;
+          _distanceToParkingM = 0;
+        });
+
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+
+        _arrivalHandled = true;
+        _stopReturnOverlay();
+
+        _startBookingStatusPolling();
+
+        await _showMapLockedDialog<void>(
+          show: () async {
+            final updated = await widget.apiClient
+                .getPrenotazioneByIdFromStorico(
+                  widget.utente.id,
+                  _activeBooking!.id,
+                );
+
+            if (!mounted) return null;
+
+            if (updated != null) {
+              setState(() => _activeBooking = updated);
+            }
+
+            return PrenotazioneDialog.mostra(
+              context,
+              prenotazione: updated ?? _activeBooking!,
+              apiClient: widget.apiClient,
+              utenteId: widget.utente.id,
+              lockActions: true,
+            );
+          },
+        );
+
+        await _refreshActiveBookingAndMaybeEnterIndoor();
+        _stopBookingStatusPolling();
+        _openingQrDialog = false;
+      });
+    }
+
     try {
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
@@ -609,7 +666,6 @@ class _UserScreenState extends State<UserScreen>
       _lastMe = me;
       final dest = _activeParkingLatLng!;
 
-      // distanza su strada (metri) via backend
       final roadMeters = await widget.apiClient.getRoadDistanceMeters(
         oLat: me.latitude,
         oLng: me.longitude,
@@ -627,6 +683,9 @@ class _UserScreenState extends State<UserScreen>
             );
 
       if (!mounted) return;
+
+      _fakeArrivalTimer?.cancel();
+
       setState(() => _distanceToParkingM = d);
 
       if (d <= _arriveParkingThresholdM) {
@@ -942,6 +1001,7 @@ class _UserScreenState extends State<UserScreen>
     _returnOverlayTimer?.cancel();
     _bookingStatusTimer?.cancel();
     _parkedConfirmTimer?.cancel();
+    _fakeArrivalTimer?.cancel();
     super.dispose();
   }
 
@@ -1481,7 +1541,7 @@ class _UserScreenState extends State<UserScreen>
               Icon(Icons.tune, size: 18, color: AppColors.textPrimary),
               SizedBox(width: 10),
               Text(
-                'Preferences',
+                'Preferenze',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,

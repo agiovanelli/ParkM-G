@@ -21,7 +21,7 @@ class PreferenzeDialog extends StatefulWidget {
 class _PreferenzeDialogState extends State<PreferenzeDialog> {
   String _eta = 'under30';
   String _piano = 'piano_terra';
-  double _distanza = 30;
+  double _distanza = 1;
   bool _disabile = false;
   bool _donnaIncinta = false;
   String _occupazione = 'Studente';
@@ -42,7 +42,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
     if (prefs != null && prefs.isNotEmpty) {
       _eta = prefs['eta'] ?? _eta;
       _piano = prefs['piano'] ?? _piano;
-      _distanza = double.tryParse(prefs['distanza'] ?? '') ?? _distanza;
+      _distanza = double.tryParse(prefs['distanza'] ?? '1') ?? 1;
       _disabile = (prefs['disabile'] ?? 'No') == 'Si';
       _donnaIncinta = (prefs['donnaIncinta'] ?? 'No') == 'Si';
       _occupazione = prefs['occupazione'] ?? _occupazione;
@@ -54,7 +54,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
     final prefs = <String, String>{
       'eta': _eta,
       'piano': _piano,
-      'distanza': _distanza.toStringAsFixed(2),
+      'distanza': _distanza.toStringAsFixed(0),
       'disabile': _disabile ? 'Si' : 'No',
       'donnaIncinta': _donnaIncinta ? 'Si' : 'No',
       'occupazione': _occupazione,
@@ -73,7 +73,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.bgDark,
           content: Text(
-            e is ApiException ? e.message : 'Errore nel salvataggio delle preferenze',
+            e is ApiException
+                ? e.message
+                : 'Errore nel salvataggio delle preferenze',
             style: const TextStyle(color: AppColors.textPrimary),
           ),
         ),
@@ -105,7 +107,8 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             ),
             checkboxTheme: CheckboxThemeData(
               fillColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) return AppColors.accentCyan;
+                if (states.contains(WidgetState.selected))
+                  return AppColors.accentCyan;
                 return AppColors.borderField;
               }),
               checkColor: WidgetStateProperty.all(AppColors.textPrimary),
@@ -116,7 +119,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
               overlayColor: AppColors.accentCyan.withOpacity(0.15),
               inactiveTrackColor: AppColors.borderField,
               valueIndicatorColor: AppColors.brandTop,
-              valueIndicatorTextStyle: const TextStyle(color: AppColors.textPrimary),
+              valueIndicatorTextStyle: const TextStyle(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           child: DefaultTextStyle(
@@ -124,7 +129,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Età', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Età',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -151,7 +159,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Piano', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Piano',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -178,22 +189,30 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Distanza massima (m)', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Distanza massima (1: vicino - 4: lontano)',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Slider(
                   value: _distanza,
-                  min: 0,
-                  max: 200,
-                  divisions: 40,
+                  min: 1,
+                  max: 4,
+                  divisions: 3,
                   label: _distanza.toStringAsFixed(0),
                   onChanged: (v) => setState(() => _distanza = v),
                 ),
                 Text(
-                  'Valore: ${_distanza.toStringAsFixed(0)} m',
-                  style: TextStyle(color: AppColors.textMuted.withOpacity(0.95)),
+                  'Valore: ${_distanza.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    color: AppColors.textMuted.withOpacity(0.95),
+                  ),
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Condizioni speciali', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Condizioni speciali',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 CheckboxListTile(
                   value: _disabile,
                   onChanged: (v) => setState(() => _disabile = v ?? false),
@@ -212,7 +231,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                const Text('Occupazione', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Occupazione',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 DropdownButtonFormField<String>(
                   value: _occupazione,
                   dropdownColor: AppColors.bgDark,
@@ -221,7 +243,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                     fillColor: AppColors.bgDark2.withOpacity(0.35),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderField),
+                      borderSide: const BorderSide(
+                        color: AppColors.borderField,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -229,7 +253,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                     ),
                   ),
                   items: _occupazioni
-                      .map((o) => DropdownMenuItem<String>(value: o, child: Text(o)))
+                      .map(
+                        (o) =>
+                            DropdownMenuItem<String>(value: o, child: Text(o)),
+                      )
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _occupazione = v);
@@ -252,7 +279,9 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accentCyan,
             foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           child: _isSaving
               ? const SizedBox(
@@ -263,7 +292,10 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                     color: AppColors.textPrimary,
                   ),
                 )
-              : const Text('Salva', style: TextStyle(fontWeight: FontWeight.w800)),
+              : const Text(
+                  'Salva',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
         ),
       ],
     );
