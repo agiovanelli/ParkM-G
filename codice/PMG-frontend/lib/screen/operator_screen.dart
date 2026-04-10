@@ -226,16 +226,13 @@ class _OperatorScreenState extends State<OperatorScreen> {
     switch (_selectedCategory) {
       case LogCategory.allarme:
         return [
-          LogSeverity.critico,
-          LogSeverity.attenzione,
-          LogSeverity.controllo,
-        ];
+          LogSeverity.critico, LogSeverity.attenzione, LogSeverity.controllo];
 
       case LogCategory.evento:
         return [LogSeverity.pagamento, LogSeverity.veicolo, LogSeverity.info];
 
       case LogCategory.history:
-        return LogSeverity.values;
+        return [LogSeverity.pagamento, LogSeverity.veicolo, LogSeverity.info, LogSeverity.risolto];
     }
   }
 
