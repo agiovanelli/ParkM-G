@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' as ui;
 import 'dart:html' as html;
 
@@ -7,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'package:park_mg/indoor/assignment/assignment_provider.dart';
 import 'package:park_mg/indoor/parking_map_definition.dart';
 import 'package:park_mg/indoor/ui/indoor_parking_view.dart';
@@ -110,11 +108,6 @@ class _UserScreenState extends State<UserScreen>
   }
 
   bool get _showMainMapView => !_showIndoorMap && !_showGestioneSostaView;
-
-  static const String _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
-  );
 
   static const CameraPosition _initialCamera = CameraPosition(
     target: LatLng(41.9028, 12.4964),
@@ -282,9 +275,7 @@ class _UserScreenState extends State<UserScreen>
           _parkingIcon ??
           BitmapDescriptor.defaultMarker,
       infoWindow: const InfoWindow(title: ''),
-      onTap: _bookedMarkerLocked
-          ? null
-          : () => _selectParking(p),
+      onTap: _bookedMarkerLocked ? null : () => _selectParking(p),
       consumeTapEvents: true,
     );
     setState(() {
@@ -315,7 +306,9 @@ class _UserScreenState extends State<UserScreen>
       enriched['postiDisponibili'] = available;
       return enriched;
     } catch (e) {
-      debugPrint('Errore caricamento stats posti per parcheggio $parkingId: $e');
+      debugPrint(
+        'Errore caricamento stats posti per parcheggio $parkingId: $e',
+      );
       return parking;
     }
   }
@@ -1237,30 +1230,22 @@ class _UserScreenState extends State<UserScreen>
     setState(() => _isLoadingParkings = true);
 
     try {
-      final uri = Uri.parse(
-        '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
+      final data = await widget.apiClient.getParcheggiNearby(
+        lat: center.latitude,
+        lng: center.longitude,
+        radius: radiusMeters,
       );
-
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
 
       if (!mounted) return;
 
-      if (res.statusCode != 200) {
-        UiFeedback.showError(
-          context,
-          'Errore caricamento parcheggi (${res.statusCode})',
-        );
-        return;
-      }
-
-      final data = jsonDecode(res.body) as List<dynamic>;
-
       _lastParkingsJson = data;
-
       _rebuildParkingMarkersFromLastData();
     } on TimeoutException {
       if (!mounted) return;
       UiFeedback.showError(context, 'Timeout caricamento parcheggi.');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      UiFeedback.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       UiFeedback.showError(

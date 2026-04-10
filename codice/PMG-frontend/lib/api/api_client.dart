@@ -330,7 +330,7 @@ class ApiClient {
     final url = Uri.parse('$_baseUrl/prenotazioni/qr/$codiceQr');
 
     try {
-      final response = await http.get(
+      final response = await _client.get(
         url,
         headers: {'Content-Type': 'application/json'},
       );
@@ -350,7 +350,7 @@ class ApiClient {
 
   // Calcola importo da pagare: GET /api/prenotazioni/{id}/calcola-importo
   Future<double> calcolaImporto(String id) async {
-    final response = await http.get(
+    final response = await _client.get(
       Uri.parse('$_baseUrl/prenotazioni/$id/calcola-importo'),
     );
     if (response.statusCode == 200) {
@@ -364,7 +364,7 @@ class ApiClient {
     String id,
     double importo,
   ) async {
-    final response = await http.post(
+    final response = await _client.post(
       Uri.parse('$_baseUrl/prenotazioni/$id/paga'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'importo': importo}),
@@ -377,7 +377,7 @@ class ApiClient {
 
   // Valida uscita: POST /api/prenotazioni/valida-uscita/{codiceQr}
   Future<PrenotazioneResponse> validaUscita(String qr) async {
-    final response = await http.post(
+    final response = await _client.post(
       Uri.parse('$_baseUrl/prenotazioni/valida-uscita/$qr'),
     );
     if (response.statusCode == 200) {
@@ -453,7 +453,7 @@ class ApiClient {
       '$_baseUrl/maps/geocode',
     ).replace(queryParameters: {'address': address});
 
-    final res = await http.get(uri);
+    final res = await _client.get(uri);
     if (res.statusCode != 200) {
       throw ApiException('Geocode failed (${res.statusCode})');
     }
@@ -507,7 +507,7 @@ class ApiClient {
   ) async {
     final uri = Uri.parse('$_baseUrl/prenotazioni/parcheggio/$parcheggioId');
 
-    final response = await http.get(uri);
+    final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
       throw Exception('Errore recupero prenotazioni del parcheggio');
@@ -524,7 +524,7 @@ class ApiClient {
     String analiticaId,
   ) async {
     final url = Uri.parse('$_baseUrl/analitiche/$analiticaId/log');
-    final response = await http.get(url);
+    final response = await _client.get(url);
 
     if (response.statusCode != 200) {
       throw Exception('Errore nel caricamento dei log');
@@ -575,7 +575,7 @@ class ApiClient {
       'data': data.toIso8601String(),
     });
 
-    final response = await http.post(
+    final response = await _client.post(
       url,
       headers: {'Content-Type': 'application/json'},
       body: body,
@@ -597,7 +597,7 @@ class ApiClient {
     String parcheggioId,
   ) async {
     final url = Uri.parse('$_baseUrl/analitiche/parcheggio/$parcheggioId');
-    final response = await http.get(url);
+    final response = await _client.get(url);
 
     if (response.statusCode != 200) {
       throw Exception('Errore nel caricamento analitica del parcheggio');
@@ -699,5 +699,32 @@ class ApiClient {
     } catch (e) {
       throw ApiException('Errore conferma parcheggio: $e');
     }
+  }
+
+  Future<List<dynamic>> getParcheggiNearby({
+    required double lat,
+    required double lng,
+    required double radius,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/parcheggi/nearby').replace(
+      queryParameters: {
+        'lat': lat.toString(),
+        'lng': lng.toString(),
+        'radius': radius.toString(),
+      },
+    );
+
+    final resp = await _client
+        .get(uri, headers: {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 8));
+
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body) as List<dynamic>;
+    }
+
+    throw ApiException(
+      'Errore caricamento parcheggi (${resp.statusCode})',
+      resp.statusCode,
+    );
   }
 }
