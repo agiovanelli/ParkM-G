@@ -13,12 +13,8 @@ class PrenotazioneDialog {
     required PrenotazioneResponse prenotazione,
     required ApiClient apiClient,
     required String utenteId,
-
-    // ✅ rendi opzionali per poterli omettere nel flow "arrivo"
     VoidCallback? onCancelled,
     VoidCallback? onClosed,
-
-    // ✅ nuovo flag: se true, niente bottoni
     bool lockActions = false,
   }) {
     return showDialog<void>(
@@ -119,7 +115,6 @@ class _PrenotazioneDialogContentState
     _polling = true;
 
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      // se dialog non più montato, stop
       if (!mounted) return;
 
       try {
@@ -139,9 +134,7 @@ class _PrenotazioneDialogContentState
         if (changed) {
           setState(() => _current = updated);
         }
-      } catch (_) {
-        // ignora: rete ballerina, ecc.
-      }
+      } catch (_) {}
     });
   }
 

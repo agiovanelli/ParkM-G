@@ -6,8 +6,6 @@ import 'package:park_mg/utils/ui_feedback.dart';
 import '../api/api_client.dart';
 import 'user_screen.dart';
 import 'operator_screen.dart';
-
-/// Pulsante primario con gradiente (equivalente a .primary-button)
 class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -28,8 +26,8 @@ class PrimaryButton extends StatelessWidget {
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    AppColors.accentCyan2, // #3b82f6
-                    AppColors.accentCyan, // #06b6d4
+                    AppColors.accentCyan2,
+                    AppColors.accentCyan,
                   ],
                 )
               : null,
@@ -70,28 +68,18 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  // stato toggle Accedi / Registrati
   bool _isLoginMode = true;
-
   late final TabController _tabController;
-
   bool _obscureLoginPassword = true;
   bool _obscureRegisterPassword = true;
-
-  // controller campi Clienti - login
   final _userLoginEmailController = TextEditingController();
   final _userLoginPasswordController = TextEditingController();
-
-  // controller campi Clienti - registrazione
   final _userRegisterNameController = TextEditingController();
   final _userRegisterSurnameController = TextEditingController();
   final _userRegisterEmailController = TextEditingController();
   final _userRegisterPasswordController = TextEditingController();
-
-  // controller campi Operatori
   final _operatorNomeStrutturaController = TextEditingController();
   final _operatorUsernameController = TextEditingController();
-
   bool _isLoading = false;
 
   @override
@@ -114,8 +102,6 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
-  // ------------------ VALIDAZIONI ------------------
-
   bool _passwordValida(String pwd) {
     if (pwd.isEmpty) return false;
     final hasMinLen = pwd.length >= 6;
@@ -127,10 +113,8 @@ class _HomePageState extends State<HomePage>
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
-  // ------------------ AZIONI CLIENTI ------------------
-
   Future<void> _handleUserLogin() async {
-    if (_isLoading) return; // evita doppi tap
+    if (_isLoading) return;
 
     final email = _userLoginEmailController.text.trim();
     final password = _userLoginPasswordController.text;
@@ -245,8 +229,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // ------------------ AZIONI OPERATORI ------------------
-
   Future<void> _handleOperatorLogin() async {
     final nomeStruttura = _operatorNomeStrutturaController.text.trim();
     final username = _operatorUsernameController.text.trim();
@@ -292,8 +274,6 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  // ------------------ UI ------------------
-
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 700;
@@ -303,15 +283,14 @@ class _HomePageState extends State<HomePage>
 
     return Scaffold(
       body: Container(
-        // .root: gradient di sfondo
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.bgDark2, // #020617
-              AppColors.bgDark2, // 40%
-              AppColors.bgDark2, // #0b1120
+              AppColors.bgDark2,
+              AppColors.bgDark2,
+              AppColors.bgDark2,
             ],
           ),
         ),
@@ -349,7 +328,6 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildBrandingPanel() {
-    // .branding-pane
     return Container(
       decoration: const BoxDecoration(
         borderRadius: BorderRadius.only(
@@ -360,8 +338,8 @@ class _HomePageState extends State<HomePage>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.bgDark, // #0f172a
-            AppColors.bgDark, // #020617
+            AppColors.bgDark,
+            AppColors.bgDark,
           ],
         ),
         boxShadow: [
@@ -391,7 +369,7 @@ class _HomePageState extends State<HomePage>
               const Text(
                 'Gestione Utenti e Operatori',
                 style: TextStyle(
-                  color: AppColors.textSecondary, // #e5e7eb
+                  color: AppColors.textSecondary, 
                   fontSize: 14,
                 ),
                 textAlign: TextAlign.center,
@@ -461,7 +439,6 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildClientiTab() {
-    // .card centrale
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -483,7 +460,6 @@ class _HomePageState extends State<HomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // “segmented-control” Accedi / Registrati
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(

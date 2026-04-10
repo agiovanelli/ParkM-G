@@ -413,7 +413,6 @@ class _IndoorOverlayPainter extends CustomPainter {
     if (polyN.isEmpty) return _px(LaneGridMask.entryPointNormalized(), size);
     if (polyN.length == 1) return _px(polyN.first, size);
 
-    // lunghezze in px
     final ptsPx = polyN.map((n) => _px(n, size)).toList();
 
     double total = 0;
@@ -508,19 +507,16 @@ class _IndoorOverlayPainter extends CustomPainter {
 
       const green = Color(0xFF00E676);
 
-      // glow verde (al posto del nero)
       final glow = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 12
         ..strokeJoin = StrokeJoin.round
         ..color = green.withOpacity(0.28);
 
-      // riempimento verde più deciso
       final fill = Paint()
         ..style = PaintingStyle.fill
         ..color = green.withOpacity(0.35);
 
-      // bordo verde pieno
       final stroke = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4

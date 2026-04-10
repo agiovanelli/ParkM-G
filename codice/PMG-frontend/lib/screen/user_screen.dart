@@ -327,8 +327,6 @@ class _UserScreenState extends State<UserScreen>
     });
   }
 
-  // -------------------- utils --------------------
-
   void _enterIndoorModeIfNeeded() {
     debugPrint('ENTER INDOOR called, showIndoor=$_showIndoorMap');
     if (!mounted) return;
@@ -599,7 +597,6 @@ class _UserScreenState extends State<UserScreen>
 
     if (_arrivalUiDone) return;
 
-    // TEST: se resta troppo tempo su "calcolo distanza", forza l'arrivo
     if (_distanceToParkingM == null && !_fakeArrivalTriggered) {
       _fakeArrivalTriggered = true;
       _fakeArrivalTimer?.cancel();
@@ -891,8 +888,6 @@ class _UserScreenState extends State<UserScreen>
     await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
   }
 
-  // -------------------- lifecycle --------------------
-
   @override
   void initState() {
     super.initState();
@@ -998,16 +993,13 @@ class _UserScreenState extends State<UserScreen>
     super.dispose();
   }
 
-  // -------------------- location / icons --------------------
-
   Future<void> _bootstrapMyLocation() async {
     if (_isLocating) return;
-    final int token = _sessionToken; // ✅ snapshot sessione
+    final int token = _sessionToken;
 
     if (mounted) setState(() => _isLocating = true);
 
     try {
-      // (su web questo può essere poco affidabile, ma ok)
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
           .timeout(const Duration(seconds: 3));
 
@@ -1028,18 +1020,17 @@ class _UserScreenState extends State<UserScreen>
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        if (token != _sessionToken) return; // ✅ sessione cambiata
+        if (token != _sessionToken) return; 
         if (mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
-      // ✅ IL PUNTO CRITICO: su web può pendere -> timeout duro
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 8));
 
-      if (token != _sessionToken) return; // ✅ logout nel frattempo
+      if (token != _sessionToken) return; 
       if (!mounted) return;
 
       final me = LatLng(pos.latitude, pos.longitude);
@@ -1125,10 +1116,8 @@ class _UserScreenState extends State<UserScreen>
         final me = LatLng(pos.latitude, pos.longitude);
         final now = DateTime.now();
 
-        // throttle temporale
         if (now.difference(_lastTrackUiUpdate) < _trackUiMinInterval) return;
 
-        // throttle per spostamento
         if (_lastTrackUiPos != null) {
           final moved = Geolocator.distanceBetween(
             _lastTrackUiPos!.latitude,
@@ -1142,7 +1131,6 @@ class _UserScreenState extends State<UserScreen>
         _lastTrackUiUpdate = now;
         _lastTrackUiPos = me;
 
-        // 1 sola chiamata
         _updatePulseCenter(me);
       },
       onError: (e) {
@@ -1190,8 +1178,6 @@ class _UserScreenState extends State<UserScreen>
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
-
-  // -------------------- parkings --------------------
 
   Future<void> _toggleParkings() async {
     if (_bookedParkingMarkerId != null) {
@@ -1293,8 +1279,6 @@ class _UserScreenState extends State<UserScreen>
           consumeTapEvents: true,
           onTap: () {
             _selectParking(p);
-
-            // aggiorna solo le icone localmente
             _rebuildParkingMarkersFromLastData();
           },
         ),
@@ -1306,8 +1290,6 @@ class _UserScreenState extends State<UserScreen>
       _markers.addAll(newMarkers);
     });
   }
-
-  // -------------------- booking --------------------
 
   Future<void> _effettuaPrenotazione(
     String parcheggioId, {
@@ -1402,8 +1384,6 @@ class _UserScreenState extends State<UserScreen>
       if (mounted) setState(() => _isBooking = false);
     }
   }
-
-  // -------------------- menu / navigation --------------------
 
   Future<void> _showPreferenzeDialog() async {
     final updatedPrefs = await _showMapLockedDialog<Map<String, String>>(
@@ -1623,8 +1603,6 @@ class _UserScreenState extends State<UserScreen>
       UiFeedback.showError(context, 'Errore durante la ricerca.');
     }
   }
-
-  // -------------------- UI --------------------
 
   @override
   Widget build(BuildContext context) {

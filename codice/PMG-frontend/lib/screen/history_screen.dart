@@ -36,14 +36,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       widget.utente.id,
     );
 
-    // Ordina dalla più recente alla più vecchia (più vicina a oggi in alto)
     storico.sort((a, b) {
       if (a.dataCreazione == null && b.dataCreazione == null) return 0;
       if (a.dataCreazione == null) return 1;
       if (b.dataCreazione == null) return -1;
-      return b.dataCreazione!.compareTo(
-        a.dataCreazione!,
-      ); // Decrescente: più recente prima
+      return b.dataCreazione!.compareTo(a.dataCreazione!);
     });
 
     return storico;

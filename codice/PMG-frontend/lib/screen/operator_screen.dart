@@ -44,8 +44,6 @@ class ParkingLogItem {
   factory ParkingLogItem.fromJson(Map<String, dynamic> json) {
     final DateTime timestamp = DateTime.parse(json['data']);
     final DateTime now = DateTime.now();
-
-    // tipo
     final rawTipo = json['tipo'];
     LogCategory category = LogCategory.history;
     if (rawTipo is String && rawTipo.isNotEmpty) {
@@ -55,13 +53,11 @@ class ParkingLogItem {
       );
     }
 
-    // Se è evento ed è più vecchio di 24h → diventa storico
     if (category == LogCategory.evento &&
         now.difference(timestamp).inHours >= 24) {
       category = LogCategory.history;
     }
 
-    // severità (supporta "severita" e "severità")
     final rawSeverita = (json['severità'] ?? json['severita']) as String?;
     final severity = rawSeverita != null
         ? LogSeverity.values.firstWhere(
@@ -535,13 +531,21 @@ class _OperatorScreenState extends State<OperatorScreen> {
     switch (_selectedCategory) {
       case LogCategory.allarme:
         return [
-          LogSeverity.critico, LogSeverity.attenzione, LogSeverity.controllo];
+          LogSeverity.critico,
+          LogSeverity.attenzione,
+          LogSeverity.controllo,
+        ];
 
       case LogCategory.evento:
         return [LogSeverity.pagamento, LogSeverity.veicolo, LogSeverity.info];
 
       case LogCategory.history:
-        return [LogSeverity.pagamento, LogSeverity.veicolo, LogSeverity.info, LogSeverity.risolto];
+        return [
+          LogSeverity.pagamento,
+          LogSeverity.veicolo,
+          LogSeverity.info,
+          LogSeverity.risolto,
+        ];
     }
   }
 
@@ -721,14 +725,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
     if (closeDrawer) Navigator.of(context).pop();
   }
 
-  // ---- Dashboard logic ----
-
   Color _severityColor(LogSeverity s) {
     switch (s) {
       case LogSeverity.critico:
-        return const Color(0xFFEF4444); // red
+        return const Color(0xFFEF4444); 
       case LogSeverity.attenzione:
-        return const Color(0xFFF59E0B); // amber
+        return const Color(0xFFF59E0B);
       case LogSeverity.controllo:
         return const Color.fromARGB(255, 11, 245, 73);
       case LogSeverity.pagamento:
@@ -816,7 +818,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
   Future<void> _loadLogs() async {
     setState(() => _isRefreshing = true);
 
-    // Qui in futuro farai: await api.fetchLogs(...);
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
     final data = await _fetchLogItems();
@@ -853,13 +854,12 @@ class _OperatorScreenState extends State<OperatorScreen> {
       UiFeedback.showError(context, 'Errore refresh: $e');
     }
   }
-  // ---- UI ----
 
   @override
   Widget build(BuildContext context) {
     final username = widget.operatore.username.trim();
     final isWide =
-        MediaQuery.of(context).size.width > 900; // sidebar persistente
+        MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -890,7 +890,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Expanded(
                   child: Column(
                     children: [
-                      // TOP BAR
                       Container(
                         height: 64,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -977,10 +976,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 14),
-
-                      // CONTENT (2 schermate)
                       Expanded(
                         child: IndexedStack(
                           index: _pageIndex,
@@ -1008,8 +1004,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
   }
-
-  // ---- Side menu ----
 
   Widget _sideMenuContainer() {
     return Container(
@@ -1068,10 +1062,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
           selected: _pageIndex == 2,
           onTap: () => _selectPage(2, closeDrawer: isDrawer),
         ),
-
         const Spacer(),
-
-        // Bottone in fondo: Struttura
         InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
@@ -1149,8 +1140,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
   }
-
-  // ---- Pages ----
 
   Widget _dashboardPage({required bool isWide}) {
     return Container(
@@ -1241,7 +1230,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
               ),
             ],
           ),
-          // KPI CARDS
           isWide
               ? Row(
                   children: [
@@ -1299,10 +1287,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     ),
                   ],
                 ),
-
           const SizedBox(height: 14),
-
-          // CATEGORY SEGMENT
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -1319,7 +1304,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     onTap: () {
                       setState(() {
                         _selectedCategory = c;
-                        _severityFilter = null; // reset consigliato
+                        _severityFilter = null;
                       });
                     },
                     child: Container(
@@ -1358,10 +1343,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               }).toList(),
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // FILTER ROW
           Row(
             children: [
               Expanded(
@@ -1402,10 +1384,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               _severityDropdown(),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // LIST
           Expanded(
             child: RefreshIndicator(onRefresh: _refresh, child: _buildList()),
           ),
@@ -1419,11 +1398,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
     final available = _stats.availableSpots;
     final occupied = _stats.occupiedSpots;
     final percent = _stats.occupancyPercent;
-
     final active = _stats.activeReservations;
     final inactive = _stats.inactiveReservations;
 
-    const occColor = Color(0xFFF59E0B); // amber
+    const occColor = Color(0xFFF59E0B);
 
     return Container(
       width: double.infinity,
@@ -1458,8 +1436,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // KPI: posti (totali / disponibili / occupati + %)
           isWide
               ? Row(
                   children: [
@@ -1515,10 +1491,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     ),
                   ],
                 ),
-
           const SizedBox(height: 14),
-
-          // Barra di occupazione
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1557,10 +1530,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // KPI: prenotazioni
           isWide
               ? Row(
                   children: [
@@ -1713,7 +1683,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       ),
     );
   }
-  // ---- Widgets (riusati) ----
 
   Widget _kpiCard(
     String label,
@@ -2097,7 +2066,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  /// Handler principale per la scansione del QR Code
   Future<void> _handleQrScan(String qrCode) async {
     if (_isProcessing) return;
 
@@ -2106,7 +2074,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     });
 
     try {
-      // 1. Recupera la prenotazione senza modificarne lo stato
       final prenotazioneData = await _apiClient.getPrenotazioneByQr(qrCode);
       final statoString = prenotazioneData['stato'] as String;
       final stato = StatoPrenotazione.values.firstWhere(
@@ -2151,7 +2118,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  /// Gestisce l'ingresso (stato ATTIVA → IN_CORSO)
   Future<void> _handleIngresso(String qrCode) async {
     try {
       final response = await _apiClient.validaIngresso(qrCode);
@@ -2227,13 +2193,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  /// Gestisce il pagamento in cassa (stato IN_CORSO → PAGATO)
   Future<void> _handlePagamento(String prenotazioneId, String qrCode) async {
     try {
-      // Calcola l'importo dovuto
       final importo = await _apiClient.calcolaImporto(prenotazioneId);
 
-      // Mostra il dialog di pagamento
       final conferma = await _showPagamentoDialog(importo, prenotazioneId);
 
       if (conferma == true && mounted) {
@@ -2247,7 +2210,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  /// Gestisce l'uscita (stato PAGATO → CONCLUSA)
   Future<void> _handleUscita(String qrCode) async {
     try {
       final response = await _apiClient.validaUscita(qrCode);
@@ -2329,7 +2291,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  /// Mostra il dialog per il pagamento in cassa
   Future<bool?> _showPagamentoDialog(
     double importoCalcolato,
     String prenotazioneId,
@@ -2449,7 +2410,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 }
 
                 try {
-                  // Chiama l'API di pagamento
                   await _apiClient.pagaPrenotazione(prenotazioneId, importo);
                   Navigator.of(context).pop(true);
                 } catch (e) {
@@ -2476,7 +2436,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  /// Mostra un dialog di successo
   void _showSuccessDialog(String message) {
     showDialog(
       context: context,
@@ -2534,7 +2493,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  /// Mostra un dialog di errore
   void _showErrorDialog(String message) {
     showDialog(
       context: context,

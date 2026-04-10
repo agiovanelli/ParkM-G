@@ -4,12 +4,12 @@ import 'package:park_mg/utils/theme.dart';
 
 class QrScannerPage extends StatefulWidget {
   final Function(String) onQrScanned;
-  final bool isActive; // <--- Parametro aggiunto per gestire lo stato della camera
+  final bool isActive; 
 
   const QrScannerPage({
     super.key,
     required this.onQrScanned,
-    this.isActive = true, // Default a true per retrocompatibilità
+    this.isActive = true, 
   });
 
   @override
@@ -38,7 +38,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
     final String? code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
 
-    // Evita di processare lo stesso codice più volte
     if (_lastScannedCode == code) return;
 
     setState(() {
@@ -49,7 +48,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
     });
 
     try {
-      // Chiama la funzione passata dal parent (che farà la chiamata API)
       await widget.onQrScanned(code);
       
       if (mounted) {
@@ -58,7 +56,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
           _isProcessing = false;
         });
 
-        // Resetta dopo 3 secondi per permettere una nuova scansione
         await Future.delayed(const Duration(seconds: 3));
         if (mounted) {
           setState(() {
@@ -74,7 +71,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
           _isProcessing = false;
         });
 
-        // Resetta dopo 4 secondi
         await Future.delayed(const Duration(seconds: 4));
         if (mounted) {
           setState(() {
@@ -88,8 +84,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // <--- FIX CRITICO: Se la pagina non è attiva, non montare lo scanner!
-    // Questo impedisce alla camera di partire in background e bloccarsi.
     if (!widget.isActive) {
       return const SizedBox(); 
     }
@@ -112,7 +106,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
           Row(
             children: [
               Container(
@@ -144,11 +137,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
-          // Istruzioni
-          // Info Section con guida operatore
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -211,10 +200,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Scanner Area
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
@@ -225,13 +211,11 @@ class _QrScannerPageState extends State<QrScannerPage> {
                     onDetect: _onDetect,
                   ),
                   
-                  // Overlay con frame di scansione
                   CustomPaint(
                     painter: _ScannerOverlayPainter(),
                     child: Container(),
                   ),
 
-                  // Status overlay
                   if (_isProcessing || _errorMessage != null || _successMessage != null)
                     Container(
                       color: Colors.black.withOpacity(0.7),
@@ -291,10 +275,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Controlli camera
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -306,7 +287,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
               ),
               const SizedBox(width: 8),
               _controlButton(
-                icon: Icons.edit_note, // Icona per inserimento manuale
+                icon: Icons.edit_note,
                 label: 'Manuale',
                 onTap: _showManualEntryDialog,
               ),
@@ -455,8 +436,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
     );
   }
 }
-
-// Custom painter per il frame di scansione
 class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -475,30 +454,24 @@ class _ScannerOverlayPainter extends CustomPainter {
       ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;
 
-    // Dimensioni del frame centrale
     final frameSize = size.width * 0.7;
     final left = (size.width - frameSize) / 2;
     final top = (size.height - frameSize) / 2;
     final rect = Rect.fromLTWH(left, top, frameSize, frameSize);
 
-    // Disegna l'overlay scuro con il buco centrale
     final path = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
       ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)))
       ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(path, paint);
-
-    // Disegna il frame
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(16)),
       framePaint,
     );
 
-    // Disegna gli angoli
     const cornerLength = 30.0;
     
-    // Top-left
     canvas.drawLine(
       Offset(left, top + 16),
       Offset(left, top + cornerLength),
@@ -509,8 +482,6 @@ class _ScannerOverlayPainter extends CustomPainter {
       Offset(left + cornerLength, top),
       cornerPaint,
     );
-
-    // Top-right
     canvas.drawLine(
       Offset(left + frameSize - 16, top),
       Offset(left + frameSize - cornerLength, top),
@@ -521,8 +492,6 @@ class _ScannerOverlayPainter extends CustomPainter {
       Offset(left + frameSize, top + cornerLength),
       cornerPaint,
     );
-
-    // Bottom-left
     canvas.drawLine(
       Offset(left, top + frameSize - 16),
       Offset(left, top + frameSize - cornerLength),
@@ -533,8 +502,6 @@ class _ScannerOverlayPainter extends CustomPainter {
       Offset(left + cornerLength, top + frameSize),
       cornerPaint,
     );
-
-    // Bottom-right
     canvas.drawLine(
       Offset(left + frameSize - 16, top + frameSize),
       Offset(left + frameSize - cornerLength, top + frameSize),
@@ -546,8 +513,6 @@ class _ScannerOverlayPainter extends CustomPainter {
       cornerPaint,
     );
   }
-
-  
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

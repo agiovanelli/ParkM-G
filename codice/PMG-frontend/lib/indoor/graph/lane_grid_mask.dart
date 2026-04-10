@@ -87,16 +87,12 @@ class LaneGridMask {
     return (cc.floor(), rr.floor());
   }
 
-  // corner della cella (c,r) in coordinate normalized (0..1)
   static Offset cellCornerToNormalized(int c, int r) {
     final u = _u();
     final v = _v();
     return gridTL + u * c.toDouble() + v * r.toDouble();
   }
 
-  // poligono (4 punti) del blocco di celle centrato in (c,r)
-  // halfCols=2 => 2 celle a sx e 2 a dx (tot 5)
-  // halfRows=1 => 1 sopra e 1 sotto (tot 3)
   static List<Offset> cellBlockPolygonNormalized({
     required int c,
     required int r,
@@ -104,7 +100,7 @@ class LaneGridMask {
     required int halfRows,
   }) {
     final c0 = (c - halfCols).clamp(0, cols);
-    final c1 = (c + halfCols + 1).clamp(0, cols); // +1 perché corner destro
+    final c1 = (c + halfCols + 1).clamp(0, cols); 
     final r0 = (r - halfRows).clamp(0, rows);
     final r1 = (r + halfRows + 1).clamp(0, rows);
 
