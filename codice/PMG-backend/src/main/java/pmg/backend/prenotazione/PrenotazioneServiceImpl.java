@@ -235,7 +235,10 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
         LocalDateTime now = LocalDateTime.now();
         long durataMinuti = Duration.between(p.getDataIngresso(), now).toMinutes();
-        double durataOre = Math.ceil(durataMinuti / 60.0); // Arrotonda per eccesso
+        if (durataMinuti < 1) {
+            durataMinuti = 1;
+        }
+        double durataOre = Math.ceil(durataMinuti / 60.0);
 
         // 1. Costo Base (3€/ora)
         double totale = durataOre * 3.0;
