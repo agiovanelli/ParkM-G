@@ -557,14 +557,14 @@ class ApiClient {
   }
 
   /// Crea un nuovo log per l'analitica specificata
-  Future<Map<String, dynamic>> creaLog(
-    String analiticaId,
-    String tipo,
-    String severita,
-    String titolo,
-    String descrizione,
-    DateTime data,
-  ) async {
+  Future<Map<String, dynamic>> creaLog({
+    required String analiticaId,
+    required String tipo,
+    required String severita,
+    required String titolo,
+    required String descrizione,
+    required DateTime data,
+  }) async {
     final url = Uri.parse('$_baseUrl/log');
     final body = jsonEncode({
       'analiticaId': analiticaId,
@@ -581,7 +581,7 @@ class ApiClient {
       body: body,
     );
 
-    if (response.statusCode != 201) {
+    if (response.statusCode != 200) {
       throw Exception('Errore creazione log: ${response.statusCode}');
     }
 

@@ -121,7 +121,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
   bool _isRefreshing = false;
   late List<ParkingLogItem> _items;
   List<Posto> _realSpots = [];
-  List<Posto> _allSpots = [];
   bool _isLoadingSpots = false;
   late ParkingStats _stats;
   Timer? _autoRefreshTimer;
@@ -186,6 +185,31 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
+  Future<void> _resolveAlarm(ParkingLogItem it) async {
+    try {
+      await _apiClient.updateLogSeverity(
+        it.id,
+        LogSeverity.risolto.name.toUpperCase(),
+      );
+      await _apiClient.updateLogCategory(
+        it.id,
+        LogCategory.history.name.toUpperCase(),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        it.severity = LogSeverity.risolto;
+        it.category = LogCategory.history;
+      });
+
+      UiFeedback.showSuccess(context, 'Allarme spostato nello storico');
+    } catch (e) {
+      debugPrint('Errore risoluzione allarme: $e');
+      UiFeedback.showError(context, 'Errore aggiornamento allarme: $e');
+    }
+  }
+
   Future<void> _loadInitialData() async {
     await _loadAnaliticaId();
     await _loadLogs();
@@ -209,6 +233,291 @@ class _OperatorScreenState extends State<OperatorScreen> {
         'Errore caricamento analitica del parcheggio',
       );
     }
+  }
+
+  Future<void> _showCreateLogDialog() async {
+    if (_analiticaId == null || _analiticaId!.isEmpty) {
+      UiFeedback.showError(
+        context,
+        'Analitica non disponibile per questo parcheggio',
+      );
+      return;
+    }
+
+    final titoloController = TextEditingController();
+    final descrizioneController = TextEditingController();
+
+    LogSeverity severita = LogSeverity.critico;
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isSaving,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final allowedSeverities = <LogSeverity>[
+              LogSeverity.critico,
+              LogSeverity.attenzione,
+              LogSeverity.controllo,
+            ];
+
+            if (!allowedSeverities.contains(severita)) {
+              severita = LogSeverity.critico;
+            }
+
+            return AlertDialog(
+              backgroundColor: AppColors.bgDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentCyan.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.note_add_rounded,
+                      color: AppColors.accentCyan,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Crea Allarme',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Severità',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<LogSeverity>(
+                      value: severita,
+                      dropdownColor: AppColors.bgDark,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AppColors.bgDark2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.accentCyan,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      items: allowedSeverities.map((s) {
+                        return DropdownMenuItem(
+                          value: s,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _severityColor(s),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(_severityLabel(s)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: isSaving
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setDialogState(() {
+                                severita = value;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: titoloController,
+                      enabled: !isSaving,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: 'Titolo',
+                        labelStyle: const TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: AppColors.bgDark2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.accentCyan,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: descrizioneController,
+                      enabled: !isSaving,
+                      maxLines: 4,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: 'Descrizione',
+                        labelStyle: const TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: AppColors.bgDark2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.borderField,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.accentCyan,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textMuted,
+                  ),
+                  child: const Text('Annulla'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final titolo = titoloController.text.trim();
+                          final descrizione = descrizioneController.text.trim();
+
+                          if (titolo.isEmpty) {
+                            UiFeedback.showError(
+                              context,
+                              'Inserisci un titolo',
+                            );
+                            return;
+                          }
+
+                          if (descrizione.isEmpty) {
+                            UiFeedback.showError(
+                              context,
+                              'Inserisci una descrizione',
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isSaving = true);
+
+                          try {
+                            await _apiClient.creaLog(
+                              analiticaId: _analiticaId!,
+                              tipo: LogCategory.allarme.name.toUpperCase(),
+                              severita: severita.name.toUpperCase(),
+                              titolo: titolo,
+                              descrizione: descrizione,
+                              data: DateTime.now(),
+                            );
+
+                            if (!mounted) return;
+
+                            Navigator.of(dialogContext).pop();
+                            UiFeedback.showSuccess(
+                              context,
+                              'Log creato correttamente',
+                            );
+                            await _refresh();
+                          } catch (e) {
+                            if (!mounted) return;
+                            setDialogState(() => isSaving = false);
+                            UiFeedback.showError(
+                              context,
+                              'Errore creazione log: $e',
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentCyan,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(isSaving ? 'Salvataggio...' : 'Crea Allarme'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<List<ParkingLogItem>> _fetchLogItems() async {
@@ -280,7 +589,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
       if (!mounted) return;
       setState(() {
-        _allSpots = allSpots;
         _stats = ParkingStats(
           totalSpots: totalSpots,
           availableSpots: availableSpots,
@@ -863,32 +1171,75 @@ class _OperatorScreenState extends State<OperatorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // EMERGENZA
-          InkWell(
-            onTap: _triggerEmergenza,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.red, width: 2),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text(
-                    "ATTIVA BLOCCO EMERGENZA",
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _triggerEmergenza,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.red, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.warning_amber_rounded, color: Colors.red),
+                        SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            "ATTIVA BLOCCO EMERGENZA",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: _showCreateLogDialog,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentCyan.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.accentCyan, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(
+                          Icons.note_add_rounded,
+                          color: AppColors.accentCyan,
+                        ),
+                        SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            "CREA ALLARME",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.accentCyan,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           // KPI CARDS
           isWide
@@ -1554,6 +1905,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -1568,7 +1920,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     _badge(_severityLabel(it.severity), sevColor),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   it.details,
                   style: TextStyle(
@@ -1579,76 +1931,75 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.schedule_rounded,
-                            size: 14,
-                            color: AppColors.textMuted.withOpacity(0.9),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _formatTime(it.timestamp),
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          if (it.source != null) ...[
-                            const SizedBox(width: 12),
-                            Icon(
-                              Icons.memory_rounded,
-                              size: 14,
-                              color: AppColors.textMuted.withOpacity(0.9),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                it.source!,
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-
-                          if (it.category == LogCategory.allarme) ...{
-                            const SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: () async {
-                                await updateLogSeverity(
-                                  it,
-                                  LogSeverity.risolto,
-                                );
-                                await updateLogCategory(
-                                  it,
-                                  LogCategory.history,
-                                );
-                                setState(() {});
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _severityColor(it.severity),
-                                minimumSize: const Size(26, 26),
-                                padding: EdgeInsets.zero,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_upward,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          },
-                        ],
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 14,
+                      color: AppColors.textMuted.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatTime(it.timestamp),
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
                       ),
                     ),
+                    if (it.source != null) ...[
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.memory_rounded,
+                        size: 14,
+                        color: AppColors.textMuted.withOpacity(0.9),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          it.source!,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ] else
+                      const Spacer(),
+                    if (it.category == LogCategory.allarme) ...[
+                      if (it.source != null) const SizedBox(width: 12),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => _resolveAlarm(it),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withOpacity(0.35),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Text(
+                                'Risolvi',
+                                style: TextStyle(
+                                  color: Color(0xFF10B981),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -1664,7 +2015,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
     LogSeverity newSeverity,
   ) async {
     try {
-      await _apiClient.updateLogSeverity(log.id, newSeverity.name);
+      await _apiClient.updateLogSeverity(
+        log.id,
+        newSeverity.name.toUpperCase(),
+      );
 
       if (!mounted) return;
       setState(() {
@@ -1681,7 +2035,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
     LogCategory newCategory,
   ) async {
     try {
-      await _apiClient.updateLogCategory(log.id, newCategory.name);
+      await _apiClient.updateLogCategory(
+        log.id,
+        newCategory.name.toUpperCase(),
+      );
 
       if (!mounted) return;
       setState(() {

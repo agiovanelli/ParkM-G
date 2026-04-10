@@ -121,6 +121,140 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
     }
   }
 
+  Future<void> _confermaPagamento(
+    PrenotazioneResponse p,
+    double importo,
+  ) async {
+    final confermato = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !_paying,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Conferma pagamento",
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Sei sicuro di voler pagare ora?",
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Dalla conferma avrai 10 minuti per uscire dal parcheggio.",
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Scaduti i 10 minuti, verrà aggiunta una penale.",
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.bgDark2.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.borderField),
+                ),
+                child: Text(
+                  "Importo attuale: € ${importo.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    color: AppColors.accentCyan,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            SizedBox(
+              height: 46,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: BorderSide(color: AppColors.borderField),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _paying
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(false),
+                child: const Text(
+                  "Annulla",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 46,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _paying
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(true),
+                icon: const Icon(Icons.payment),
+                label: const Text(
+                  "Conferma",
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confermato == true) {
+      await _pagaPrenotazione(p, importo);
+    }
+  }
+
   String _formatDateTime(DateTime? dt) {
     if (dt == null) return "—";
     final dd = dt.day.toString().padLeft(2, '0');
@@ -330,7 +464,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
                   ),
                   onPressed: _paying
                       ? null
-                      : () => _pagaPrenotazione(p, importo),
+                      : () => _confermaPagamento(p, importo),
                   icon: _paying
                       ? const SizedBox(
                           width: 18,

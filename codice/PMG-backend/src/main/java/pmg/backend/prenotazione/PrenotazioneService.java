@@ -2,9 +2,6 @@ package pmg.backend.prenotazione;
 
 import java.util.List;
 
-import pmg.backend.parcheggio.Parcheggio;
-import pmg.backend.utente.Utente;
-
 public interface PrenotazioneService {
     List<PrenotazioneResponse> getStoricoUtente(String utenteId);
 
