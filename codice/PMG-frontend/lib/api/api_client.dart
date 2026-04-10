@@ -556,6 +556,43 @@ class ApiClient {
     }
   }
 
+  /// Crea un nuovo log per l'analitica specificata
+  Future<Map<String, dynamic>> creaLog(
+    String analiticaId,
+    String tipo,
+    String severita,
+    String titolo,
+    String descrizione,
+    DateTime data,
+  ) async {
+    final url = Uri.parse('$_baseUrl/log');
+    final body = jsonEncode({
+      'analiticaId': analiticaId,
+      'tipo': tipo,
+      'severita': severita,
+      'titolo': titolo,
+      'descrizione': descrizione,
+      'data': data.toIso8601String(),
+    });
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception('Errore creazione log: ${response.statusCode}');
+    }
+
+    final jsonMap = jsonDecode(response.body);
+    if (jsonMap is! Map<String, dynamic>) {
+      throw Exception('Il backend non ha restituito un log valido');
+    }
+
+    return jsonMap;
+  }
+
   Future<Map<String, dynamic>> getAnaliticaByParcheggioId(
     String parcheggioId,
   ) async {

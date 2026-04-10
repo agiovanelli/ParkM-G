@@ -21,6 +21,7 @@ public class LogController {
         Log saved = service.salvaLog(request);
         return new LogResponse(
                 saved.getId(),
+                saved.getAnaliticaId(),
                 saved.getTipo().name(),
                 saved.getTitolo(),
                 saved.getDescrizione(),
@@ -34,6 +35,7 @@ public class LogController {
         return service.getLogByAnaliticaId(analiticaId).stream()
                 .map(log -> new LogResponse(
                         log.getId(),
+                        log.getAnaliticaId(),
                         log.getTipo().name(),
                         log.getTitolo(),
                         log.getDescrizione(),
@@ -50,6 +52,7 @@ public class LogController {
         return service.getLogByAnaliticaIdAndTipo(analiticaId, tipo).stream()
                 .map(log -> new LogResponse(
                         log.getId(),
+                        log.getAnaliticaId(),
                         log.getTipo().name(),
                         log.getTitolo(),
                         log.getDescrizione(),

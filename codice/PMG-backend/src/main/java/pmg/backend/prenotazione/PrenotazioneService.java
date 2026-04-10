@@ -18,8 +18,6 @@ public interface PrenotazioneService {
     
     PrenotazioneResponse validaUscita(String codiceQr);
     
-    PrenotazioneResponse selezionePostoOttimo(Utente utente, List<Parcheggio> listaPosti);
-    
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
     
     List<PrenotazioneResponse> getByParcheggio(String parcheggioId);
