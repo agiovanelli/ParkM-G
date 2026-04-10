@@ -221,8 +221,6 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         return convertiInResponse(salvata);
     }
     
-    
-    //ALGORITMO DA CONTROLLARE
     @Override
     public double calcolaImporto(String prenotazioneId) {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
@@ -299,6 +297,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         // Arrotondamento a 2 decimali
         return Math.round(totale * 100.0) / 100.0;
     }
+    
+    public double feePermanenza(LocalDateTime scadenzaUscita) {
+    	double fee = Duration.between(scadenzaUscita, LocalDateTime.now()).toMinutes() * 1;
+
+    	return fee;
+    }
 
     @Override
     public PrenotazioneResponse pagaPrenotazione(String prenotazioneId, double importo) {
@@ -341,7 +345,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
         LocalDateTime scadenzaUscita = p.getDataPagamento().plusMinutes(10);
         if (LocalDateTime.now().isAfter(scadenzaUscita)) {
-            throw new IllegalStateException("Tempo massimo per l'uscita scaduto! Contatta l'assistenza.");
+        	p.setImportoPagato(feePermanenza(scadenzaUscita));
+            throw new IllegalStateException("Tempo massimo per l'uscita scaduto! Decurtazione fee di permamenza.");
         }
 
         boolean postoLiberato = false;
