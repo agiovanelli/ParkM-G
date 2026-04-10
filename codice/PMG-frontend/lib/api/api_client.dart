@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:park_mg/models/log.dart';
 import 'package:park_mg/models/posto.dart';
-import '../models/utente.dart';
+
 import '../models/operatore.dart';
 import '../models/prenotazione.dart';
+import '../models/utente.dart';
 
-/// Eccezione generica per gli errori API.
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -28,9 +29,10 @@ class ApiClient {
 
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
-  // -------------------- UTENTI --------------------
+  // =========================================================
+  // UTENTI
+  // =========================================================
 
-  /// Login utente: POST /api/utenti/login
   Future<Utente> loginUtente(String email, String password) async {
     final uri = Uri.parse('$_baseUrl/utenti/login');
     final body = jsonEncode({'email': email, 'password': password});
@@ -61,7 +63,6 @@ class ApiClient {
     );
   }
 
-  /// Registrazione utente: POST /api/utenti/registrazione
   Future<Utente> registraUtente(
     String nome,
     String cognome,
@@ -86,7 +87,6 @@ class ApiClient {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       return Utente.fromJson(json);
     } else if (resp.statusCode == 400 || resp.statusCode == 409) {
-      // usato lato backend per "Email già registrata"
       throw ApiException('Email già registrata', resp.statusCode);
     } else {
       throw ApiException(
@@ -96,7 +96,6 @@ class ApiClient {
     }
   }
 
-  /// Aggiorna le preferenze: PUT /api/utenti/{id}/preferenze
   Future<void> aggiornaPreferenze(
     String utenteId,
     Map<String, String> preferenze,
@@ -118,33 +117,10 @@ class ApiClient {
     }
   }
 
-  Future<PrenotazioneResponse> annullaPrenotazione({
-    required String prenotazioneId,
-    required String utenteId,
-  }) async {
-    final uri = Uri.parse(
-      '$_baseUrl/prenotazioni/$prenotazioneId/utente/$utenteId',
-    );
+  // =========================================================
+  // OPERATORI
+  // =========================================================
 
-    final resp = await _client.delete(
-      uri,
-      headers: {'Accept': 'application/json'},
-    );
-
-    if (resp.statusCode == 200) {
-      return PrenotazioneResponse.fromJson(jsonDecode(resp.body));
-    }
-
-    String msg = 'Errore annullamento (HTTP ${resp.statusCode})';
-    if (resp.body.trim().isNotEmpty) {
-      msg = resp.body.trim();
-    }
-    throw ApiException(msg, resp.statusCode);
-  }
-
-  // -------------------- OPERATORI --------------------
-
-  /// Login operatore: POST /api/operatori/login
   Future<Operatore> loginOperatore(
     String nomeStruttura,
     String username,
@@ -186,49 +162,10 @@ class ApiClient {
     );
   }
 
-  Future<List<Log>> getLogByAnaliticaId(String analiticaId) async {
-    final uri = Uri.parse('$_baseUrl/$analiticaId');
+  // =========================================================
+  // PRENOTAZIONI
+  // =========================================================
 
-    final resp = await _client.get(uri);
-
-    if (resp.statusCode == 200 || resp.statusCode == 201) {
-      final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
-      return jsonList
-          .map((json) => Log.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } else {
-      throw ApiException(
-        'Errore recupero log: HTTP ${resp.statusCode}',
-        resp.statusCode,
-      );
-    }
-  }
-
-  //BLOCCO DI EMERGENZA PARCHEGGIO
-  Future<void> impostaEmergenza(
-    String parcheggioId,
-    bool attiva,
-    String motivo,
-  ) async {
-    final url = Uri.parse(
-      '$_baseUrl/parcheggi/$parcheggioId/emergenza',
-    ).replace(queryParameters: {'attiva': attiva.toString(), 'motivo': motivo});
-
-    final resp = await _client.patch(
-      url,
-      headers: {
-        // Rimuovi Content-Type se non mandi un JSON nel body, lascia solo Accept
-        'Accept': 'application/json',
-      },
-    );
-
-    if (resp.statusCode != 200) {
-      throw ApiException('Errore attivazione emergenza', resp.statusCode);
-    }
-  }
-
-  //-------------------- PRENOTAZIONI --------------------
-  /// Prenota un parcheggio: POST /api/parcheggi/prenota
   Future<PrenotazioneResponse> prenotaParcheggio({
     required String utenteId,
     required String parcheggioId,
@@ -269,8 +206,29 @@ class ApiClient {
     }
   }
 
-  //API recupero storico prenotazioni per utente
-  // GET /api/prenotazioni/utente/{utenteId}
+  Future<PrenotazioneResponse> annullaPrenotazione({
+    required String prenotazioneId,
+    required String utenteId,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/prenotazioni/$prenotazioneId/utente/$utenteId',
+    );
+
+    final resp = await _client.delete(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(resp.body));
+    }
+
+    String msg = 'Errore annullamento (HTTP ${resp.statusCode})';
+    if (resp.body.trim().isNotEmpty) {
+      msg = resp.body.trim();
+    }
+    throw ApiException(msg, resp.statusCode);
+  }
 
   Future<List<PrenotazioneResponse>> getStoricoPrenotazioni(
     String utenteId,
@@ -284,12 +242,10 @@ class ApiClient {
 
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       final List<dynamic> jsonList = jsonDecode(resp.body);
-      // Trasformiamo ogni elemento della lista JSON in un oggetto PrenotazioneResponse
       return jsonList
           .map((json) => PrenotazioneResponse.fromJson(json))
           .toList();
     } else if (resp.statusCode == 204) {
-      // Se il backend restituisce 204 No Content, restituiamo una lista vuota
       return [];
     } else {
       throw ApiException(
@@ -299,7 +255,6 @@ class ApiClient {
     }
   }
 
-  // Valida codice QR: POST /api/prenotazioni/valida-ingresso/{codiceQr}
   Future<PrenotazioneResponse> validaIngresso(String codiceQr) async {
     final resp = await _client.post(
       Uri.parse('$_baseUrl/prenotazioni/valida-ingresso/$codiceQr'),
@@ -325,7 +280,16 @@ class ApiClient {
     throw ApiException(msg, resp.statusCode);
   }
 
-  /// Recupera la prenotazione tramite QR Code senza modificarne lo stato
+  Future<PrenotazioneResponse> validaUscita(String qr) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/prenotazioni/valida-uscita/$qr'),
+    );
+    if (response.statusCode == 200) {
+      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+    }
+    throw ApiException(response.body);
+  }
+
   Future<Map<String, dynamic>> getPrenotazioneByQr(String codiceQr) async {
     final url = Uri.parse('$_baseUrl/prenotazioni/qr/$codiceQr');
 
@@ -348,7 +312,18 @@ class ApiClient {
     }
   }
 
-  // Calcola importo da pagare: GET /api/prenotazioni/{id}/calcola-importo
+  Future<PrenotazioneResponse?> getPrenotazioneByIdFromStorico(
+    String utenteId,
+    String prenotazioneId,
+  ) async {
+    final list = await getStoricoPrenotazioni(utenteId);
+    try {
+      return list.firstWhere((p) => p.id == prenotazioneId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<double> calcolaImporto(String id) async {
     final response = await _client.get(
       Uri.parse('$_baseUrl/prenotazioni/$id/calcola-importo'),
@@ -359,7 +334,6 @@ class ApiClient {
     throw ApiException('Errore calcolo importo: ${response.body}');
   }
 
-  // Paga prenotazione: POST /api/prenotazioni/{id}/paga
   Future<PrenotazioneResponse> pagaPrenotazione(
     String id,
     double importo,
@@ -375,20 +349,78 @@ class ApiClient {
     throw ApiException('Errore pagamento: ${response.body}');
   }
 
-  // Valida uscita: POST /api/prenotazioni/valida-uscita/{codiceQr}
-  Future<PrenotazioneResponse> validaUscita(String qr) async {
-    final response = await _client.post(
-      Uri.parse('$_baseUrl/prenotazioni/valida-uscita/$qr'),
+  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
+    final uri = Uri.parse(
+      '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
     );
-    if (response.statusCode == 200) {
-      return PrenotazioneResponse.fromJson(jsonDecode(response.body));
+
+    try {
+      final response = await http
+          .post(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        final body = response.body.trim();
+        throw ApiException(
+          body.isNotEmpty
+              ? 'Errore conferma parcheggio: $body'
+              : 'Errore conferma parcheggio (${response.statusCode})',
+        );
+      }
+
+      if (response.body.trim().isEmpty) {
+        throw ApiException(
+          'Risposta vuota dal server durante la conferma parcheggio.',
+        );
+      }
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return PrenotazioneResponse.fromJson(json);
+    } on TimeoutException {
+      throw ApiException('Timeout durante la conferma del parcheggio.');
+    } on FormatException {
+      throw ApiException('Risposta non valida dal server.');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Errore conferma parcheggio: $e');
     }
-    throw ApiException(
-      response.body,
-    ); // Passa il messaggio di errore (es. "Devi pagare")
   }
 
-  // RECUPERO DIREZIONI E PERCORSO
+  Future<List<PrenotazioneResponse>> getPrenotazioniByParcheggio(
+    String parcheggioId,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/prenotazioni/parcheggio/$parcheggioId');
+
+    final response = await _client.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore recupero prenotazioni del parcheggio');
+    }
+
+    final data = jsonDecode(response.body) as List<dynamic>;
+
+    return data
+        .map((e) => PrenotazioneResponse.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // =========================================================
+  // MAPPE / GEOLOCALIZZAZIONE
+  // =========================================================
+
+  Future<Map<String, dynamic>> geocode({required String address}) async {
+    final uri = Uri.parse(
+      '$_baseUrl/maps/geocode',
+    ).replace(queryParameters: {'address': address});
+
+    final res = await _client.get(uri);
+    if (res.statusCode != 200) {
+      throw ApiException('Geocode failed (${res.statusCode})');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getDirections({
     required double oLat,
     required double oLng,
@@ -434,33 +466,37 @@ class ApiClient {
     return null;
   }
 
-  // Recupera una prenotazione specifica dallo storico dell'utente
-  Future<PrenotazioneResponse?> getPrenotazioneByIdFromStorico(
-    String utenteId,
-    String prenotazioneId,
-  ) async {
-    final list = await getStoricoPrenotazioni(utenteId);
-    try {
-      return list.firstWhere((p) => p.id == prenotazioneId);
-    } catch (_) {
-      return null;
+  // =========================================================
+  // PARCHEGGI / POSTI
+  // =========================================================
+
+  Future<List<dynamic>> getParcheggiNearby({
+    required double lat,
+    required double lng,
+    required double radius,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/parcheggi/nearby').replace(
+      queryParameters: {
+        'lat': lat.toString(),
+        'lng': lng.toString(),
+        'radius': radius.toString(),
+      },
+    );
+
+    final resp = await _client
+        .get(uri, headers: {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 8));
+
+    if (resp.statusCode == 200) {
+      return jsonDecode(resp.body) as List<dynamic>;
     }
+
+    throw ApiException(
+      'Errore caricamento parcheggi (${resp.statusCode})',
+      resp.statusCode,
+    );
   }
 
-  //LOCALIZZAZIONE GPS
-  Future<Map<String, dynamic>> geocode({required String address}) async {
-    final uri = Uri.parse(
-      '$_baseUrl/maps/geocode',
-    ).replace(queryParameters: {'address': address});
-
-    final res = await _client.get(uri);
-    if (res.statusCode != 200) {
-      throw ApiException('Geocode failed (${res.statusCode})');
-    }
-    return jsonDecode(res.body) as Map<String, dynamic>;
-  }
-
-  //RECUPERO INFORMAZIONI PARCHEGGIO
   Future<Map<String, dynamic>> getParcheggioById(String parcheggioId) async {
     final uri = Uri.parse('$_baseUrl/parcheggi/$parcheggioId');
 
@@ -477,6 +513,25 @@ class ApiClient {
       'Errore recupero parcheggio: HTTP ${resp.statusCode}',
       resp.statusCode,
     );
+  }
+
+  Future<void> impostaEmergenza(
+    String parcheggioId,
+    bool attiva,
+    String motivo,
+  ) async {
+    final url = Uri.parse(
+      '$_baseUrl/parcheggi/$parcheggioId/emergenza',
+    ).replace(queryParameters: {'attiva': attiva.toString(), 'motivo': motivo});
+
+    final resp = await _client.patch(
+      url,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (resp.statusCode != 200) {
+      throw ApiException('Errore attivazione emergenza', resp.statusCode);
+    }
   }
 
   Future<List<Posto>> getPostiParcheggio(
@@ -500,115 +555,6 @@ class ApiClient {
 
     final data = jsonDecode(response.body) as List<dynamic>;
     return data.map((e) => Posto.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
-  Future<List<PrenotazioneResponse>> getPrenotazioniByParcheggio(
-    String parcheggioId,
-  ) async {
-    final uri = Uri.parse('$_baseUrl/prenotazioni/parcheggio/$parcheggioId');
-
-    final response = await _client.get(uri);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore recupero prenotazioni del parcheggio');
-    }
-
-    final data = jsonDecode(response.body) as List<dynamic>;
-
-    return data
-        .map((e) => PrenotazioneResponse.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<List<Map<String, dynamic>>> getLogAnalitiche(
-    String analiticaId,
-  ) async {
-    final url = Uri.parse('$_baseUrl/analitiche/$analiticaId/log');
-    final response = await _client.get(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore nel caricamento dei log');
-    }
-
-    final jsonList = jsonDecode(response.body);
-    if (jsonList is! List) {
-      throw Exception('Il backend non ha restituito una lista JSON');
-    }
-
-    return jsonList.cast<Map<String, dynamic>>();
-  }
-
-  Future<void> updateLogSeverity(String logId, String severity) async {
-    final url = Uri.parse('$_baseUrl/log/$logId/severity?severity=$severity');
-    final response = await http.put(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore aggiornamento severity: ${response.statusCode}');
-    }
-  }
-
-  Future<void> updateLogCategory(String logId, String category) async {
-    final url = Uri.parse('$_baseUrl/log/$logId/category?category=$category');
-    final response = await http.put(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore aggiornamento category: ${response.statusCode}');
-    }
-  }
-
-  /// Crea un nuovo log per l'analitica specificata
-  Future<Map<String, dynamic>> creaLog({
-    required String analiticaId,
-    required String tipo,
-    required String severita,
-    required String titolo,
-    required String descrizione,
-    required DateTime data,
-  }) async {
-    final url = Uri.parse('$_baseUrl/log');
-    final body = jsonEncode({
-      'analiticaId': analiticaId,
-      'tipo': tipo,
-      'severita': severita,
-      'titolo': titolo,
-      'descrizione': descrizione,
-      'data': data.toIso8601String(),
-    });
-
-    final response = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: body,
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore creazione log: ${response.statusCode}');
-    }
-
-    final jsonMap = jsonDecode(response.body);
-    if (jsonMap is! Map<String, dynamic>) {
-      throw Exception('Il backend non ha restituito un log valido');
-    }
-
-    return jsonMap;
-  }
-
-  Future<Map<String, dynamic>> getAnaliticaByParcheggioId(
-    String parcheggioId,
-  ) async {
-    final url = Uri.parse('$_baseUrl/analitiche/parcheggio/$parcheggioId');
-    final response = await _client.get(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Errore nel caricamento analitica del parcheggio');
-    }
-
-    final jsonMap = jsonDecode(response.body);
-    if (jsonMap is! Map<String, dynamic>) {
-      throw Exception('Il backend non ha restituito un\'analitica valida');
-    }
-
-    return jsonMap;
   }
 
   Future<Posto> updatePostoDisabilitato({
@@ -663,68 +609,115 @@ class ApiClient {
     );
   }
 
-  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
-    final uri = Uri.parse(
-      '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
-    );
+  // =========================================================
+  // LOG / ANALITICHE
+  // =========================================================
 
-    try {
-      final response = await http
-          .post(uri, headers: {'Content-Type': 'application/json'})
-          .timeout(const Duration(seconds: 10));
+  Future<List<Log>> getLogByAnaliticaId(String analiticaId) async {
+    final uri = Uri.parse('$_baseUrl/$analiticaId');
 
-      if (response.statusCode != 200) {
-        final body = response.body.trim();
-        throw ApiException(
-          body.isNotEmpty
-              ? 'Errore conferma parcheggio: $body'
-              : 'Errore conferma parcheggio (${response.statusCode})',
-        );
-      }
+    final resp = await _client.get(uri);
 
-      if (response.body.trim().isEmpty) {
-        throw ApiException(
-          'Risposta vuota dal server durante la conferma parcheggio.',
-        );
-      }
-
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      return PrenotazioneResponse.fromJson(json);
-    } on TimeoutException {
-      throw ApiException('Timeout durante la conferma del parcheggio.');
-    } on FormatException {
-      throw ApiException('Risposta non valida dal server.');
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('Errore conferma parcheggio: $e');
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
+      final List<dynamic> jsonList = jsonDecode(resp.body) as List<dynamic>;
+      return jsonList
+          .map((json) => Log.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw ApiException(
+        'Errore recupero log: HTTP ${resp.statusCode}',
+        resp.statusCode,
+      );
     }
   }
 
-  Future<List<dynamic>> getParcheggiNearby({
-    required double lat,
-    required double lng,
-    required double radius,
-  }) async {
-    final uri = Uri.parse('$_baseUrl/parcheggi/nearby').replace(
-      queryParameters: {
-        'lat': lat.toString(),
-        'lng': lng.toString(),
-        'radius': radius.toString(),
-      },
-    );
+  Future<List<Map<String, dynamic>>> getLogAnalitiche(
+    String analiticaId,
+  ) async {
+    final url = Uri.parse('$_baseUrl/analitiche/$analiticaId/log');
+    final response = await _client.get(url);
 
-    final resp = await _client
-        .get(uri, headers: {'Accept': 'application/json'})
-        .timeout(const Duration(seconds: 8));
-
-    if (resp.statusCode == 200) {
-      return jsonDecode(resp.body) as List<dynamic>;
+    if (response.statusCode != 200) {
+      throw Exception('Errore nel caricamento dei log');
     }
 
-    throw ApiException(
-      'Errore caricamento parcheggi (${resp.statusCode})',
-      resp.statusCode,
+    final jsonList = jsonDecode(response.body);
+    if (jsonList is! List) {
+      throw Exception('Il backend non ha restituito una lista JSON');
+    }
+
+    return jsonList.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> updateLogSeverity(String logId, String severity) async {
+    final url = Uri.parse('$_baseUrl/log/$logId/severity?severity=$severity');
+    final response = await http.put(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore aggiornamento severity: ${response.statusCode}');
+    }
+  }
+
+  Future<void> updateLogCategory(String logId, String category) async {
+    final url = Uri.parse('$_baseUrl/log/$logId/category?category=$category');
+    final response = await http.put(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore aggiornamento category: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> creaLog({
+    required String analiticaId,
+    required String tipo,
+    required String severita,
+    required String titolo,
+    required String descrizione,
+    required DateTime data,
+  }) async {
+    final url = Uri.parse('$_baseUrl/log');
+    final body = jsonEncode({
+      'analiticaId': analiticaId,
+      'tipo': tipo,
+      'severita': severita,
+      'titolo': titolo,
+      'descrizione': descrizione,
+      'data': data.toIso8601String(),
+    });
+
+    final response = await _client.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
     );
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore creazione log: ${response.statusCode}');
+    }
+
+    final jsonMap = jsonDecode(response.body);
+    if (jsonMap is! Map<String, dynamic>) {
+      throw Exception('Il backend non ha restituito un log valido');
+    }
+
+    return jsonMap;
+  }
+
+  Future<Map<String, dynamic>> getAnaliticaByParcheggioId(
+    String parcheggioId,
+  ) async {
+    final url = Uri.parse('$_baseUrl/analitiche/parcheggio/$parcheggioId');
+    final response = await _client.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Errore nel caricamento analitica del parcheggio');
+    }
+
+    final jsonMap = jsonDecode(response.body);
+    if (jsonMap is! Map<String, dynamic>) {
+      throw Exception('Il backend non ha restituito un\'analitica valida');
+    }
+
+    return jsonMap;
   }
 }

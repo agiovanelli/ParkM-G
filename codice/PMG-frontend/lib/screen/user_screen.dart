@@ -87,7 +87,6 @@ class _UserScreenState extends State<UserScreen>
   int _sessionToken = 0;
   Timer? _bookingStatusTimer;
   Timer? _fakeArrivalTimer;
-  bool _fakeArrivalTriggered = false;
   bool _showGestioneSostaView = false;
   bool _waitingPaymentDialogClose = false;
   final GlobalKey<IndoorParkingViewState> _indoorKey =
@@ -261,6 +260,58 @@ class _UserScreenState extends State<UserScreen>
     }
 
     return 'Distanza: ${meters.toStringAsFixed(0)} m';
+  }
+
+  void _startFakeArrivalFallback() {
+    _fakeArrivalTimer?.cancel();
+
+    _fakeArrivalTimer = Timer(const Duration(seconds: 5), () async {
+      if (!mounted) return;
+      if (_arrivalHandled || _arrivalUiDone || _openingQrDialog) return;
+      if (_activeBooking == null || _activeParkingLatLng == null) return;
+
+      _openingQrDialog = true;
+
+      setState(() {
+        _arrivalUiDone = true;
+        _distanceToParkingM = 0;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+
+      _arrivalHandled = true;
+      _stopReturnOverlay();
+
+      _startBookingStatusPolling();
+
+      await _showMapLockedDialog<void>(
+        show: () async {
+          final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
+            widget.utente.id,
+            _activeBooking!.id,
+          );
+
+          if (!mounted) return null;
+
+          if (updated != null) {
+            setState(() => _activeBooking = updated);
+          }
+
+          return PrenotazioneDialog.mostra(
+            context,
+            prenotazione: updated ?? _activeBooking!,
+            apiClient: widget.apiClient,
+            utenteId: widget.utente.id,
+            lockActions: true,
+          );
+        },
+      );
+
+      await _refreshActiveBookingAndMaybeEnterIndoor();
+      _stopBookingStatusPolling();
+      _openingQrDialog = false;
+    });
   }
 
   void _showOnlyBookedParking(Map<String, dynamic> p) {
@@ -560,12 +611,12 @@ class _UserScreenState extends State<UserScreen>
     }
 
     _fakeArrivalTimer?.cancel();
-    _fakeArrivalTriggered = false;
 
     setState(() {
       _returnOverlay = true;
       _arrivalUiDone = false;
     });
+    _startFakeArrivalFallback();
 
     _returnOverlayTimer?.cancel();
     _updateDistanceAndMaybeArrive();
@@ -596,57 +647,6 @@ class _UserScreenState extends State<UserScreen>
     }
 
     if (_arrivalUiDone) return;
-
-    if (_distanceToParkingM == null && !_fakeArrivalTriggered) {
-      _fakeArrivalTriggered = true;
-      _fakeArrivalTimer?.cancel();
-      _fakeArrivalTimer = Timer(const Duration(seconds: 5), () async {
-        if (!mounted) return;
-        if (_arrivalHandled || _arrivalUiDone || _openingQrDialog) return;
-
-        _openingQrDialog = true;
-        setState(() {
-          _arrivalUiDone = true;
-          _distanceToParkingM = 0;
-        });
-
-        await Future.delayed(const Duration(milliseconds: 800));
-        if (!mounted) return;
-
-        _arrivalHandled = true;
-        _stopReturnOverlay();
-
-        _startBookingStatusPolling();
-
-        await _showMapLockedDialog<void>(
-          show: () async {
-            final updated = await widget.apiClient
-                .getPrenotazioneByIdFromStorico(
-                  widget.utente.id,
-                  _activeBooking!.id,
-                );
-
-            if (!mounted) return null;
-
-            if (updated != null) {
-              setState(() => _activeBooking = updated);
-            }
-
-            return PrenotazioneDialog.mostra(
-              context,
-              prenotazione: updated ?? _activeBooking!,
-              apiClient: widget.apiClient,
-              utenteId: widget.utente.id,
-              lockActions: true,
-            );
-          },
-        );
-
-        await _refreshActiveBookingAndMaybeEnterIndoor();
-        _stopBookingStatusPolling();
-        _openingQrDialog = false;
-      });
-    }
 
     try {
       final pos = await Geolocator.getCurrentPosition(
@@ -1020,7 +1020,7 @@ class _UserScreenState extends State<UserScreen>
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        if (token != _sessionToken) return; 
+        if (token != _sessionToken) return;
         if (mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
@@ -1030,7 +1030,7 @@ class _UserScreenState extends State<UserScreen>
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 8));
 
-      if (token != _sessionToken) return; 
+      if (token != _sessionToken) return;
       if (!mounted) return;
 
       final me = LatLng(pos.latitude, pos.longitude);

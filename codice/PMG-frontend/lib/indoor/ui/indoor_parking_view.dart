@@ -241,7 +241,7 @@ class IndoorParkingViewState extends State<IndoorParkingView>
     final gr = gr0.clamp(0, LaneGridMask.rows - 1);
     final sc = LaneGridMask.entryCol;
     final sr = LaneGridMask.entryRow;
-    final pts = LaneGridMask.buildTurnAtGoalRowPathNormalized(
+    final pts = LaneGridMask.buildPathNormalized(
       startC: sc,
       startR: sr,
       goalC: gc,
