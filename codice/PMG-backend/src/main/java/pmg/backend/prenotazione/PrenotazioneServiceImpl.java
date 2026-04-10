@@ -209,6 +209,14 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         }
 
         Prenotazione salvata = prenotazioneRepository.save(p);
+        
+        salvaLogEvento(
+                salvata.getParcheggioId(),
+                LogCategoria.EVENTO,
+                LogSeverità.INFO,
+                "Prenotazione annullata",
+                "La prenotazione " + salvata.getId() + " e' stata annullata"
+        );
 
         return convertiInResponse(salvata);
     }
@@ -546,7 +554,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	    salvaLogEvento(
 	            salvata.getParcheggioId(),
 	            LogCategoria.EVENTO,
-	            LogSeverità.VEICOLO,
+	            LogSeverità.INFO,
 	            "Parcheggio confermato",
 	            "Utente arrivato al posto per prenotazione " + salvata.getId()
 	    );
