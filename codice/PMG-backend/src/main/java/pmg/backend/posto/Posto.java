@@ -19,18 +19,15 @@ public class Posto {
 
     public Posto() {}
 
-    public Posto(String id, String parcheggioId, int numero, int piano, boolean disponibile, boolean disabilitato,
-                 boolean riservatoDisabili,
-                 boolean riservatoIncinta,
-                 int distanzaUscita) {
+    public Posto(String id, String parcheggioId, int numero, int piano, PostoBoolean postoBoolean, int distanzaUscita) {
     	this.id = id;
     	this.parcheggioId = parcheggioId;
     	this.numero = numero;
     	this.piano = piano;
-        this.disponibile = disponibile;
-        this.disabilitato = disabilitato;
-        this.riservatoDisabili = riservatoDisabili;
-        this.riservatoIncinta = riservatoIncinta;
+        this.disponibile = postoBoolean.disponibile();
+        this.disabilitato = postoBoolean.disabilitato();
+        this.riservatoDisabili = postoBoolean.riservatoDisabili();
+        this.riservatoIncinta = postoBoolean.riservatoIncinta();
         this.distanzaUscita = distanzaUscita;
     }
 
@@ -61,3 +58,5 @@ public class Posto {
     
     public String getId() { return id; }
 }
+
+record PostoBoolean(boolean disponibile, boolean disabilitato, boolean riservatoDisabili, boolean riservatoIncinta) {}

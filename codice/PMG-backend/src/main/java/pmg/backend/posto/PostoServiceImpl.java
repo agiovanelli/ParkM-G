@@ -103,11 +103,7 @@ public class PostoServiceImpl implements PostoService {
 
         posto.setDisabilitato(disabilitato);
 
-        if (disabilitato) {
-            posto.setDisponibile(false);
-        } else {
-            posto.setDisponibile(true);
-        }
+        posto.setDisponibile(!disabilitato);
 
         postoRepository.save(posto);
 
@@ -123,7 +119,7 @@ public class PostoServiceImpl implements PostoService {
         }
 
         parcheggio.setPostiDisponibili(
-                Math.max(0, Math.min(parcheggio.getPostiTotali(), disponibili))
+                Math.clamp(disponibili, 0, parcheggio.getPostiTotali())
         );
         parcheggioRepository.save(parcheggio);
 

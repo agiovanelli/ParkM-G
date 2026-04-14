@@ -1,6 +1,11 @@
 package pmg.backend.maps;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
+import pmg.backend.exception.BadRequestException;
+import pmg.backend.exception.MapsApiException;
+import pmg.backend.exception.MapsConfigurationException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class MapsService {
@@ -29,11 +35,12 @@ public class MapsService {
         ? googleGeocodingKey
         : googleDirectionsKey; // fallback
   }
-
+  
   public DirectionsResponseDto getDirections(double oLat, double oLng, double dLat, double dLng) {
-    if (googleDirectionsKey == null || googleDirectionsKey.isBlank()) {
-      throw new RuntimeException("google.directions.key mancante");
-    }
+    
+	  if (googleDirectionsKey == null || googleDirectionsKey.isBlank()) {
+		  throw new MapsConfigurationException("google.directions.key mancante");
+	  }
 
     String url = UriComponentsBuilder
         .fromHttpUrl("https://maps.googleapis.com/maps/api/directions/json")
@@ -51,14 +58,15 @@ public class MapsService {
     ResponseEntity<JsonNode> resp = restTemplate.getForEntity(url, JsonNode.class);
 
     if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
-      throw new RuntimeException("Directions HTTP " + resp.getStatusCode());
+        throw new MapsApiException("Directions HTTP " + resp.getStatusCode());
     }
-
+    
     JsonNode root = resp.getBody();
     String status = root.path("status").asText();
+   
     if (!"OK".equals(status)) {
-      String msg = root.path("error_message").asText(status);
-      throw new RuntimeException("Directions status=" + status + " msg=" + msg);
+        String msg = root.path("error_message").asText(status);
+        throw new MapsApiException("Directions status=" + status + " msg=" + msg);
     }
 
     List<RouteDto> out = new ArrayList<>();
@@ -77,24 +85,27 @@ public class MapsService {
       int distMeters = 0;
       int durSeconds = 0;
       Integer durTrafficSeconds = null;
+      String distance = "distance";
+      String duration = "duration";
+      String value = "value";
 
       if (leg0 != null) {
-        distText = leg0.path("distance").path("text").asText("");
-        durText = leg0.path("duration").path("text").asText("");
+        distText = leg0.path(distance).path("text").asText("");
+        durText = leg0.path(duration).path("text").asText("");
         durTrafficText = leg0.path("duration_in_traffic").path("text").asText("");
 
-        distMeters = leg0.path("distance").path("value").asInt(0);
-        durSeconds = leg0.path("duration").path("value").asInt(0);
+        distMeters = leg0.path(distance).path(value).asInt(0);
+        durSeconds = leg0.path(duration).path(value).asInt(0);
 
         JsonNode dit = leg0.path("duration_in_traffic");
         if (!dit.isMissingNode() && !dit.isNull()) {
-          durTrafficSeconds = dit.path("value").asInt(0);
+          durTrafficSeconds = dit.path(value).asInt(0);
         }
 
         for (JsonNode s : leg0.path("steps")) {
           String html = s.path("html_instructions").asText("");
-          String sDistText = s.path("distance").path("text").asText("");
-          String sDurText = s.path("duration").path("text").asText("");
+          String sDistText = s.path(distance).path("text").asText("");
+          String sDurText = s.path(duration).path("text").asText("");
           String man = s.path("maneuver").asText("");
           String sPoly = s.path("polyline").path("points").asText("");
 
@@ -102,8 +113,8 @@ public class MapsService {
           JsonNode en = s.path("end_location");
 
           // Se hai aggiornato StepDto con i valori numerici:
-          int sDistMeters = s.path("distance").path("value").asInt(0);
-          int sDurSeconds = s.path("duration").path("value").asInt(0);
+          int sDistMeters = s.path(distance).path(value).asInt(0);
+          int sDurSeconds = s.path(duration).path(value).asInt(0);
 
           steps.add(new StepDto(
               html,
@@ -151,12 +162,13 @@ public class MapsService {
   }
 
   public GeocodeResponseDto geocode(String address) {
-    if (address == null || address.isBlank()) {
-      throw new RuntimeException("address mancante");
-    }
-    if (googleGeocodingKey == null || googleGeocodingKey.isBlank()) {
-      throw new RuntimeException("google.geocoding.key (o directions.key) mancante");
-    }
+	  if (address == null || address.isBlank()) {
+		  throw new BadRequestException("address mancante");
+	  }
+	  
+	  if (googleGeocodingKey == null || googleGeocodingKey.isBlank()) {
+		  throw new MapsConfigurationException("google.geocoding.key mancante");
+	  }
 
     String url = UriComponentsBuilder
         .fromHttpUrl("https://maps.googleapis.com/maps/api/geocode/json")
@@ -167,15 +179,15 @@ public class MapsService {
     ResponseEntity<JsonNode> resp = restTemplate.getForEntity(url, JsonNode.class);
 
     if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
-      throw new RuntimeException("Geocode HTTP " + resp.getStatusCode());
+        throw new MapsApiException("Geocode HTTP " + resp.getStatusCode());
     }
 
-    JsonNode root = resp.getBody();
+    JsonNode root = Objects.requireNonNull(resp.getBody());
     String status = root.path("status").asText();
+    
     if (!"OK".equals(status)) {
-      // esempio: ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED, INVALID_REQUEST...
-      String msg = root.path("error_message").asText(status);
-      throw new RuntimeException("Geocode status=" + status + " msg=" + msg);
+        String msg = root.path("error_message").asText(status);
+        throw new MapsApiException("Geocode status=" + status + " msg=" + msg);
     }
 
     List<GeocodeResultDto> out = new ArrayList<>();
