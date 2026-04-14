@@ -188,7 +188,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.bgDark2.withOpacity(0.5),
+                  color: AppColors.bgDark2.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.borderField),
                 ),
@@ -310,7 +310,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: AppColors.bgDark2.withOpacity(0.42),
+        color: AppColors.bgDark2.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.borderField),
       ),
@@ -355,7 +355,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: stato.color.withOpacity(0.14),
+        color: stato.color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: stato.color),
       ),
@@ -379,7 +379,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.35),
+              color: AppColors.bgDark2.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.borderField),
             ),
@@ -394,7 +394,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.08),
+              color: Colors.red.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: Colors.redAccent),
             ),
@@ -417,12 +417,12 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.green.withOpacity(0.18),
-                AppColors.accentCyan.withOpacity(0.12),
+                Colors.green.withValues(alpha: 0.18),
+                AppColors.accentCyan.withValues(alpha: 0.12),
               ],
             ),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.accentCyan.withOpacity(0.6)),
+            border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.6)),
           ),
           child: Column(
             children: [
@@ -507,7 +507,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
             border: Border.all(color: AppColors.borderField),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.22),
+                color: Colors.black.withValues(alpha: 0.22),
                 blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
@@ -522,7 +522,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.16),
+                      color: Colors.orange.withValues(alpha: 0.16),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(

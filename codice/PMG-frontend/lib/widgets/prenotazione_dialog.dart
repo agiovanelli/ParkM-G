@@ -246,7 +246,7 @@ class _PrenotazioneDialogContentState
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.accentCyan.withOpacity(0.08),
+        color: AppColors.accentCyan.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.accentCyan, width: 1.4),
       ),
@@ -451,7 +451,7 @@ class _PrenotazioneDialogContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: stato.color.withOpacity(0.15),
+        color: stato.color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: stato.color, width: 2),
       ),
@@ -495,8 +495,8 @@ class _PrenotazioneDialogContentState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isUrgent
-            ? Colors.red.withOpacity(0.1)
-            : AppColors.accentCyan.withOpacity(0.1),
+            ? Colors.red.withValues(alpha: 0.1)
+            : AppColors.accentCyan.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUrgent ? Colors.red : AppColors.accentCyan,

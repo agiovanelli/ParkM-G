@@ -50,7 +50,7 @@ class ParkingPopup extends StatelessWidget {
         border: Border.all(color: AppColors.accentCyan, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -106,7 +106,7 @@ class ParkingPopup extends StatelessWidget {
               backgroundColor: inEmergenza
                   ? Colors.redAccent
                   : (disabled
-                        ? AppColors.accentCyan.withOpacity(0.55)
+                        ? AppColors.accentCyan.withValues(alpha: 0.55)
                         : AppColors.accentCyan),
               foregroundColor: AppColors.textPrimary,
               shape: RoundedRectangleBorder(

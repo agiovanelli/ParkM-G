@@ -36,7 +36,7 @@ class PrimaryButton extends StatelessWidget {
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     blurRadius: 18,
                     offset: const Offset(0, 2),
                   ),
@@ -451,7 +451,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),
@@ -662,7 +662,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),

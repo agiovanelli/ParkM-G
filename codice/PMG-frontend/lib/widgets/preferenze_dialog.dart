@@ -112,8 +112,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             ),
             checkboxTheme: CheckboxThemeData(
               fillColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected))
-                  return AppColors.accentCyan;
+                if (states.contains(WidgetState.selected)) return AppColors.accentCyan;
                 return AppColors.borderField;
               }),
               checkColor: WidgetStateProperty.all(AppColors.textPrimary),
@@ -121,7 +120,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             sliderTheme: Theme.of(context).sliderTheme.copyWith(
               activeTrackColor: AppColors.accentCyan,
               thumbColor: AppColors.accentCyan,
-              overlayColor: AppColors.accentCyan.withOpacity(0.15),
+              overlayColor: AppColors.accentCyan.withValues(alpha: 0.15),
               inactiveTrackColor: AppColors.borderField,
               valueIndicatorColor: AppColors.brandTop,
               valueIndicatorTextStyle: const TextStyle(
@@ -209,7 +208,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Text(
                   'Valore: ${_distanza.toStringAsFixed(0)}',
                   style: TextStyle(
-                    color: AppColors.textMuted.withOpacity(0.95),
+                    color: AppColors.textMuted.withValues(alpha: 0.95),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -241,11 +240,11 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 DropdownButtonFormField<String>(
-                  value: _occupazione,
+                  initialValue: _occupazione,
                   dropdownColor: AppColors.bgDark,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.bgDark2.withOpacity(0.35),
+                    fillColor: AppColors.bgDark2.withValues(alpha: 0.35),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(

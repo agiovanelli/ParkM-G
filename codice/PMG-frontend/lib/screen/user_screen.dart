@@ -379,7 +379,7 @@ class _UserScreenState extends State<UserScreen>
             _activeBooking!.id,
           );
 
-          if (!mounted) return null;
+          if (!mounted) return;
 
           if (updated != null) {
             setState(() => _activeBooking = updated);
@@ -636,7 +636,7 @@ class _UserScreenState extends State<UserScreen>
                   _activeBooking!.id,
                 );
 
-            if (!mounted) return null;
+            if (!mounted) return;
 
             if (updated != null) {
               setState(() => _activeBooking = updated);
@@ -712,7 +712,7 @@ class _UserScreenState extends State<UserScreen>
                   _activeBooking!.id,
                 );
 
-            if (!mounted) return null;
+            if (!mounted) return;
 
             if (updated != null) {
               setState(() => _activeBooking = updated);
@@ -754,7 +754,7 @@ class _UserScreenState extends State<UserScreen>
 
       if (!changed) return;
 
-      if (updated.stato == StatoPrenotazione.IN_CORSO) {
+      if (updated.stato == StatoPrenotazione.inCorso) {
         setState(() {
           _showGestioneSostaView = false;
           _forceHideIndoorMap = false;
@@ -765,7 +765,7 @@ class _UserScreenState extends State<UserScreen>
         return;
       }
 
-      if (updated.stato == StatoPrenotazione.PARCHEGGIATO) {
+      if (updated.stato == StatoPrenotazione.parcheggiato) {
         setState(() {
           _showGestioneSostaView = true;
           _forceHideIndoorMap = true;
@@ -776,7 +776,7 @@ class _UserScreenState extends State<UserScreen>
         return;
       }
 
-      if (updated.stato == StatoPrenotazione.PAGATO) {
+      if (updated.stato == StatoPrenotazione.pagato) {
         setState(() {
           _showGestioneSostaView = true;
           _forceHideIndoorMap = true;
@@ -839,8 +839,8 @@ class _UserScreenState extends State<UserScreen>
           circleId: const CircleId('pulse'),
           center: me,
           radius: _pulseAnimation.value,
-          fillColor: Colors.blue.withOpacity(0.25),
-          strokeColor: Colors.blue.withOpacity(0.1),
+          fillColor: Colors.blue.withValues(alpha: 0.25),
+          strokeColor: Colors.blue.withValues(alpha: 0.1),
           strokeWidth: 1,
           zIndex: 900,
         ),
@@ -982,8 +982,8 @@ class _UserScreenState extends State<UserScreen>
                 circleId: const CircleId('pulse'),
                 center: me,
                 radius: _pulseAnimation.value,
-                fillColor: Colors.blue.withOpacity(0.25),
-                strokeColor: Colors.blue.withOpacity(0.1),
+                fillColor: Colors.blue.withValues(alpha: 0.25),
+                strokeColor: Colors.blue.withValues(alpha: 0.1),
                 strokeWidth: 1,
               ),
             );
@@ -1063,8 +1063,8 @@ class _UserScreenState extends State<UserScreen>
               circleId: const CircleId('pulse'),
               center: me,
               radius: _pulseAnimation.value,
-              fillColor: Colors.blue.withOpacity(0.25),
-              strokeColor: Colors.blue.withOpacity(0.1),
+              fillColor: Colors.blue.withValues(alpha: 0.25),
+              strokeColor: Colors.blue.withValues(alpha: 0.1),
               strokeWidth: 1,
             ),
           )
@@ -1677,7 +1677,7 @@ class _UserScreenState extends State<UserScreen>
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         blurRadius: 18,
                         offset: const Offset(0, 6),
                       ),
@@ -1736,7 +1736,7 @@ class _UserScreenState extends State<UserScreen>
                     decoration: InputDecoration(
                       hintText: 'Search your Park',
                       hintStyle: TextStyle(
-                        color: AppColors.textMuted.withOpacity(0.9),
+                        color: AppColors.textMuted.withValues(alpha: 0.9),
                       ),
                       prefixIcon: const Icon(
                         Icons.search,
@@ -1750,7 +1750,7 @@ class _UserScreenState extends State<UserScreen>
                         onPressed: () => _searchAndGo(_searchController.text),
                       ),
                       filled: true,
-                      fillColor: AppColors.bgDark2.withOpacity(0.35),
+                      fillColor: AppColors.bgDark2.withValues(alpha: 0.35),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 14,
@@ -1786,7 +1786,7 @@ class _UserScreenState extends State<UserScreen>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.35),
+                          color: Colors.black.withValues(alpha: 0.35),
                           blurRadius: 22,
                           offset: const Offset(0, 10),
                         ),
@@ -1999,13 +1999,13 @@ class _UserScreenState extends State<UserScreen>
                                               width: 44,
                                               height: 44,
                                               decoration: BoxDecoration(
-                                                color: Colors.green.withOpacity(
-                                                  0.18,
+                                                color: Colors.green.withValues(
+                                                  alpha: 0.18,
                                                 ),
                                                 shape: BoxShape.circle,
                                                 border: Border.all(
                                                   color: Colors.greenAccent
-                                                      .withOpacity(0.6),
+                                                      .withValues(alpha: 0.6),
                                                 ),
                                               ),
                                               child: const Icon(
