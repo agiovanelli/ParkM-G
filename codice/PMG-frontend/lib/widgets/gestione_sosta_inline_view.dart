@@ -47,7 +47,7 @@ class _GestioneSostaInlineViewState extends State<GestioneSostaInlineView> {
       );
 
       final attive = storico
-          .where((p) => p.stato == StatoPrenotazione.PARCHEGGIATO)
+          .where((p) => p.stato == StatoPrenotazione.parcheggiato)
           .toList();
 
       if (!mounted) return;

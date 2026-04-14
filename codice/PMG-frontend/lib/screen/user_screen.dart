@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'dart:html' as html;
 
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:park_mg/indoor/assignment/assignment_provider.dart';
 import 'package:park_mg/indoor/parking_map_definition.dart';
 import 'package:park_mg/indoor/ui/indoor_parking_view.dart';
@@ -87,6 +89,7 @@ class _UserScreenState extends State<UserScreen>
   int _sessionToken = 0;
   Timer? _bookingStatusTimer;
   Timer? _fakeArrivalTimer;
+  bool _fakeArrivalTriggered = false;
   bool _showGestioneSostaView = false;
   bool _waitingPaymentDialogClose = false;
   final GlobalKey<IndoorParkingViewState> _indoorKey =
@@ -103,10 +106,15 @@ class _UserScreenState extends State<UserScreen>
     final b = _activeBooking;
     if (_forceHideIndoorMap) return false;
     if (b == null) return false;
-    return b.stato == StatoPrenotazione.IN_CORSO;
+    return b.stato == StatoPrenotazione.inCorso;
   }
 
   bool get _showMainMapView => !_showIndoorMap && !_showGestioneSostaView;
+
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
 
   static const CameraPosition _initialCamera = CameraPosition(
     target: LatLng(41.9028, 12.4964),
@@ -262,58 +270,6 @@ class _UserScreenState extends State<UserScreen>
     return 'Distanza: ${meters.toStringAsFixed(0)} m';
   }
 
-  void _startFakeArrivalFallback() {
-    _fakeArrivalTimer?.cancel();
-
-    _fakeArrivalTimer = Timer(const Duration(seconds: 5), () async {
-      if (!mounted) return;
-      if (_arrivalHandled || _arrivalUiDone || _openingQrDialog) return;
-      if (_activeBooking == null || _activeParkingLatLng == null) return;
-
-      _openingQrDialog = true;
-
-      setState(() {
-        _arrivalUiDone = true;
-        _distanceToParkingM = 0;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (!mounted) return;
-
-      _arrivalHandled = true;
-      _stopReturnOverlay();
-
-      _startBookingStatusPolling();
-
-      await _showMapLockedDialog<void>(
-        show: () async {
-          final updated = await widget.apiClient.getPrenotazioneByIdFromStorico(
-            widget.utente.id,
-            _activeBooking!.id,
-          );
-
-          if (!mounted) return null;
-
-          if (updated != null) {
-            setState(() => _activeBooking = updated);
-          }
-
-          return PrenotazioneDialog.mostra(
-            context,
-            prenotazione: updated ?? _activeBooking!,
-            apiClient: widget.apiClient,
-            utenteId: widget.utente.id,
-            lockActions: true,
-          );
-        },
-      );
-
-      await _refreshActiveBookingAndMaybeEnterIndoor();
-      _stopBookingStatusPolling();
-      _openingQrDialog = false;
-    });
-  }
-
   void _showOnlyBookedParking(Map<String, dynamic> p) {
     final markerId = 'p_${p['id']}';
     final lat = (p['latitudine'] as num).toDouble();
@@ -326,7 +282,9 @@ class _UserScreenState extends State<UserScreen>
           _parkingIcon ??
           BitmapDescriptor.defaultMarker,
       infoWindow: const InfoWindow(title: ''),
-      onTap: _bookedMarkerLocked ? null : () => _selectParking(p),
+      onTap: _bookedMarkerLocked
+          ? null
+          : () => _selectParking(p),
       consumeTapEvents: true,
     );
     setState(() {
@@ -357,9 +315,7 @@ class _UserScreenState extends State<UserScreen>
       enriched['postiDisponibili'] = available;
       return enriched;
     } catch (e) {
-      debugPrint(
-        'Errore caricamento stats posti per parcheggio $parkingId: $e',
-      );
+      debugPrint('Errore caricamento stats posti per parcheggio $parkingId: $e');
       return parking;
     }
   }
@@ -377,6 +333,8 @@ class _UserScreenState extends State<UserScreen>
       _selectedParkingData = enrichedParking;
     });
   }
+
+  // -------------------- utils --------------------
 
   void _enterIndoorModeIfNeeded() {
     debugPrint('ENTER INDOOR called, showIndoor=$_showIndoorMap');
@@ -402,8 +360,8 @@ class _UserScreenState extends State<UserScreen>
     if (_qrShownOnLogin) return;
     if (_activeBooking == null) return;
     if (_activeParkingLatLng == null) return;
-    if (_activeBooking!.stato == StatoPrenotazione.PARCHEGGIATO ||
-        _activeBooking!.stato == StatoPrenotazione.PAGATO) {
+    if (_activeBooking!.stato == StatoPrenotazione.parcheggiato ||
+        _activeBooking!.stato == StatoPrenotazione.pagato) {
       return;
     }
 
@@ -535,9 +493,9 @@ class _UserScreenState extends State<UserScreen>
       final attive = storico
           .where(
             (p) =>
-                p.stato == StatoPrenotazione.ATTIVA ||
-                p.stato == StatoPrenotazione.IN_CORSO ||
-                p.stato == StatoPrenotazione.PARCHEGGIATO,
+                p.stato == StatoPrenotazione.attiva ||
+                p.stato == StatoPrenotazione.inCorso ||
+                p.stato == StatoPrenotazione.parcheggiato,
           )
           .toList();
 
@@ -578,7 +536,7 @@ class _UserScreenState extends State<UserScreen>
 
       if (!mounted) return;
 
-      final bool showGestione = booking.stato == StatoPrenotazione.PARCHEGGIATO;
+      final bool showGestione = booking.stato == StatoPrenotazione.parcheggiato;
 
       setState(() {
         _activeBooking = booking;
@@ -605,18 +563,18 @@ class _UserScreenState extends State<UserScreen>
     if (_arrivalHandled) return;
 
     final stato = _activeBooking!.stato;
-    if (stato == StatoPrenotazione.PARCHEGGIATO ||
-        stato == StatoPrenotazione.PAGATO) {
+    if (stato == StatoPrenotazione.parcheggiato ||
+        stato == StatoPrenotazione.pagato) {
       return;
     }
 
     _fakeArrivalTimer?.cancel();
+    _fakeArrivalTriggered = false;
 
     setState(() {
       _returnOverlay = true;
       _arrivalUiDone = false;
     });
-    _startFakeArrivalFallback();
 
     _returnOverlayTimer?.cancel();
     _updateDistanceAndMaybeArrive();
@@ -647,6 +605,58 @@ class _UserScreenState extends State<UserScreen>
     }
 
     if (_arrivalUiDone) return;
+
+    // TEST: se resta troppo tempo su "calcolo distanza", forza l'arrivo
+    if (_distanceToParkingM == null && !_fakeArrivalTriggered) {
+      _fakeArrivalTriggered = true;
+      _fakeArrivalTimer?.cancel();
+      _fakeArrivalTimer = Timer(const Duration(seconds: 5), () async {
+        if (!mounted) return;
+        if (_arrivalHandled || _arrivalUiDone || _openingQrDialog) return;
+
+        _openingQrDialog = true;
+        setState(() {
+          _arrivalUiDone = true;
+          _distanceToParkingM = 0;
+        });
+
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+
+        _arrivalHandled = true;
+        _stopReturnOverlay();
+
+        _startBookingStatusPolling();
+
+        await _showMapLockedDialog<void>(
+          show: () async {
+            final updated = await widget.apiClient
+                .getPrenotazioneByIdFromStorico(
+                  widget.utente.id,
+                  _activeBooking!.id,
+                );
+
+            if (!mounted) return null;
+
+            if (updated != null) {
+              setState(() => _activeBooking = updated);
+            }
+
+            return PrenotazioneDialog.mostra(
+              context,
+              prenotazione: updated ?? _activeBooking!,
+              apiClient: widget.apiClient,
+              utenteId: widget.utente.id,
+              lockActions: true,
+            );
+          },
+        );
+
+        await _refreshActiveBookingAndMaybeEnterIndoor();
+        _stopBookingStatusPolling();
+        _openingQrDialog = false;
+      });
+    }
 
     try {
       final pos = await Geolocator.getCurrentPosition(
@@ -888,6 +898,8 @@ class _UserScreenState extends State<UserScreen>
     await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
   }
 
+  // -------------------- lifecycle --------------------
+
   @override
   void initState() {
     super.initState();
@@ -993,13 +1005,16 @@ class _UserScreenState extends State<UserScreen>
     super.dispose();
   }
 
+  // -------------------- location / icons --------------------
+
   Future<void> _bootstrapMyLocation() async {
     if (_isLocating) return;
-    final int token = _sessionToken;
+    final int token = _sessionToken; // ✅ snapshot sessione
 
     if (mounted) setState(() => _isLocating = true);
 
     try {
+      // (su web questo può essere poco affidabile, ma ok)
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
           .timeout(const Duration(seconds: 3));
 
@@ -1020,17 +1035,18 @@ class _UserScreenState extends State<UserScreen>
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        if (token != _sessionToken) return;
+        if (token != _sessionToken) return; // ✅ sessione cambiata
         if (mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
+      // ✅ IL PUNTO CRITICO: su web può pendere -> timeout duro
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 8));
 
-      if (token != _sessionToken) return;
+      if (token != _sessionToken) return; // ✅ logout nel frattempo
       if (!mounted) return;
 
       final me = LatLng(pos.latitude, pos.longitude);
@@ -1116,8 +1132,10 @@ class _UserScreenState extends State<UserScreen>
         final me = LatLng(pos.latitude, pos.longitude);
         final now = DateTime.now();
 
+        // throttle temporale
         if (now.difference(_lastTrackUiUpdate) < _trackUiMinInterval) return;
 
+        // throttle per spostamento
         if (_lastTrackUiPos != null) {
           final moved = Geolocator.distanceBetween(
             _lastTrackUiPos!.latitude,
@@ -1131,6 +1149,7 @@ class _UserScreenState extends State<UserScreen>
         _lastTrackUiUpdate = now;
         _lastTrackUiPos = me;
 
+        // 1 sola chiamata
         _updatePulseCenter(me);
       },
       onError: (e) {
@@ -1179,6 +1198,8 @@ class _UserScreenState extends State<UserScreen>
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
+  // -------------------- parkings --------------------
+
   Future<void> _toggleParkings() async {
     if (_bookedParkingMarkerId != null) {
       UiFeedback.showError(
@@ -1216,22 +1237,30 @@ class _UserScreenState extends State<UserScreen>
     setState(() => _isLoadingParkings = true);
 
     try {
-      final data = await widget.apiClient.getParcheggiNearby(
-        lat: center.latitude,
-        lng: center.longitude,
-        radius: radiusMeters,
+      final uri = Uri.parse(
+        '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
       );
+
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
 
       if (!mounted) return;
 
+      if (res.statusCode != 200) {
+        UiFeedback.showError(
+          context,
+          'Errore caricamento parcheggi (${res.statusCode})',
+        );
+        return;
+      }
+
+      final data = jsonDecode(res.body) as List<dynamic>;
+
       _lastParkingsJson = data;
+
       _rebuildParkingMarkersFromLastData();
     } on TimeoutException {
       if (!mounted) return;
       UiFeedback.showError(context, 'Timeout caricamento parcheggi.');
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       UiFeedback.showError(
@@ -1279,6 +1308,8 @@ class _UserScreenState extends State<UserScreen>
           consumeTapEvents: true,
           onTap: () {
             _selectParking(p);
+
+            // aggiorna solo le icone localmente
             _rebuildParkingMarkersFromLastData();
           },
         ),
@@ -1290,6 +1321,8 @@ class _UserScreenState extends State<UserScreen>
       _markers.addAll(newMarkers);
     });
   }
+
+  // -------------------- booking --------------------
 
   Future<void> _effettuaPrenotazione(
     String parcheggioId, {
@@ -1384,6 +1417,8 @@ class _UserScreenState extends State<UserScreen>
       if (mounted) setState(() => _isBooking = false);
     }
   }
+
+  // -------------------- menu / navigation --------------------
 
   Future<void> _showPreferenzeDialog() async {
     final updatedPrefs = await _showMapLockedDialog<Map<String, String>>(
@@ -1603,6 +1638,8 @@ class _UserScreenState extends State<UserScreen>
       UiFeedback.showError(context, 'Errore durante la ricerca.');
     }
   }
+
+  // -------------------- UI --------------------
 
   @override
   Widget build(BuildContext context) {

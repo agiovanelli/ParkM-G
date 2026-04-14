@@ -91,6 +91,7 @@ class ParkingPopup extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: disabled ? null : onBook,
 
+            // ICONA: se loading -> spinner, altrimenti QR
             icon: isLoading
                 ? const SizedBox(
                     width: 18,

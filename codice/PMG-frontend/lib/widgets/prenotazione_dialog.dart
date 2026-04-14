@@ -71,7 +71,7 @@ class _PrenotazioneDialogContentState
     _current = widget.prenotazione;
     _loadParcheggioNome();
     _startPolling();
-    if (_current.stato == StatoPrenotazione.ATTIVA) {
+    if (_current.stato == StatoPrenotazione.attiva) {
       _calcolaTempoRimanente();
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() {
@@ -312,9 +312,9 @@ class _PrenotazioneDialogContentState
 
     final shouldShowQr =
         (p.codiceQr ?? '').isNotEmpty &&
-        (p.stato == StatoPrenotazione.ATTIVA ||
-            p.stato == StatoPrenotazione.IN_CORSO ||
-            p.stato == StatoPrenotazione.PAGATO);
+        (p.stato == StatoPrenotazione.attiva ||
+            p.stato == StatoPrenotazione.inCorso ||
+            p.stato == StatoPrenotazione.pagato);
 
     return Dialog(
       backgroundColor: AppColors.bgDark2,
@@ -332,7 +332,7 @@ class _PrenotazioneDialogContentState
                 _buildStatoBadge(p),
                 const SizedBox(height: 8),
 
-                if (p.stato == StatoPrenotazione.ATTIVA) _buildTimer(),
+                if (p.stato == StatoPrenotazione.attiva) _buildTimer(),
 
                 _buildDettaglio(
                   Icons.directions_car,
@@ -373,11 +373,11 @@ class _PrenotazioneDialogContentState
 
                 if (shouldShowQr) const SizedBox(height: 12),
 
-                if (!widget.lockActions && p.stato != StatoPrenotazione.PAGATO)
+                if (!widget.lockActions && p.stato != StatoPrenotazione.pagato)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (p.stato == StatoPrenotazione.ATTIVA) ...[
+                      if (p.stato == StatoPrenotazione.attiva) ...[
                         OutlinedButton(
                           onPressed: _isCancelling
                               ? null
@@ -598,19 +598,19 @@ class _PrenotazioneDialogContentState
 
   IconData _getStatoIcon(StatoPrenotazione stato) {
     switch (stato) {
-      case StatoPrenotazione.ATTIVA:
+      case StatoPrenotazione.attiva:
         return Icons.access_time;
-      case StatoPrenotazione.IN_CORSO:
+      case StatoPrenotazione.inCorso:
         return Icons.directions_car;
-      case StatoPrenotazione.PARCHEGGIATO:
+      case StatoPrenotazione.parcheggiato:
         return Icons.local_parking;
-      case StatoPrenotazione.PAGATO:
+      case StatoPrenotazione.pagato:
         return Icons.payment;
-      case StatoPrenotazione.CONCLUSA:
+      case StatoPrenotazione.conclusa:
         return Icons.check_circle;
-      case StatoPrenotazione.SCADUTA:
+      case StatoPrenotazione.scaduta:
         return Icons.event_busy;
-      case StatoPrenotazione.ANNULLATA:
+      case StatoPrenotazione.annullata:
         return Icons.cancel;
     }
   }
@@ -644,9 +644,9 @@ class _PrenotazioneDialogContentState
 
               final s = p.stato;
               final canCancel =
-                  s == StatoPrenotazione.ATTIVA ||
-                  s == StatoPrenotazione.IN_CORSO ||
-                  s == StatoPrenotazione.PARCHEGGIATO;
+                  s == StatoPrenotazione.attiva ||
+                  s == StatoPrenotazione.inCorso ||
+                  s == StatoPrenotazione.parcheggiato;
 
               if (!canCancel) {
                 UiFeedback.showError(
@@ -685,7 +685,7 @@ class _PrenotazioneDialogContentState
           ),
           const SizedBox(height: 4),
           Text(
-            p.stato == StatoPrenotazione.PAGATO
+            p.stato == StatoPrenotazione.pagato
                 ? "Mostra questo codice all'uscita"
                 : "Mostra questo codice all'ingresso",
             style: const TextStyle(color: Colors.black54, fontSize: 9),

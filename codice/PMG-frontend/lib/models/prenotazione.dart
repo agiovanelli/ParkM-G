@@ -41,7 +41,7 @@ class PrenotazioneResponse {
       codiceQr: json['codiceQr'] as String?,
       stato: StatoPrenotazione.values.firstWhere(
         (e) => e.name == (json['stato'] ?? 'ATTIVA'),
-        orElse: () => StatoPrenotazione.ATTIVA,
+        orElse: () => StatoPrenotazione.attiva,
       ),
       dataIngresso: _parseDT(json['dataIngresso']),
       dataUscita: _parseDT(json['dataUscita']),
@@ -56,56 +56,56 @@ class PrenotazioneResponse {
 }
 
 enum StatoPrenotazione {
-  ATTIVA,
-  IN_CORSO,
-  PARCHEGGIATO,
-  PAGATO,
-  CONCLUSA,
-  SCADUTA,
-  ANNULLATA,
+  attiva,
+  inCorso,
+  parcheggiato,
+  pagato,
+  conclusa,
+  scaduta,
+  annullata,
 }
 
 extension StatoPrenotazioneExtension on StatoPrenotazione {
   String get label {
     switch (this) {
-      case StatoPrenotazione.ATTIVA:
+      case StatoPrenotazione.attiva:
         return 'Attiva';
-      case StatoPrenotazione.IN_CORSO:
+      case StatoPrenotazione.inCorso:
         return 'In corso';
-      case StatoPrenotazione.PARCHEGGIATO:
+      case StatoPrenotazione.parcheggiato:
         return 'Parcheggiato';
-      case StatoPrenotazione.PAGATO:
+      case StatoPrenotazione.pagato:
         return 'Pagato';
-      case StatoPrenotazione.CONCLUSA:
+      case StatoPrenotazione.conclusa:
         return 'Conclusa';
-      case StatoPrenotazione.SCADUTA:
+      case StatoPrenotazione.scaduta:
         return 'Scaduta';
-      case StatoPrenotazione.ANNULLATA:
+      case StatoPrenotazione.annullata:
         return 'Annullata';
     }
   }
 
   Color get color {
     switch (this) {
-      case StatoPrenotazione.ATTIVA:
+      case StatoPrenotazione.attiva:
         return Colors.orange;
-      case StatoPrenotazione.IN_CORSO:
+      case StatoPrenotazione.inCorso:
         return Colors.blue;
-      case StatoPrenotazione.PARCHEGGIATO:
+      case StatoPrenotazione.parcheggiato:
         return Colors.deepPurple;
-      case StatoPrenotazione.PAGATO:
+      case StatoPrenotazione.pagato:
         return Colors.green;
-      case StatoPrenotazione.CONCLUSA:
+      case StatoPrenotazione.conclusa:
         return Colors.grey;
-      case StatoPrenotazione.SCADUTA:
+      case StatoPrenotazione.scaduta:
         return Colors.red;
-      case StatoPrenotazione.ANNULLATA:
+      case StatoPrenotazione.annullata:
         return Colors.deepOrange;
     }
   }
 
   bool get isGestibileDopoParcheggio {
-    return this == StatoPrenotazione.PARCHEGGIATO ||
-        this == StatoPrenotazione.PAGATO;
+    return this == StatoPrenotazione.parcheggiato ||
+        this == StatoPrenotazione.pagato;
   }
 }
