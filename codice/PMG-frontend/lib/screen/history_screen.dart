@@ -130,7 +130,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final updated = await widget.apiClient
                         .getPrenotazioneByIdFromStorico(widget.utente.id, p.id);
 
-                    if (!mounted) return;
+                    if (!context.mounted) return;
 
                     PrenotazioneDialog.mostra(
                       context,

@@ -472,7 +472,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                               data: DateTime.now(),
                             );
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
 
                             Navigator.of(dialogContext).pop();
                             UiFeedback.showSuccess(
@@ -481,7 +481,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             );
                             await _refresh();
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             setDialogState(() => isSaving = false);
                             UiFeedback.showError(
                               context,
@@ -810,7 +810,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   String _formatTime(DateTime dt) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
+
     return '${two(dt.day)}/${two(dt.month)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
@@ -2410,6 +2411,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
                 try {
                   await _apiClient.pagaPrenotazione(prenotazioneId, importo);
+                  if(!context.mounted) return;
                   Navigator.of(context).pop(true);
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2642,8 +2644,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
           motivo,
         );
         _refresh();
+        if(!mounted) return;
         UiFeedback.showSuccess(context, "EMERGENZA ATTIVATA");
       } catch (e) {
+        if(!mounted) return;
         UiFeedback.showError(context, "Errore: $e");
       }
     }

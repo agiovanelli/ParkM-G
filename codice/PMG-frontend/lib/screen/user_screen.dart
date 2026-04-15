@@ -412,7 +412,9 @@ class _UserScreenState extends State<UserScreen>
                     if (origin == null) {
                       try {
                         final pos = await Geolocator.getCurrentPosition(
-                          desiredAccuracy: LocationAccuracy.high,
+                          locationSettings: LocationSettings(
+                            accuracy: LocationAccuracy.high,
+                          )
                         ).timeout(const Duration(seconds: 5));
                         origin = LatLng(pos.latitude, pos.longitude);
                       } catch (_) {}
@@ -440,7 +442,9 @@ class _UserScreenState extends State<UserScreen>
     if (me == null) {
       try {
         final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+            locationSettings: LocationSettings(
+              accuracy: LocationAccuracy.high,
+            )
         ).timeout(const Duration(seconds: 5));
         me = LatLng(pos.latitude, pos.longitude);
         _lastMe = me;
@@ -660,7 +664,9 @@ class _UserScreenState extends State<UserScreen>
 
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       ).timeout(const Duration(seconds: 6));
       final me = LatLng(pos.latitude, pos.longitude);
       _lastMe = me;
@@ -1009,16 +1015,16 @@ class _UserScreenState extends State<UserScreen>
 
   Future<void> _bootstrapMyLocation() async {
     if (_isLocating) return;
-    final int token = _sessionToken; // ✅ snapshot sessione
+    final int token = _sessionToken; // snapshot sessione
 
-    if (mounted) setState(() => _isLocating = true);
+    if (context.mounted) setState(() => _isLocating = true);
 
     try {
-      // (su web questo può essere poco affidabile, ma ok)
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
           .timeout(const Duration(seconds: 3));
 
       if (!serviceEnabled && !kIsWeb) {
+        if(!mounted) return;
         UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
         return;
       }
@@ -1035,18 +1041,20 @@ class _UserScreenState extends State<UserScreen>
 
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        if (token != _sessionToken) return; // ✅ sessione cambiata
-        if (mounted) setState(() => _locationGranted = false);
+        if (token != _sessionToken) return; // cambio sessione
+        if(!mounted) return;
+        if (context.mounted) setState(() => _locationGranted = false);
         UiFeedback.showError(context, 'Permesso posizione negato.');
         return;
       }
 
-      // ✅ IL PUNTO CRITICO: su web può pendere -> timeout duro
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       ).timeout(const Duration(seconds: 8));
 
-      if (token != _sessionToken) return; // ✅ logout nel frattempo
+      if (token != _sessionToken) return; // logout nel frattempo
       if (!mounted) return;
 
       final me = LatLng(pos.latitude, pos.longitude);
@@ -1091,16 +1099,15 @@ class _UserScreenState extends State<UserScreen>
         _pendingCenter = me;
       }
     } on TimeoutException {
-      if (token != _sessionToken) return;
-      if (!mounted) return;
+      if (token != _sessionToken || !mounted) return;
       UiFeedback.showError(context, 'Timeout posizione, riprova.');
     } catch (_) {
-      if (token != _sessionToken) return;
-      if (!mounted) return;
+      if (token != _sessionToken || !mounted) return;
       UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
     } finally {
-      if (token != _sessionToken) return;
-      if (mounted) setState(() => _isLocating = false);
+      if (token == _sessionToken && mounted){
+        setState(() => _isLocating = false);
+      }
     }
   }
 
@@ -1339,7 +1346,9 @@ class _UserScreenState extends State<UserScreen>
     if (origin == null) {
       try {
         final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          locationSettings: LocationSettings(
+            accuracy: LocationAccuracy.high,
+          )
         ).timeout(const Duration(seconds: 5));
         origin = LatLng(pos.latitude, pos.longitude);
       } catch (_) {}
@@ -1603,6 +1612,7 @@ class _UserScreenState extends State<UserScreen>
 
       final results = (data['results'] as List).cast<Map<String, dynamic>>();
       if (results.isEmpty) {
+        if(!mounted) return;
         UiFeedback.showError(context, 'Nessun risultato trovato.');
         return;
       }
@@ -1633,6 +1643,7 @@ class _UserScreenState extends State<UserScreen>
       );
 
       _searchController.clear();
+      if(!mounted) return;
       FocusScope.of(context).unfocus();
     } catch (_) {
       UiFeedback.showError(context, 'Errore durante la ricerca.');
@@ -1830,10 +1841,13 @@ class _UserScreenState extends State<UserScreen>
                                 initialCameraPosition: _initialCamera,
                                 onMapCreated: (c) async {
                                   _mapController = c;
-                                  await _mapController!.setMapStyle(
-                                    _mapStyleNoPoi,
+                                  GoogleMap(
+                                    initialCameraPosition: _initialCamera,
+                                    style: _mapStyleNoPoi,
+                                    onMapCreated: (controller) {
+                                      _mapController = controller;
+                                    },
                                   );
-
                                   if (_pendingCenter != null) {
                                     final me = _pendingCenter!;
                                     _pendingCenter = null;

@@ -140,24 +140,34 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Under 30'),
-                        value: 'under30',
+                      child: RadioGroup<String>(
                         groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Over 60'),
-                        value: 'over60',
-                        groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                        onChanged: (value) {
+                          setState(() {
+                            _eta = value!;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Under 30'),
+                                value: 'under30',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Over 60'),
+                                value: 'over60',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     ),
                   ],
                 ),
@@ -170,24 +180,34 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Piano terra'),
-                        value: 'piano_terra',
+                      child: RadioGroup<String>(
                         groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Altri piani'),
-                        value: 'altri_piani',
-                        groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                        onChanged: (value) {
+                          setState(() {
+                            _piano = value!;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Piano terra'),
+                                value: 'piano_terra',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Altri piani'),
+                                value: 'altri_piani',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     ),
                   ],
                 ),
