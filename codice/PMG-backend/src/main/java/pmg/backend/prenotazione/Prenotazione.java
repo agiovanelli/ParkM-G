@@ -16,7 +16,7 @@ public class Prenotazione {
     private String parcheggioId;
     private LocalDateTime dataCreazione;
     private String codiceQr;
-    private StatoPrenotazione stato = StatoPrenotazione.ATTIVA;
+    private StatoPrenotazione stato = StatoPrenotazione.attiva;
     private LocalDateTime dataIngresso;
     private LocalDateTime dataUscita;
     private Double importoPagato;
@@ -33,7 +33,7 @@ public class Prenotazione {
         this.parcheggioId = parcheggioId;
         this.dataCreazione = dataCreazione;
         this.codiceQr = codiceQr;
-        this.stato = StatoPrenotazione.ATTIVA;
+        this.stato = StatoPrenotazione.attiva;
         this.dataIngresso = null;
         this.dataUscita = null;
     }
@@ -50,7 +50,7 @@ public class Prenotazione {
         this.parcheggioId = parcheggioId;
         this.dataCreazione = prenotazioneDate.dataCreazione();
         this.codiceQr = codiceQr;
-        this.stato = stato != null ? stato : StatoPrenotazione.ATTIVA;
+        this.stato = stato != null ? stato : StatoPrenotazione.attiva;
         this.dataIngresso = prenotazioneDate.dataIngresso();
         this.dataUscita = prenotazioneDate.dataUscita();
         this.posto = posto;

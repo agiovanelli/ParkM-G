@@ -651,7 +651,7 @@ class _PrenotazioneDialogContentState
               if (!canCancel) {
                 UiFeedback.showError(
                   context,
-                  "Puoi annullare solo se la prenotazione è ATTIVA, IN_CORSO o PARCHEGGIATO.",
+                  "Puoi annullare solo se la prenotazione è attiva, inCorso o parcheggiato.",
                 );
                 return;
               }

@@ -40,7 +40,7 @@ class PrenotazioneResponse {
       dataCreazione: _parseDT(json['dataCreazione']),
       codiceQr: json['codiceQr'] as String?,
       stato: StatoPrenotazione.values.firstWhere(
-        (e) => e.name == (json['stato'] ?? 'ATTIVA'),
+        (e) => e.name == (json['stato'] ?? 'attiva'),
         orElse: () => StatoPrenotazione.attiva,
       ),
       dataIngresso: _parseDT(json['dataIngresso']),

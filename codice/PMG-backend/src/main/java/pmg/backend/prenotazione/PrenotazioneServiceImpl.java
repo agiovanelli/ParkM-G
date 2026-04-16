@@ -84,7 +84,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         LocalDateTime limite = LocalDateTime.now().minusMinutes(10);
 
         List<Prenotazione> scadute = prenotazioneRepository.findByStatoAndDataCreazioneBefore(
-            StatoPrenotazione.ATTIVA, limite
+            StatoPrenotazione.attiva, limite
         );
 
         for (Prenotazione p : scadute) {
@@ -102,7 +102,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                 }
             }
 
-            p.setStato(StatoPrenotazione.SCADUTA);
+            p.setStato(StatoPrenotazione.scaduta);
             if (p.getPosto() != null) {
                 p.getPosto().setDisponibile(true);
             }
@@ -124,13 +124,13 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         Prenotazione prenotazione = prenotazioneRepository.findByCodiceQr(codiceQr)
                 .orElseThrow(() -> new RuntimeException("QR Code non valido o inesistente"));
 
-        if (prenotazione.getStato() != StatoPrenotazione.ATTIVA) {
+        if (prenotazione.getStato() != StatoPrenotazione.attiva) {
         	throw new ConflictException(
         		    "Prenotazione non valida: stato attuale = " + prenotazione.getStato()
         			);
         }
 
-        prenotazione.setStato(StatoPrenotazione.IN_CORSO);
+        prenotazione.setStato(StatoPrenotazione.inCorso);
         prenotazione.setDataIngresso(LocalDateTime.now());
 
         Prenotazione salvata = prenotazioneRepository.save(prenotazione);
@@ -170,9 +170,9 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             .findByIdAndUtenteId(prenotazioneId, utenteId)
             .orElseThrow(() -> new RuntimeException(prenotazioneNonTrovata));
 
-        if (p.getStato() != StatoPrenotazione.ATTIVA &&
-        	    p.getStato() != StatoPrenotazione.IN_CORSO &&
-        	    p.getStato() != StatoPrenotazione.PARCHEGGIATO) {
+        if (p.getStato() != StatoPrenotazione.attiva &&
+        	    p.getStato() != StatoPrenotazione.inCorso&&
+        	    p.getStato() != StatoPrenotazione.parcheggiato) {
         	    throw new IllegalStateException(
         	        "Puoi annullare solo prenotazioni ATTIVE, IN_CORSO o PARCHEGGIATO (stato attuale: " + p.getStato() + ")"
         	    );
@@ -206,7 +206,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         }
 
         // 3) aggiorna stato prenotazione
-        p.setStato(StatoPrenotazione.ANNULLATA);
+        p.setStato(StatoPrenotazione.annullata);
 
         // aggiorna anche la copia del posto dentro la prenotazione
         if (p.getPosto() != null) {
@@ -317,13 +317,13 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
                 .orElseThrow(() -> new RuntimeException(prenotazioneNonTrovata));
 
-        if (p.getStato() != StatoPrenotazione.PARCHEGGIATO) {
+        if (p.getStato() != StatoPrenotazione.parcheggiato) {
             throw new IllegalStateException("Puoi pagare solo prenotazioni IN CORSO. Stato attuale: " + p.getStato());
         }
 
         p.setImportoPagato(importo);
         p.setDataPagamento(LocalDateTime.now());
-        p.setStato(StatoPrenotazione.PAGATO);
+        p.setStato(StatoPrenotazione.pagato);
 
         Prenotazione salvata = prenotazioneRepository.save(p);
 
@@ -344,8 +344,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         Prenotazione p = prenotazioneRepository.findByCodiceQr(codiceQr)
                 .orElseThrow(() -> new RuntimeException("QR Code non valido"));
 
-        if (p.getStato() != StatoPrenotazione.PAGATO) {
-            if (p.getStato() == StatoPrenotazione.IN_CORSO) {
+        if (p.getStato() != StatoPrenotazione.pagato) {
+            if (p.getStato() == StatoPrenotazione.inCorso) {
                 throw new IllegalStateException("Devi pagare prima di uscire!");
             }
             throw new IllegalStateException("Stato non valido per l'uscita: " + p.getStato());
@@ -373,7 +373,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
             }
         }
 
-        p.setStato(StatoPrenotazione.CONCLUSA);
+        p.setStato(StatoPrenotazione.conclusa);
         p.setDataUscita(LocalDateTime.now());
 
         if (p.getPosto() != null) {
@@ -485,8 +485,8 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	    Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
 	            .orElseThrow(() -> new RuntimeException(prenotazioneNonTrovata));
 
-	    if (p.getStato() != StatoPrenotazione.IN_CORSO) {
-	        if (p.getStato() == StatoPrenotazione.PARCHEGGIATO) {
+	    if (p.getStato() != StatoPrenotazione.inCorso) {
+	        if (p.getStato() == StatoPrenotazione.parcheggiato) {
 	            return convertiInResponse(p);
 	        }
 	        throw new IllegalStateException(
@@ -494,7 +494,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	        );
 	    }
 
-	    p.setStato(StatoPrenotazione.PARCHEGGIATO);
+	    p.setStato(StatoPrenotazione.parcheggiato);
 
 	    Prenotazione salvata = prenotazioneRepository.save(p);
 

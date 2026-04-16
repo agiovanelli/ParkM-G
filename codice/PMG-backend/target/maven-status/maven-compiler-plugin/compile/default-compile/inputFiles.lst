@@ -1,61 +1,69 @@
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\Analitiche.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\Log.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogCategoria.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogSeverità.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsResponseDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResponseDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResultDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\RouteDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\StepDto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\Parcheggio.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\PmgBackendApplication.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\Posto.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\Prenotazione.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneServiceImpl.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\StatoPrenotazione.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\Utente.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteController.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteLoginRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRegisterRequest.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRepository.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
-C:\Users\ITLBGOOJ018\OneDrive - ABB\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\Analitiche.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\analitiche\AnaliticheServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\CorsConfig.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\ApiException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\BadRequestException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\ConflictException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\ErrorResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\GlobalExceptionHandler.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\MapsApiException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\MapsConfigurationException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\exception\NotFoundException.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\Log.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogCategoria.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\log\LogSeverità.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\DirectionsResponseDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResponseDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\GeocodeResultDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\MapsService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\RouteDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\maps\StepDto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\Operatore.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreLoginRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\operatore\OperatoreServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\Parcheggio.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\parcheggio\ParcheggioServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\PmgBackendApplication.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\Posto.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\posto\PostoServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\Prenotazione.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\PrenotazioneServiceImpl.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\prenotazione\StatoPrenotazione.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\Utente.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteController.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteLoginRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRegisterRequest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteRepository.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteResponse.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteService.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\main\java\pmg\backend\utente\UtenteServiceImpl.java
