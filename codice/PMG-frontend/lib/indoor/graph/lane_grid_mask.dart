@@ -41,6 +41,7 @@ class LaneGridMask {
     return walkableCells.contains((c, r));
   }
 
+  // Algoritmo BFS
   static List<Offset> buildPathNormalized({
     required int startC,
     required int startR,
