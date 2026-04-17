@@ -5,7 +5,9 @@ import java.util.List;
 public interface PrenotazioneService {
     List<PrenotazioneResponse> getStoricoUtente(String utenteId);
 
-	PrenotazioneResponse validaIngresso(String codiceQr);
+    List<PrenotazioneResponse> getByParcheggio(String parcheggioId);
+
+    PrenotazioneResponse validaIngresso(String codiceQr);
 
 	PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId);
 	
@@ -16,8 +18,6 @@ public interface PrenotazioneService {
     PrenotazioneResponse validaUscita(String codiceQr);
     
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
-    
-    List<PrenotazioneResponse> getByParcheggio(String parcheggioId);
     
     PrenotazioneResponse confermaParcheggio(String prenotazioneId);
 }

@@ -6,9 +6,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/maps")
 public class MapsController {
 
-  private final MapsService mapsService;
+  private final MapsServiceImpl mapsService;
 
-  public MapsController(MapsService mapsService) {
+  public MapsController(MapsServiceImpl mapsService) {
     this.mapsService = mapsService;
   }
 

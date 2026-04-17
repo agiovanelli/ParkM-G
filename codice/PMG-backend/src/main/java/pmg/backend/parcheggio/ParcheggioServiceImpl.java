@@ -15,7 +15,7 @@ import pmg.backend.log.LogRequest;
 import pmg.backend.log.LogService;
 import pmg.backend.log.LogSeverità;
 import pmg.backend.maps.DirectionsResponseDto;
-import pmg.backend.maps.MapsService;
+import pmg.backend.maps.MapsServiceImpl;
 import pmg.backend.maps.RouteDto;
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoRepository;
@@ -43,7 +43,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final UtenteService utenteService;
     private final AnaliticheRepository analiticheRepository;
     private final PostoRepository postoRepository;
-    private final MapsService mapsService;
+    private final MapsServiceImpl mapsService;
     
     private String parcheggioNonTrovato = "Parcheggio non trovato";
 
@@ -55,7 +55,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             UtenteRepository utenteRepository, 
             UtenteService utenteService,
             AnaliticheRepository analiticheRepository,
-            MapsService mapsService) {
+            MapsServiceImpl mapsService) {
 
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
