@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 public class LogResponse {
 	
     private String id;
-    private String analiticaId;
     private String tipo;
     private String titolo;
     private String descrizione;
@@ -16,7 +15,6 @@ public class LogResponse {
 
     public LogResponse(String id, String analiticaId, String tipo, String titolo, String descrizione, LocalDateTime data, String severita) {
         this.id = id;
-        this.analiticaId = analiticaId;
         this.tipo = tipo;
         this.titolo= titolo;
         this.descrizione = descrizione;
@@ -26,10 +24,6 @@ public class LogResponse {
     
     public String getId() {
         return id;
-    }
-    
-    public String analiticaId() {
-        return analiticaId;
     }
 
     public String getTipo() {
