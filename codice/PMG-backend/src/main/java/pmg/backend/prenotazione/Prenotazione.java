@@ -37,27 +37,8 @@ public class Prenotazione {
         this.dataIngresso = null;
         this.dataUscita = null;
     }
-
-    // Costruttore completo (se ti serve in futuro)
-    public Prenotazione(String utenteId,
-                        String parcheggioId,
-                        String codiceQr,
-                        StatoPrenotazione stato,
-                        PostoResponse posto,
-                        PrenotazioneDate prenotazioneDate) {
-
-        this.utenteId = utenteId;
-        this.parcheggioId = parcheggioId;
-        this.dataCreazione = prenotazioneDate.dataCreazione();
-        this.codiceQr = codiceQr;
-        this.stato = stato != null ? stato : StatoPrenotazione.attiva;
-        this.dataIngresso = prenotazioneDate.dataIngresso();
-        this.dataUscita = prenotazioneDate.dataUscita();
-        this.posto = posto;
-    }
-
+    
     // Getter e Setter 
-
     public String getId() {
         return id;
     }

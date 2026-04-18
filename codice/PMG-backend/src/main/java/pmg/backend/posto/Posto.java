@@ -57,6 +57,7 @@ public class Posto {
     public void setPiano(int piano) { this.piano = piano; }
     
     public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 }
 
 record PostoBoolean(boolean disponibile, boolean disabilitato, boolean riservatoDisabili, boolean riservatoIncinta) {}
