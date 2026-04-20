@@ -24,6 +24,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception e) {
+    	e.printStackTrace();
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Errore interno");
     }
     
