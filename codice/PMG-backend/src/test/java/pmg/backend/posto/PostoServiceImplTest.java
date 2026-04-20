@@ -60,7 +60,8 @@ class PostoServiceImplTest {
 
         postoService.generaPosti("p1");
 
-        ArgumentCaptor<List<Posto>> captor = ArgumentCaptor.forClass(List.class);
+        @SuppressWarnings("unchecked")
+		ArgumentCaptor<List<Posto>> captor = ArgumentCaptor.forClass(List.class);
         verify(postoRepository).saveAll(captor.capture());
 
         List<Posto> salvati = captor.getValue();
