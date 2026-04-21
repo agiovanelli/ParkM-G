@@ -1012,104 +1012,106 @@ class _UserScreenState extends State<UserScreen>
   }
 
   // -------------------- location / icons --------------------
+Future<void> _bootstrapMyLocation() async {
+  if (_isLocating) return;
+  final int token = _sessionToken;
 
-  Future<void> _bootstrapMyLocation() async {
-    if (_isLocating) return;
-    final int token = _sessionToken; // snapshot sessione
+  if (context.mounted) setState(() => _isLocating = true);
 
-    if (context.mounted) setState(() => _isLocating = true);
+  try {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled()
+        .timeout(const Duration(seconds: 3));
 
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled()
-          .timeout(const Duration(seconds: 3));
+    if (!serviceEnabled && !kIsWeb) {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
+      return;
+    }
 
-      if (!serviceEnabled && !kIsWeb) {
-        if(!mounted) return;
-        UiFeedback.showError(context, 'Servizi di localizzazione disattivati.');
-        return;
-      }
+    LocationPermission perm = await Geolocator.checkPermission()
+        .timeout(const Duration(seconds: 3));
 
-      LocationPermission perm = await Geolocator.checkPermission().timeout(
-        const Duration(seconds: 3),
-      );
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission()
+          .timeout(const Duration(seconds: 8));
+    }
 
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission().timeout(
-          const Duration(seconds: 8),
-        );
-      }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      if (token != _sessionToken) return;
+      if (!mounted) return;
 
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        if (token != _sessionToken) return; // cambio sessione
-        if(!mounted) return;
-        if (context.mounted) setState(() => _locationGranted = false);
-        UiFeedback.showError(context, 'Permesso posizione negato.');
-        return;
-      }
+      if (context.mounted) setState(() => _locationGranted = false);
+      UiFeedback.showError(context, 'Permesso posizione negato.');
+      return;
+    }
 
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: LocationSettings(
+    final pos = await retry(() async {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
         ),
       ).timeout(const Duration(seconds: 8));
+    });
 
-      if (token != _sessionToken) return; // logout nel frattempo
-      if (!mounted) return;
+    if (token != _sessionToken) return;
+    if (!mounted) return;
 
-      final me = LatLng(pos.latitude, pos.longitude);
+    final me = LatLng(pos.latitude, pos.longitude);
 
-      setState(() {
-        _locationGranted = true;
-        _lastMe = me;
+    setState(() {
+      _locationGranted = true;
+      _lastMe = me;
 
-        _circles
-          ..removeWhere((c) => c.circleId.value == 'pulse')
-          ..removeWhere((c) => c.circleId.value == 'blue_dot')
-          ..add(
-            Circle(
-              circleId: const CircleId('pulse'),
-              center: me,
-              radius: _pulseAnimation.value,
-              fillColor: Colors.blue.withValues(alpha: 0.25),
-              strokeColor: Colors.blue.withValues(alpha: 0.1),
-              strokeWidth: 1,
-            ),
-          )
-          ..add(
-            Circle(
-              circleId: const CircleId('blue_dot'),
-              center: me,
-              radius: _blueDotRadiusM,
-              fillColor: const Color(0xFF1A73E8),
-              strokeColor: Colors.transparent,
-              strokeWidth: 0,
-              zIndex: 1000,
-            ),
-          );
-      });
-
-      _startTrackingPosition();
-
-      if (_mapController != null) {
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(CameraPosition(target: me, zoom: 16)),
+      _circles
+        ..removeWhere((c) => c.circleId.value == 'pulse')
+        ..removeWhere((c) => c.circleId.value == 'blue_dot')
+        ..add(
+          Circle(
+            circleId: const CircleId('pulse'),
+            center: me,
+            radius: _pulseAnimation.value,
+            fillColor: Colors.blue.withValues(alpha: 0.25),
+            strokeColor: Colors.blue.withValues(alpha: 0.1),
+            strokeWidth: 1,
+          ),
+        )
+        ..add(
+          Circle(
+            circleId: const CircleId('blue_dot'),
+            center: me,
+            radius: _blueDotRadiusM,
+            fillColor: const Color(0xFF1A73E8),
+            strokeColor: Colors.transparent,
+            strokeWidth: 0,
+            zIndex: 1000,
+          ),
         );
-      } else {
-        _pendingCenter = me;
-      }
-    } on TimeoutException {
-      if (token != _sessionToken || !mounted) return;
-      UiFeedback.showError(context, 'Timeout posizione, riprova.');
-    } catch (_) {
-      if (token != _sessionToken || !mounted) return;
-      UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
-    } finally {
-      if (token == _sessionToken && mounted){
-        setState(() => _isLocating = false);
-      }
+    });
+
+    _startTrackingPosition();
+
+    if (_mapController != null) {
+      await _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: me, zoom: 16),
+        ),
+      );
+    } else {
+      _pendingCenter = me;
+    }
+  } on TimeoutException {
+    if (token != _sessionToken || !mounted) return;
+    UiFeedback.showError(context, 'Posizione non disponibile, riprova.');
+  } catch (_) {
+    if (token != _sessionToken || !mounted) return;
+    UiFeedback.showError(context, 'Impossibile ottenere la posizione.');
+  } finally {
+    if (token == _sessionToken && mounted) {
+      setState(() => _isLocating = false);
     }
   }
+}
 
   void _startTrackingPosition() {
     if (_trackSub != null) return;
@@ -1237,47 +1239,48 @@ class _UserScreenState extends State<UserScreen>
     await _loadParkingsNearby(_cameraTarget, radiusMeters: 2500);
   }
 
-  Future<void> _loadParkingsNearby(
-    LatLng center, {
-    double radiusMeters = 2500,
-  }) async {
-    setState(() => _isLoadingParkings = true);
+Future<void> _loadParkingsNearby(
+  LatLng center, {
+  double radiusMeters = 2500,
+}) async {
+  setState(() => _isLoadingParkings = true);
 
-    try {
-      final uri = Uri.parse(
-        '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
-      );
+  try {
+    final uri = Uri.parse(
+      '$_baseUrl/parcheggi/nearby?lat=${center.latitude}&lng=${center.longitude}&radius=$radiusMeters',
+    );
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+    final res = await retry(() async {
+      return await http.get(uri).timeout(const Duration(seconds: 8));
+    });
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (res.statusCode != 200) {
-        UiFeedback.showError(
-          context,
-          'Errore caricamento parcheggi (${res.statusCode})',
-        );
-        return;
-      }
-
-      final data = jsonDecode(res.body) as List<dynamic>;
-
-      _lastParkingsJson = data;
-
-      _rebuildParkingMarkersFromLastData();
-    } on TimeoutException {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Timeout caricamento parcheggi.');
-    } catch (_) {
-      if (!mounted) return;
+    if (res.statusCode != 200) {
       UiFeedback.showError(
         context,
-        'Errore durante il caricamento dei parcheggi.',
+        'Errore caricamento parcheggi (${res.statusCode})',
       );
-    } finally {
-      if (mounted) setState(() => _isLoadingParkings = false);
+      return;
     }
+
+    final data = jsonDecode(res.body) as List<dynamic>;
+
+    _lastParkingsJson = data;
+    _rebuildParkingMarkersFromLastData();
+  } on TimeoutException {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+  } catch (_) {
+    if (!mounted) return;
+    UiFeedback.showError(
+      context,
+      'Errore durante il caricamento dei parcheggi.',
+    );
+  } finally {
+    if (mounted) setState(() => _isLoadingParkings = false);
   }
+}
 
   void _rebuildParkingMarkersFromLastData() {
     final data = _lastParkingsJson;
@@ -1331,31 +1334,38 @@ class _UserScreenState extends State<UserScreen>
 
   // -------------------- booking --------------------
 
-  Future<void> _effettuaPrenotazione(
-    String parcheggioId, {
-    required double destLat,
-    required double destLng,
-    required Map<String, dynamic> parkingData,
-  }) async {
-    if (_isBooking) return;
+Future<void> _effettuaPrenotazione(
+  String parcheggioId, {
+  required double destLat,
+  required double destLng,
+  required Map<String, dynamic> parkingData,
+}) async {
+  if (_isBooking) return;
 
-    setState(() => _isBooking = true);
-    _bookingCancelledInDialog = false;
+  setState(() => _isBooking = true);
+  _bookingCancelledInDialog = false;
 
-    LatLng? origin = _lastMe;
-    if (origin == null) {
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: LocationSettings(
-            accuracy: LocationAccuracy.high,
-          )
-        ).timeout(const Duration(seconds: 5));
-        origin = LatLng(pos.latitude, pos.longitude);
-      } catch (_) {}
-    }
+  LatLng? origin = _lastMe;
 
+  if (origin == null) {
     try {
-      final risposta = await widget.apiClient
+      final pos = await retry(() async {
+        return await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        ).timeout(const Duration(seconds: 5));
+      });
+
+      origin = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {
+      // silent fallback
+    }
+  }
+
+  try {
+    final risposta = await retry(() async {
+      return await widget.apiClient
           .prenotaParcheggio(
             utenteId: widget.utente.id,
             parcheggioId: parcheggioId,
@@ -1364,68 +1374,69 @@ class _UserScreenState extends State<UserScreen>
             originLng: origin?.longitude,
           )
           .timeout(const Duration(seconds: 12));
+    });
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      await _showMapLockedDialog<void>(
-        show: () => PrenotazioneDialog.mostra(
-          context,
-          prenotazione: risposta,
-          apiClient: widget.apiClient,
-          utenteId: widget.utente.id,
-          onCancelled: () {
-            _bookingCancelledInDialog = true;
-            Future.microtask(() async {
-              if (!mounted) return;
-              await _handleBookingCancelledAndReload(parkingData);
-            });
-          },
-          onClosed: () {
-            if (_bookingCancelledInDialog) return;
+    await _showMapLockedDialog<void>(
+      show: () => PrenotazioneDialog.mostra(
+        context,
+        prenotazione: risposta,
+        apiClient: widget.apiClient,
+        utenteId: widget.utente.id,
+        onCancelled: () {
+          _bookingCancelledInDialog = true;
+          Future.microtask(() async {
+            if (!mounted) return;
+            await _handleBookingCancelledAndReload(parkingData);
+          });
+        },
+        onClosed: () {
+          if (_bookingCancelledInDialog) return;
 
-            setState(() {
-              _activeBooking = risposta;
-              _activeParkingLatLng = LatLng(destLat, destLng);
-              _arrivalHandled = false;
-            });
+          setState(() {
+            _activeBooking = risposta;
+            _activeParkingLatLng = LatLng(destLat, destLng);
+            _arrivalHandled = false;
+          });
 
-            setState(() {
-              _distanceToParkingM = null;
-              _returnOverlay = false;
-            });
+          setState(() {
+            _distanceToParkingM = null;
+            _returnOverlay = false;
+          });
 
-            if (_externalNavOpened) return;
-            _externalNavOpened = true;
+          if (_externalNavOpened) return;
+          _externalNavOpened = true;
 
-            setState(() => _bookedMarkerLocked = true);
-            _showOnlyBookedParking(parkingData);
+          setState(() => _bookedMarkerLocked = true);
+          _showOnlyBookedParking(parkingData);
 
-            Future.microtask(() async {
-              await _openExternalNavWeb(
-                destLat: destLat,
-                destLng: destLng,
-                origin: origin ?? _lastMe,
-              );
-            });
-          },
-        ),
-      );
+          Future.microtask(() async {
+            await _openExternalNavWeb(
+              destLat: destLat,
+              destLng: destLng,
+              origin: origin ?? _lastMe,
+            );
+          });
+        },
+      ),
+    );
 
-      if (!mounted) return;
-      if (_bookingCancelledInDialog) return;
-    } on TimeoutException {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Timeout prenotazione: riprova.');
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(context, e.message);
-    } catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Errore di connessione o del server');
-    } finally {
-      if (mounted) setState(() => _isBooking = false);
-    }
+    if (!mounted) return;
+    if (_bookingCancelledInDialog) return;
+  } on TimeoutException {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+  } on ApiException catch (e) {
+    if (!mounted) return;
+    UiFeedback.showError(context, e.message);
+  } catch (e) {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Errore di connessione o del server');
+  } finally {
+    if (mounted) setState(() => _isBooking = false);
   }
+}
 
   // -------------------- menu / navigation --------------------
 

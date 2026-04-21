@@ -114,60 +114,62 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _handleUserLogin() async {
-    if (_isLoading) return;
+  if (_isLoading) return;
 
-    final email = _userLoginEmailController.text.trim();
-    final password = _userLoginPasswordController.text;
+  final email = _userLoginEmailController.text.trim();
+  final password = _userLoginPasswordController.text;
 
-    if (email.isEmpty && password.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci email e password.');
-      return;
-    }
-    if (email.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci email.');
-      return;
-    }
-    if (password.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci password.');
-      return;
-    }
-    if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      UiFeedback.showError(context, 'Formato email non valido.');
-      return;
-    }
+  if (email.isEmpty && password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email e password.');
+    return;
+  }
+  if (email.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email.');
+    return;
+  }
+  if (password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci password.');
+    return;
+  }
+  if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
+    UiFeedback.showError(context, 'Formato email non valido.');
+    return;
+  }
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      final utente = await widget.apiClient
+  try {
+    final utente = await retry(() async {
+      return await widget.apiClient
           .loginUtente(email, password)
           .timeout(const Duration(seconds: 12));
+    });
 
-      _userLoginEmailController.clear();
-      _userLoginPasswordController.clear();
-      if (!mounted) return;
+    _userLoginEmailController.clear();
+    _userLoginPasswordController.clear();
+    if (!mounted) return;
 
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              UserScreen(utente: utente, apiClient: widget.apiClient),
-        ),
-      );
-    } on TimeoutException {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Timeout login: riprova.');
-    } catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(
-        context,
-        e is ApiException
-            ? e.message
-            : 'Errore di connessione al server utenti',
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            UserScreen(utente: utente, apiClient: widget.apiClient),
+      ),
+    );
+  } on TimeoutException {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+  } catch (e) {
+    if (!mounted) return;
+    UiFeedback.showError(
+      context,
+      e is ApiException
+          ? e.message
+          : 'Errore di connessione al server utenti',
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
   Future<void> _handleUserRegister() async {
     final nome = _userRegisterNameController.text.trim();
