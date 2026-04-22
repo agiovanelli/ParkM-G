@@ -3,11 +3,14 @@ package pmg.backend.parcheggio;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.stereotype.Service;
+
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
 
+@Service
 public interface ParcheggioService {
 
     List<ParcheggioResponse> cercaPerArea(String area);

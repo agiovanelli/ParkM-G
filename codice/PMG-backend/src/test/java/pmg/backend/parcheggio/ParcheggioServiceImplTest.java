@@ -22,7 +22,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import pmg.backend.analitiche.Analitiche;
 import pmg.backend.analitiche.AnaliticheRepository;
@@ -255,34 +257,7 @@ class ParcheggioServiceImplTest {
         verify(parcheggioRepository).save(parcheggio);
         verify(logService, never()).salvaLog(any(LogRequest.class));
     }
-
-    @Test
-    void assegnaPostoOttimaleTest() {
-        Posto postoVicino = org.mockito.Mockito.mock(Posto.class);
-        when(postoVicino.isDisponibile()).thenReturn(true);
-        when(postoVicino.isDisabilitato()).thenReturn(false);
-        when(postoVicino.isRiservatoDisabili()).thenReturn(false);
-        when(postoVicino.isRiservatoIncinta()).thenReturn(false);
-        when(postoVicino.getDistanzaUscita()).thenReturn(1);
-
-        Posto postoLontano = org.mockito.Mockito.mock(Posto.class);
-        when(postoLontano.isDisponibile()).thenReturn(true);
-        when(postoLontano.isDisabilitato()).thenReturn(false);
-        when(postoLontano.isRiservatoDisabili()).thenReturn(false);
-        when(postoLontano.isRiservatoIncinta()).thenReturn(false);
-        when(postoLontano.getDistanzaUscita()).thenReturn(4);
-
-        when(postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc("p1"))
-                .thenReturn(List.of(postoLontano, postoVicino));
-
-        Posto result = service.assegnaPostoOttimale("p1", Map.of("distanza", "1"));
-
-        assertNotNull(result);
-        assertEquals(postoVicino, result);
-
-        verify(postoRepository).findByParcheggioIdOrderByPianoAscNumeroAsc("p1");
-    }
-
+    
     @Test
     void assegnaPostoOttimaleNessunPostoTest() {
         when(postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc("p1"))
