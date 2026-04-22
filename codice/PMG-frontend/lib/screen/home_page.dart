@@ -113,6 +113,29 @@ class _HomePageState extends State<HomePage>
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
+  Future<T> retry<T>(
+  Future<T> Function() fn, {
+  int retries = 3,
+  Duration delay = const Duration(seconds: 2),
+}) async {
+  int attempt = 0;
+
+  while (true) {
+    try {
+      return await fn();
+    } on TimeoutException catch (_) {
+      attempt++;
+
+      if (attempt >= retries) {
+        throw ApiException('Timeout dopo $retries tentativi');
+      }
+
+      // Aspetta prima di riprovare
+      await Future.delayed(delay);
+    }
+  }
+}
+
   Future<void> _handleUserLogin() async {
   if (_isLoading) return;
 

@@ -1011,6 +1011,29 @@ class _UserScreenState extends State<UserScreen>
     super.dispose();
   }
 
+  Future<T> retry<T>(
+  Future<T> Function() fn, {
+  int retries = 3,
+  Duration delay = const Duration(seconds: 2),
+}) async {
+  int attempt = 0;
+
+  while (true) {
+    try {
+      return await fn();
+    } on TimeoutException catch (_) {
+      attempt++;
+
+      if (attempt >= retries) {
+        throw ApiException('Timeout dopo $retries tentativi');
+      }
+
+      // Aspetta prima di riprovare
+      await Future.delayed(delay);
+    }
+  }
+}
+
   // -------------------- location / icons --------------------
 Future<void> _bootstrapMyLocation() async {
   if (_isLocating) return;
