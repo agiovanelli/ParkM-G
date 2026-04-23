@@ -9,9 +9,11 @@ C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\bac
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\operatore\OperatoreServiceImplTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\parcheggio\ParcheggioControllerTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\parcheggio\ParcheggioServiceImplTest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\parcheggio\PostoOttimaleIntegrationTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\PmgBackendApplicationTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\posto\PostoControllerTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\posto\PostoServiceImplTest.java
+C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\prenotazione\CalcolaImportoIntegrationTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\prenotazione\PrenotazioneControllerTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\prenotazione\PrenotazioneServiceImplTest.java
 C:\Users\ALEGI\Documents\GitHub\ParkM-G\codice\PMG-backend\src\test\java\pmg\backend\utente\UtenteControllerTest.java
