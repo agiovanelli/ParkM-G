@@ -23,11 +23,10 @@ import java.time.LocalDateTime;
 import pmg.backend.utente.Utente;
 import pmg.backend.utente.UtenteRepository;
 import java.time.Duration;
-
+import java.time.Clock;
 import java.time.DayOfWeek;
 
 import java.util.Map;
-
 
 @Service
 public class PrenotazioneServiceImpl implements PrenotazioneService {
@@ -226,6 +225,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         return convertiInResponse(salvata);
     }
     
+    private Clock clock = Clock.systemDefaultZone();
+
+    public void setClock(Clock clock) {
+        this.clock = clock;
+    }
+    
     @Override
     public double calcolaImporto(String prenotazioneId) {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
@@ -238,7 +243,7 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         Utente utente = utenteRepository.findById(p.getUtenteId()).orElse(null);
         Parcheggio park = parcheggioRepository.findById(p.getParcheggioId()).orElse(null);
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         long durataMinuti = Duration.between(p.getDataIngresso(), now).toMinutes();
         if (durataMinuti < 1) {
             durataMinuti = 1;

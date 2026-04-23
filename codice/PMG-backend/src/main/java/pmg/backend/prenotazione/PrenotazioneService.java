@@ -1,5 +1,6 @@
 package pmg.backend.prenotazione;
 
+import java.time.Clock;
 import java.util.List;
 
 public interface PrenotazioneService {
@@ -20,4 +21,6 @@ public interface PrenotazioneService {
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
     
     PrenotazioneResponse confermaParcheggio(String prenotazioneId);
+
+	void setClock(Clock fixedClock);
 }
