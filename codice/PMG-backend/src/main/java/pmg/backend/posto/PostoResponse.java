@@ -25,7 +25,7 @@ public class PostoResponse {
         this.riservatoIncinta = p.isRiservatoIncinta();
         this.distanzaUscita = p.getDistanzaUscita();
     }
-
+    
     public String getId() { return id; }
     public String getParcheggioId() { return parcheggioId; }
     public int getNumero() { return numero; }
@@ -36,13 +36,5 @@ public class PostoResponse {
     public boolean isRiservatoIncinta() { return riservatoIncinta; }
     public int getDistanzaUscita() { return distanzaUscita; }
 
-    public void setId(String id) { this.id = id; }
-    public void setParcheggioId(String parcheggioId) { this.parcheggioId = parcheggioId; }
-    public void setNumero(int numero) { this.numero = numero; }
-    public void setPiano(int piano) { this.piano = piano; }
     public void setDisponibile(boolean disponibile) { this.disponibile = disponibile; }
-    public void setDisabilitato(boolean disabilitato) { this.disabilitato = disabilitato; }
-    public void setRiservatoDisabili(boolean riservatoDisabili) { this.riservatoDisabili = riservatoDisabili; }
-    public void setRiservatoIncinta(boolean riservatoIncinta) { this.riservatoIncinta = riservatoIncinta; }
-    public void setDistanzaUscita(int distanzaUscita) { this.distanzaUscita = distanzaUscita; }
 }

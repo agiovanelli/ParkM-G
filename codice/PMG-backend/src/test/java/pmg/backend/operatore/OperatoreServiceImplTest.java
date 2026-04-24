@@ -16,53 +16,55 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class OperatoreServiceImplTest {
 
     @Mock
-    private OperatoreRepository repository; // "Fingiamo" il database MongoDB
+    private OperatoreRepository repository;
 
     @InjectMocks
-    private OperatoreServiceImpl service; // La classe che stiamo testando
+    private OperatoreServiceImpl service;
 
     private OperatoreLoginRequest validRequest;
     private Operatore mockOperatore;
 
     @BeforeEach
     void setUp() {
-        // Prepariamo i dati comuni a tutti i test
         validRequest = new OperatoreLoginRequest("strutturatest", "admin");
-        
+
         mockOperatore = new Operatore();
         mockOperatore.setId("123");
         mockOperatore.setUsername("admin");
         mockOperatore.setNomeStruttura("strutturatest");
+        mockOperatore.setParcheggioId("park1");
     }
 
     @Test
     void testLoginSuccess() {
-        // GIVEN: Quando cerchi l'operatore, il database deve rispondere che esiste
         when(repository.findByNomeStrutturaAndUsername("strutturatest", "admin"))
                 .thenReturn(Optional.of(mockOperatore));
 
-        // WHEN: Eseguiamo il login
         OperatoreResponse result = service.login(validRequest);
 
-        // THEN: Verifichiamo che i dati restituiti siano corretti
         assertNotNull(result);
         assertEquals("123", result.getId());
         assertEquals("admin", result.getUsername());
         assertEquals("strutturatest", result.getNomeStruttura());
-        verify(repository, times(1)).findByNomeStrutturaAndUsername(anyString(), anyString());
+        assertEquals("park1", result.getParcheggioId());
+
+        verify(repository).findByNomeStrutturaAndUsername("strutturatest", "admin");
+        verifyNoMoreInteractions(repository);
     }
 
     @Test
     void testLoginFailure_NotFound() {
-        // GIVEN: Quando cerchi l'operatore, il database risponde vuoto
-        when(repository.findByNomeStrutturaAndUsername(anyString(), anyString()))
+        when(repository.findByNomeStrutturaAndUsername("strutturatest", "admin"))
                 .thenReturn(Optional.empty());
 
-        // WHEN & THEN: Verifichiamo che venga lanciata l'eccezione corretta
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            service.login(validRequest);
-        });
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.login(validRequest)
+        );
 
         assertEquals("Operatore non registrato", exception.getMessage());
+
+        verify(repository).findByNomeStrutturaAndUsername("strutturatest", "admin");
+        verifyNoMoreInteractions(repository);
     }
 }

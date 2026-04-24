@@ -1,11 +1,11 @@
 package pmg.backend.prenotazione;
 
 public enum StatoPrenotazione {
-    ATTIVA,         // Prenotata (attesa entro 10 min)
-    IN_CORSO,       // Utente entrato (timer avviato)
-    PARCHEGGIATO,   // Utente ha raggiunto e confermato il posto
-    PAGATO,         // Saldo effettuato (pronto per uscire, 10 min max)
-    CONCLUSA,       // Utente uscito (posto liberato)
-    SCADUTA,        // Tempo per l'ingresso esaurito
-    ANNULLATA       // Cancellata dall'utente
+    attiva,         // Prenotata (attesa entro 10 min)
+    inCorso,        // Utente entrato (timer avviato)
+    parcheggiato,   // Utente ha raggiunto e confermato il posto
+    pagato,         // Saldo effettuato (pronto per uscire, 10 min max)
+    conclusa,       // Utente uscito (posto liberato)
+    scaduta,        // Tempo per l'ingresso esaurito
+    annullata       // Cancellata dall'utente
 }

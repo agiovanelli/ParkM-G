@@ -320,7 +320,7 @@ class IndoorParkingViewState extends State<IndoorParkingView>
                                     shadows: [
                                       Shadow(
                                         blurRadius: 8,
-                                        color: Colors.black.withOpacity(0.65),
+                                        color: Colors.black.withValues(alpha: 0.65),
                                         offset: const Offset(0, 2),
                                       ),
                                     ],
@@ -453,7 +453,7 @@ class _IndoorOverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 12
         ..strokeCap = StrokeCap.round
-        ..color = Colors.black.withOpacity(0.30);
+        ..color = Colors.black.withValues(alpha: 0.30);
 
       final line = Paint()
         ..style = PaintingStyle.stroke
@@ -476,7 +476,7 @@ class _IndoorOverlayPainter extends CustomPainter {
       final ring = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4
-        ..color = Colors.white.withOpacity(0.95);
+        ..color = Colors.white.withValues(alpha: 0.95);
 
       canvas.drawCircle(u, 10, fill);
       canvas.drawCircle(u, 14, ring);
@@ -511,17 +511,17 @@ class _IndoorOverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 12
         ..strokeJoin = StrokeJoin.round
-        ..color = green.withOpacity(0.28);
+        ..color = green.withValues(alpha: 0.28);
 
       final fill = Paint()
         ..style = PaintingStyle.fill
-        ..color = green.withOpacity(0.35);
+        ..color = green.withValues(alpha: 0.35);
 
       final stroke = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4
         ..strokeJoin = StrokeJoin.round
-        ..color = green.withOpacity(0.95);
+        ..color = green.withValues(alpha: 0.95);
 
       canvas.drawPath(pathPoly, glow);
       canvas.drawPath(pathPoly, fill);
@@ -543,7 +543,7 @@ class _IndoorOverlayPainter extends CustomPainter {
     final border = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = Colors.black.withOpacity(0.35);
+      ..color = Colors.black.withValues(alpha: 0.35);
 
     final quad = Path()
       ..moveTo(tl.dx, tl.dy)
@@ -559,7 +559,7 @@ class _IndoorOverlayPainter extends CustomPainter {
       final ring = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
-        ..color = Colors.white.withOpacity(0.95);
+        ..color = Colors.white.withValues(alpha: 0.95);
 
       canvas.drawCircle(p, 7, fill);
       canvas.drawCircle(p, 11, ring);
@@ -568,7 +568,7 @@ class _IndoorOverlayPainter extends CustomPainter {
         text: TextSpan(
           text: label,
           style: TextStyle(
-            color: Colors.black.withOpacity(0.75),
+            color: Colors.black.withValues(alpha: 0.75),
             fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
@@ -591,7 +591,7 @@ class _IndoorOverlayPainter extends CustomPainter {
 
     final fill = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.purple.withOpacity(0.10);
+      ..color = Colors.purple.withValues(alpha: 0.10);
 
     for (int r = 0; r < LaneGridMask.rows; r++) {
       for (int c = 0; c < LaneGridMask.cols; c++) {
@@ -614,7 +614,7 @@ class _IndoorOverlayPainter extends CustomPainter {
     final gridPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = Colors.black.withOpacity(0.18);
+      ..color = Colors.black.withValues(alpha: 0.18);
 
     for (int c = 0; c <= LaneGridMask.cols; c++) {
       final a = pCell(c, 0);
@@ -633,7 +633,7 @@ class _IndoorOverlayPainter extends CustomPainter {
 
     final center = pCell(rc, rr) + (u + v) * 0.5;
 
-    final rDot = Paint()..color = Colors.orange.withOpacity(0.95);
+    final rDot = Paint()..color = Colors.orange.withValues(alpha: 0.95);
     canvas.drawCircle(center, 6, rDot);
 
     final p00 = pCell(rc, rr);
@@ -644,7 +644,7 @@ class _IndoorOverlayPainter extends CustomPainter {
     final rBox = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = Colors.orange.withOpacity(0.95);
+      ..color = Colors.orange.withValues(alpha: 0.95);
 
     final poly = Path()
       ..moveTo(p00.dx, p00.dy)

@@ -112,8 +112,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             ),
             checkboxTheme: CheckboxThemeData(
               fillColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected))
-                  return AppColors.accentCyan;
+                if (states.contains(WidgetState.selected)) return AppColors.accentCyan;
                 return AppColors.borderField;
               }),
               checkColor: WidgetStateProperty.all(AppColors.textPrimary),
@@ -121,7 +120,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
             sliderTheme: Theme.of(context).sliderTheme.copyWith(
               activeTrackColor: AppColors.accentCyan,
               thumbColor: AppColors.accentCyan,
-              overlayColor: AppColors.accentCyan.withOpacity(0.15),
+              overlayColor: AppColors.accentCyan.withValues(alpha: 0.15),
               inactiveTrackColor: AppColors.borderField,
               valueIndicatorColor: AppColors.brandTop,
               valueIndicatorTextStyle: const TextStyle(
@@ -141,24 +140,34 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Under 30'),
-                        value: 'under30',
+                      child: RadioGroup<String>(
                         groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Over 60'),
-                        value: 'over60',
-                        groupValue: _eta,
-                        onChanged: (v) => setState(() => _eta = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                        onChanged: (value) {
+                          setState(() {
+                            _eta = value!;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Under 30'),
+                                value: 'under30',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Over 60'),
+                                value: 'over60',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     ),
                   ],
                 ),
@@ -171,24 +180,34 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Piano terra'),
-                        value: 'piano_terra',
+                      child: RadioGroup<String>(
                         groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Altri piani'),
-                        value: 'altri_piani',
-                        groupValue: _piano,
-                        onChanged: (v) => setState(() => _piano = v!),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                        onChanged: (value) {
+                          setState(() {
+                            _piano = value!;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Piano terra'),
+                                value: 'piano_terra',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text('Altri piani'),
+                                value: 'altri_piani',
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     ),
                   ],
                 ),
@@ -209,7 +228,7 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                 Text(
                   'Valore: ${_distanza.toStringAsFixed(0)}',
                   style: TextStyle(
-                    color: AppColors.textMuted.withOpacity(0.95),
+                    color: AppColors.textMuted.withValues(alpha: 0.95),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -241,11 +260,11 @@ class _PreferenzeDialogState extends State<PreferenzeDialog> {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 DropdownButtonFormField<String>(
-                  value: _occupazione,
+                  initialValue: _occupazione,
                   dropdownColor: AppColors.bgDark,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.bgDark2.withOpacity(0.35),
+                    fillColor: AppColors.bgDark2.withValues(alpha: 0.35),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(

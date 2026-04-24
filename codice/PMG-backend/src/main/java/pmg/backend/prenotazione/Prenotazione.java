@@ -16,7 +16,7 @@ public class Prenotazione {
     private String parcheggioId;
     private LocalDateTime dataCreazione;
     private String codiceQr;
-    private StatoPrenotazione stato = StatoPrenotazione.ATTIVA;
+    private StatoPrenotazione stato = StatoPrenotazione.attiva;
     private LocalDateTime dataIngresso;
     private LocalDateTime dataUscita;
     private Double importoPagato;
@@ -33,33 +33,12 @@ public class Prenotazione {
         this.parcheggioId = parcheggioId;
         this.dataCreazione = dataCreazione;
         this.codiceQr = codiceQr;
-        this.stato = StatoPrenotazione.ATTIVA;
+        this.stato = StatoPrenotazione.attiva;
         this.dataIngresso = null;
         this.dataUscita = null;
     }
-
-    // Costruttore completo (se ti serve in futuro)
-    public Prenotazione(String utenteId,
-                        String parcheggioId,
-                        LocalDateTime dataCreazione,
-                        String codiceQr,
-                        StatoPrenotazione stato,
-                        LocalDateTime dataIngresso,
-                        LocalDateTime dataUscita,
-                        PostoResponse posto) {
-
-        this.utenteId = utenteId;
-        this.parcheggioId = parcheggioId;
-        this.dataCreazione = dataCreazione;
-        this.codiceQr = codiceQr;
-        this.stato = stato != null ? stato : StatoPrenotazione.ATTIVA;
-        this.dataIngresso = dataIngresso;
-        this.dataUscita = dataUscita;
-        this.posto = posto;
-    }
-
+    
     // Getter e Setter 
-
     public String getId() {
         return id;
     }
@@ -138,3 +117,6 @@ public class Prenotazione {
         this.scadenzaArrivo = scadenzaArrivo;
     }
 }
+
+record PrenotazioneDate(LocalDateTime dataCreazione, LocalDateTime dataIngresso,
+                        LocalDateTime dataUscita) {}

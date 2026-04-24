@@ -272,7 +272,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.accentCyan.withOpacity(0.12),
+                      color: AppColors.accentCyan.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -307,7 +307,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<LogSeverity>(
-                      value: severita,
+                      initialValue: severita,
                       dropdownColor: AppColors.bgDark,
                       style: const TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
@@ -472,7 +472,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                               data: DateTime.now(),
                             );
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
 
                             Navigator.of(dialogContext).pop();
                             UiFeedback.showSuccess(
@@ -481,7 +481,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             );
                             await _refresh();
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             setDialogState(() => isSaving = false);
                             UiFeedback.showError(
                               context,
@@ -566,16 +566,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
       for (final p in prenotazioni) {
         switch (p.stato) {
-          case StatoPrenotazione.ATTIVA:
-          case StatoPrenotazione.IN_CORSO:
-          case StatoPrenotazione.PARCHEGGIATO:
-          case StatoPrenotazione.PAGATO:
+          case StatoPrenotazione.attiva:
+          case StatoPrenotazione.inCorso:
+          case StatoPrenotazione.parcheggiato:
+          case StatoPrenotazione.pagato:
             activeReservations++;
             break;
 
-          case StatoPrenotazione.CONCLUSA:
-          case StatoPrenotazione.SCADUTA:
-          case StatoPrenotazione.ANNULLATA:
+          case StatoPrenotazione.conclusa:
+          case StatoPrenotazione.scaduta:
+          case StatoPrenotazione.annullata:
             inactiveReservations++;
             break;
         }
@@ -789,8 +789,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     final q = _searchController.text.trim().toLowerCase();
     return _items.where((it) {
       if (it.category != _selectedCategory) return false;
-      if (_severityFilter != null && it.severity != _severityFilter)
-        return false;
+      if (_severityFilter != null && it.severity != _severityFilter) return false;
       if (q.isEmpty) return true;
       return it.title.toLowerCase().contains(q) ||
           it.details.toLowerCase().contains(q) ||
@@ -811,7 +810,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   String _formatTime(DateTime dt) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
+
     return '${two(dt.day)}/${two(dt.month)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
@@ -898,7 +898,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                           borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.35),
+                              color: Colors.black.withValues(alpha: 0.35),
                               blurRadius: 18,
                               offset: const Offset(0, 6),
                             ),
@@ -1014,7 +1014,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
         border: Border.all(color: AppColors.borderField, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
@@ -1072,7 +1072,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.25),
+              color: AppColors.bgDark2.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.borderField, width: 1),
             ),
@@ -1114,7 +1114,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
         decoration: BoxDecoration(
           color: selected
               ? AppColors.brandTop
-              : AppColors.bgDark2.withOpacity(0.18),
+              : AppColors.bgDark2.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderField, width: 1),
         ),
@@ -1151,7 +1151,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
         border: Border.all(color: AppColors.borderField, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
@@ -1169,7 +1169,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.red, width: 2),
                     ),
@@ -1201,7 +1201,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.accentCyan.withOpacity(0.10),
+                      color: AppColors.accentCyan.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.accentCyan, width: 2),
                     ),
@@ -1291,7 +1291,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.35),
+              color: AppColors.bgDark2.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: AppColors.borderField, width: 1),
             ),
@@ -1354,14 +1354,14 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   decoration: InputDecoration(
                     hintText: 'Cerca…',
                     hintStyle: TextStyle(
-                      color: AppColors.textMuted.withOpacity(0.95),
+                      color: AppColors.textMuted.withValues(alpha: 0.95),
                     ),
                     prefixIcon: const Icon(
                       Icons.search,
                       color: AppColors.textMuted,
                     ),
                     filled: true,
-                    fillColor: AppColors.bgDark2.withOpacity(0.35),
+                    fillColor: AppColors.bgDark2.withValues(alpha: 0.35),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
@@ -1412,7 +1412,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
         border: Border.all(color: AppColors.borderField, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
@@ -1495,7 +1495,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.20),
+              color: AppColors.bgDark2.withValues(alpha: 0.20),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.borderField, width: 1),
             ),
@@ -1515,7 +1515,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   child: LinearProgressIndicator(
                     value: _stats.occupancyRatio,
                     minHeight: 10,
-                    backgroundColor: AppColors.bgDark2.withOpacity(0.35),
+                    backgroundColor: AppColors.bgDark2.withValues(alpha: 0.35),
                     valueColor: const AlwaysStoppedAnimation<Color>(occColor),
                   ),
                 ),
@@ -1523,7 +1523,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Text(
                   '$occupied occupati su $total • $available disponibili',
                   style: TextStyle(
-                    color: AppColors.textMuted.withOpacity(0.95),
+                    color: AppColors.textMuted.withValues(alpha: 0.95),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1694,7 +1694,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgDark2.withOpacity(0.25),
+        color: AppColors.bgDark2.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.borderField, width: 1),
       ),
@@ -1703,9 +1703,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
+              color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: accent.withOpacity(0.35), width: 1),
+              border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
             ),
             child: Icon(icon, color: accent, size: 20),
           ),
@@ -1750,7 +1750,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.bgDark2.withOpacity(0.35),
+        color: AppColors.bgDark2.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.borderField, width: 1),
       ),
@@ -1813,7 +1813,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Icon(
             Icons.inbox_rounded,
             size: 42,
-            color: AppColors.textMuted.withOpacity(0.8),
+            color: AppColors.textMuted.withValues(alpha: 0.8),
           ),
           const SizedBox(height: 10),
           const Center(
@@ -1843,7 +1843,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgDark2.withOpacity(0.20),
+        color: AppColors.bgDark2.withValues(alpha: 0.20),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.borderField, width: 1),
       ),
@@ -1862,9 +1862,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: sevColor.withOpacity(0.12),
+              color: sevColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: sevColor.withOpacity(0.35), width: 1),
+              border: Border.all(color: sevColor.withValues(alpha: 0.35), width: 1),
             ),
             child: Icon(_categoryIcon(it.category), color: sevColor, size: 20),
           ),
@@ -1893,7 +1893,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Text(
                   it.details,
                   style: TextStyle(
-                    color: AppColors.textMuted.withOpacity(0.95),
+                    color: AppColors.textMuted.withValues(alpha: 0.95),
                     height: 1.2,
                   ),
                 ),
@@ -1903,7 +1903,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                     Icon(
                       Icons.schedule_rounded,
                       size: 14,
-                      color: AppColors.textMuted.withOpacity(0.9),
+                      color: AppColors.textMuted.withValues(alpha: 0.9),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1919,7 +1919,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                       Icon(
                         Icons.memory_rounded,
                         size: 14,
-                        color: AppColors.textMuted.withOpacity(0.9),
+                        color: AppColors.textMuted.withValues(alpha: 0.9),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -1946,10 +1946,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withOpacity(0.10),
+                            color: const Color(0xFF10B981).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: const Color(0xFF10B981).withOpacity(0.35),
+                              color: const Color(0xFF10B981).withValues(alpha: 0.35),
                               width: 1,
                             ),
                           ),
@@ -2023,9 +2023,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.35), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
       ),
       child: Text(
         text,
@@ -2053,7 +2053,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.bgDark2.withOpacity(0.25),
+          color: AppColors.bgDark2.withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: AppColors.borderField, width: 1),
         ),
@@ -2082,28 +2082,28 @@ class _OperatorScreenState extends State<OperatorScreen> {
       final prenotazioneId = prenotazioneData['id'] as String;
 
       switch (stato) {
-        case StatoPrenotazione.ATTIVA:
+        case StatoPrenotazione.attiva:
           await _handleIngresso(qrCode);
           break;
 
-        case StatoPrenotazione.IN_CORSO:
-        case StatoPrenotazione.PARCHEGGIATO:
+        case StatoPrenotazione.inCorso:
+        case StatoPrenotazione.parcheggiato:
           await _handlePagamento(prenotazioneId, qrCode);
           break;
 
-        case StatoPrenotazione.PAGATO:
+        case StatoPrenotazione.pagato:
           await _handleUscita(qrCode);
           break;
 
-        case StatoPrenotazione.CONCLUSA:
+        case StatoPrenotazione.conclusa:
           _showErrorDialog('Prenotazione già conclusa');
           break;
 
-        case StatoPrenotazione.SCADUTA:
+        case StatoPrenotazione.scaduta:
           _showErrorDialog('Prenotazione scaduta');
           break;
 
-        case StatoPrenotazione.ANNULLATA:
+        case StatoPrenotazione.annullata:
           _showErrorDialog('Prenotazione annullata');
           break;
       }
@@ -2135,7 +2135,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -2227,7 +2227,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -2313,7 +2313,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withOpacity(0.12),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -2411,6 +2411,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
                 try {
                   await _apiClient.pagaPrenotazione(prenotazioneId, importo);
+                  if(!context.mounted) return;
                   Navigator.of(context).pop(true);
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2450,7 +2451,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -2507,7 +2508,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.12),
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -2552,19 +2553,19 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   String _formatStato(StatoPrenotazione stato) {
     switch (stato) {
-      case StatoPrenotazione.ATTIVA:
+      case StatoPrenotazione.attiva:
         return 'Attiva';
-      case StatoPrenotazione.IN_CORSO:
+      case StatoPrenotazione.inCorso:
         return 'In Corso';
-      case StatoPrenotazione.PARCHEGGIATO:
+      case StatoPrenotazione.parcheggiato:
         return 'Parcheggiato';
-      case StatoPrenotazione.PAGATO:
+      case StatoPrenotazione.pagato:
         return 'Pagato';
-      case StatoPrenotazione.CONCLUSA:
+      case StatoPrenotazione.conclusa:
         return 'Conclusa';
-      case StatoPrenotazione.SCADUTA:
+      case StatoPrenotazione.scaduta:
         return 'Scaduta';
-      case StatoPrenotazione.ANNULLATA:
+      case StatoPrenotazione.annullata:
         return 'Annullata';
     }
   }
@@ -2643,8 +2644,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
           motivo,
         );
         _refresh();
+        if(!mounted) return;
         UiFeedback.showSuccess(context, "EMERGENZA ATTIVATA");
       } catch (e) {
+        if(!mounted) return;
         UiFeedback.showError(context, "Errore: $e");
       }
     }

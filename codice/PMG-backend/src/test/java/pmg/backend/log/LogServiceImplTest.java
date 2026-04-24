@@ -61,7 +61,6 @@ class LogServiceImplTest {
 
         Log saved = service.salvaLog1(log);
 
-        // data impostata "ora"
         assertNotNull(saved.getData());
         assertEquals("Titolo", saved.getTitolo());
         assertEquals("Descrizione", saved.getDescrizione());

@@ -97,7 +97,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
         border: Border.all(color: AppColors.borderField, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
@@ -111,10 +111,10 @@ class _QrScannerPageState extends State<QrScannerPage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.accentCyan.withOpacity(0.12),
+                  color: AppColors.accentCyan.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: AppColors.accentCyan.withOpacity(0.35),
+                    color: AppColors.accentCyan.withValues(alpha: 0.35),
                     width: 1,
                   ),
                 ),
@@ -141,10 +141,10 @@ class _QrScannerPageState extends State<QrScannerPage> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.bgDark2.withOpacity(0.6),
+              color: AppColors.bgDark2.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.accentCyan.withOpacity(0.3),
+                color: AppColors.accentCyan.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -156,7 +156,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: AppColors.accentCyan.withOpacity(0.15),
+                        color: AppColors.accentCyan.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
@@ -179,21 +179,21 @@ class _QrScannerPageState extends State<QrScannerPage> {
                 const SizedBox(height: 10),
                 _buildInfoRow(
                   Icons.login,
-                  'ATTIVA',
+                  'attiva',
                   'Convalida ingresso',
                   const Color(0xFF3B82F6),
                 ),
                 const SizedBox(height: 6),
                 _buildInfoRow(
                   Icons.euro,
-                  'IN CORSO',
+                  'inCorso',
                   'Incassa pagamento | Se il cliente non ha ancora pagato, compare un pop-up con la procedura di pagamento',
                   const Color(0xFFF59E0B),
                 ),
                 const SizedBox(height: 6),
                 _buildInfoRow(
                   Icons.logout,
-                  'PAGATO',
+                  'pagato',
                   'Autorizza uscita',
                   const Color(0xFF10B981),
                 ),
@@ -218,7 +218,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
                   if (_isProcessing || _errorMessage != null || _successMessage != null)
                     Container(
-                      color: Colors.black.withOpacity(0.7),
+                      color: Colors.black.withValues(alpha: 0.7),
                       child: Center(
                         child: Container(
                           margin: const EdgeInsets.all(24),
@@ -312,9 +312,9 @@ class _QrScannerPageState extends State<QrScannerPage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
+            color: color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withOpacity(0.3), width: 1),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           ),
           child: Text(
             stato,
@@ -355,7 +355,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.bgDark2.withOpacity(0.35),
+          color: AppColors.bgDark2.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.borderField, width: 1),
         ),
@@ -398,7 +398,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
           style: const TextStyle(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Inserisci il codice...',
-            hintStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.5)),
+            hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
             enabledBorder: OutlineInputBorder(
               borderSide: const BorderSide(color: AppColors.borderField),
               borderRadius: BorderRadius.circular(12),
@@ -440,7 +440,7 @@ class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
+      ..color = Colors.black.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
 
     final framePaint = Paint()

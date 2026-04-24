@@ -23,7 +23,7 @@ class GMapsControlButton extends StatelessWidget {
     final child = Material(
       color: Colors.white,
       elevation: 2.5,
-      shadowColor: Colors.black.withOpacity(0.22),
+      shadowColor: Colors.black.withValues(alpha: 0.22),
       shape: CircleBorder(
         side: BorderSide(
           color: selected ? const Color(0x334285F4) : const Color(0x1F000000),

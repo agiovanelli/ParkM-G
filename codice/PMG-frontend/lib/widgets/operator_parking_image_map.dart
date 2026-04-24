@@ -187,7 +187,7 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgDark2.withOpacity(0.2),
+        color: AppColors.bgDark2.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.borderField, width: 1),
       ),
@@ -350,7 +350,7 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
           width: 18,
           height: 10,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.25),
+            color: color.withValues(alpha: 0.25),
             border: Border.all(color: color, width: 1.5),
             borderRadius: BorderRadius.circular(2),
           ),
@@ -415,17 +415,17 @@ class _OperatorParkingSlotsPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 8
         ..strokeJoin = StrokeJoin.round
-        ..color = color.withOpacity(0.22);
+        ..color = color.withValues(alpha: 0.22);
 
       final fill = Paint()
         ..style = PaintingStyle.fill
-        ..color = color.withOpacity(0.35);
+        ..color = color.withValues(alpha: 0.35);
 
       final stroke = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2
         ..strokeJoin = StrokeJoin.round
-        ..color = color.withOpacity(0.95);
+        ..color = color.withValues(alpha: 0.95);
 
       canvas.drawPath(path, glow);
       canvas.drawPath(path, fill);

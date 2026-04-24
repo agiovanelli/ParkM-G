@@ -139,4 +139,20 @@ class AnaliticheControllerTest {
 
         verify(logService).getLogByAnaliticaIdAndTipo("123", "ALLARME");
     }
+    
+    @Test
+    void getByParcheggioIdTest() throws Exception {
+        Analitiche a = new Analitiche("P9", "Parcheggio Z", "op-9");
+        ReflectionTestUtils.setField(a, "id", "AZ9");
+
+        when(analiticheService.getByParcheggioId("P9")).thenReturn(a);
+
+        mockMvc.perform(get("/api/analitiche/parcheggio/P9"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value("AZ9"))
+                .andExpect(jsonPath("$.parcheggioId").value("P9"))
+                .andExpect(jsonPath("$.nomeParcheggio").value("Parcheggio Z"))
+                .andExpect(jsonPath("$.operatoreId").value("op-9"));
+    }
 }

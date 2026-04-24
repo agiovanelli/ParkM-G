@@ -349,12 +349,36 @@ class ApiClient {
     throw ApiException('Errore pagamento: ${response.body}');
   }
 
-  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
-    final uri = Uri.parse(
-      '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
-    );
+  Future<T> retry<T>(
+  Future<T> Function() fn, {
+  int retries = 3,
+  Duration delay = const Duration(seconds: 2),
+}) async {
+  int attempt = 0;
 
+  while (true) {
     try {
+      return await fn();
+    } on TimeoutException catch (_) {
+      attempt++;
+
+      if (attempt >= retries) {
+        throw ApiException('Timeout dopo $retries tentativi');
+      }
+
+      // Aspetta prima di riprovare
+      await Future.delayed(delay);
+    }
+  }
+}
+
+  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
+  final uri = Uri.parse(
+    '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
+  );
+
+  try {
+    return await retry(() async {
       final response = await http
           .post(uri, headers: {'Content-Type': 'application/json'})
           .timeout(const Duration(seconds: 10));
@@ -376,16 +400,17 @@ class ApiClient {
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return PrenotazioneResponse.fromJson(json);
-    } on TimeoutException {
-      throw ApiException('Timeout durante la conferma del parcheggio.');
-    } on FormatException {
-      throw ApiException('Risposta non valida dal server.');
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('Errore conferma parcheggio: $e');
-    }
+    });
+  } on TimeoutException {
+    throw ApiException('Timeout dopo più tentativi. Riprova.');
+  } on FormatException {
+    throw ApiException('Risposta non valida dal server.');
+  } on ApiException {
+    rethrow;
+  } catch (e) {
+    throw ApiException('Errore conferma parcheggio: $e');
   }
+}
 
   Future<List<PrenotazioneResponse>> getPrenotazioniByParcheggio(
     String parcheggioId,

@@ -36,7 +36,7 @@ class PrimaryButton extends StatelessWidget {
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     blurRadius: 18,
                     offset: const Offset(0, 2),
                   ),
@@ -113,61 +113,86 @@ class _HomePageState extends State<HomePage>
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
-  Future<void> _handleUserLogin() async {
-    if (_isLoading) return;
+  Future<T> retry<T>(
+  Future<T> Function() fn, {
+  int retries = 3,
+  Duration delay = const Duration(seconds: 2),
+}) async {
+  int attempt = 0;
 
-    final email = _userLoginEmailController.text.trim();
-    final password = _userLoginPasswordController.text;
-
-    if (email.isEmpty && password.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci email e password.');
-      return;
-    }
-    if (email.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci email.');
-      return;
-    }
-    if (password.isEmpty) {
-      UiFeedback.showError(context, 'Inserisci password.');
-      return;
-    }
-    if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      UiFeedback.showError(context, 'Formato email non valido.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
+  while (true) {
     try {
-      final utente = await widget.apiClient
-          .loginUtente(email, password)
-          .timeout(const Duration(seconds: 12));
+      return await fn();
+    } on TimeoutException catch (_) {
+      attempt++;
 
-      _userLoginEmailController.clear();
-      _userLoginPasswordController.clear();
-      if (!mounted) return;
+      if (attempt >= retries) {
+        throw ApiException('Timeout dopo $retries tentativi');
+      }
 
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              UserScreen(utente: utente, apiClient: widget.apiClient),
-        ),
-      );
-    } on TimeoutException {
-      if (!mounted) return;
-      UiFeedback.showError(context, 'Timeout login: riprova.');
-    } catch (e) {
-      if (!mounted) return;
-      UiFeedback.showError(
-        context,
-        e is ApiException
-            ? e.message
-            : 'Errore di connessione al server utenti',
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // Aspetta prima di riprovare
+      await Future.delayed(delay);
     }
   }
+}
+
+  Future<void> _handleUserLogin() async {
+  if (_isLoading) return;
+
+  final email = _userLoginEmailController.text.trim();
+  final password = _userLoginPasswordController.text;
+
+  if (email.isEmpty && password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email e password.');
+    return;
+  }
+  if (email.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email.');
+    return;
+  }
+  if (password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci password.');
+    return;
+  }
+  if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
+    UiFeedback.showError(context, 'Formato email non valido.');
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final utente = await retry(() async {
+      return await widget.apiClient
+          .loginUtente(email, password)
+          .timeout(const Duration(seconds: 12));
+    });
+
+    _userLoginEmailController.clear();
+    _userLoginPasswordController.clear();
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            UserScreen(utente: utente, apiClient: widget.apiClient),
+      ),
+    );
+  } on TimeoutException {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+  } catch (e) {
+    if (!mounted) return;
+    UiFeedback.showError(
+      context,
+      e is ApiException
+          ? e.message
+          : 'Errore di connessione al server utenti',
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
   Future<void> _handleUserRegister() async {
     final nome = _userRegisterNameController.text.trim();
@@ -451,7 +476,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),
@@ -662,7 +687,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),

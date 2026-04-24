@@ -15,7 +15,7 @@ import pmg.backend.log.LogRequest;
 import pmg.backend.log.LogService;
 import pmg.backend.log.LogSeverità;
 import pmg.backend.maps.DirectionsResponseDto;
-import pmg.backend.maps.MapsService;
+import pmg.backend.maps.MapsServiceImpl;
 import pmg.backend.maps.RouteDto;
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoRepository;
@@ -43,7 +43,9 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     private final UtenteService utenteService;
     private final AnaliticheRepository analiticheRepository;
     private final PostoRepository postoRepository;
-    private final MapsService mapsService;
+    private final MapsServiceImpl mapsService;
+    
+    private String parcheggioNonTrovato = "Parcheggio non trovato";
 
     public ParcheggioServiceImpl(
             ParcheggioRepository parcheggioRepository,
@@ -53,7 +55,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
             UtenteRepository utenteRepository, 
             UtenteService utenteService,
             AnaliticheRepository analiticheRepository,
-            MapsService mapsService) {
+            MapsServiceImpl mapsService) {
 
         this.parcheggioRepository = parcheggioRepository;
         this.prenotazioneRepository = prenotazioneRepository;
@@ -116,7 +118,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 req.utenteId(), req.parcheggioId());
 
         Parcheggio parcheggio = parcheggioRepository.findById(req.parcheggioId())
-                .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+                .orElseThrow(() -> new IllegalArgumentException(parcheggioNonTrovato));
 
         if (parcheggio.isInEmergenza()) {
             throw new IllegalStateException("Parcheggio in emergenza");
@@ -126,9 +128,6 @@ public class ParcheggioServiceImpl implements ParcheggioService {
                 .orElseThrow(() -> new IllegalArgumentException("Utente non trovato"));
 
         Map<String, String> preferenze = utenteService.getPreferenze(utente.getId());
-        
-        LOGGER.info("Preferenze utente: preferenzeUtente={}",
-                preferenze);
 
         Posto migliorPosto = assegnaPostoOttimale(req.parcheggioId(), preferenze);
 
@@ -190,7 +189,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     @Transactional
     public void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo) {
         Parcheggio p = parcheggioRepository.findById(parcheggioId)
-                .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+                .orElseThrow(() -> new IllegalArgumentException(parcheggioNonTrovato));
 
         p.setInEmergenza(stato);
         parcheggioRepository.save(p);
@@ -243,7 +242,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
     @Override
     public ParcheggioResponse getById(String id) {
         Parcheggio p = parcheggioRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+                .orElseThrow(() -> new IllegalArgumentException(parcheggioNonTrovato));
         return toResponse(p);
     }
 
@@ -290,14 +289,7 @@ public class ParcheggioServiceImpl implements ParcheggioService {
         int punteggioMassimo = Integer.MIN_VALUE;
 
         for (Posto posto : posti) {
-            if (posto == null) continue;
-            if (!posto.isDisponibile()) continue;
-            if (posto.isDisabilitato()) continue;
-
-            if (disabile && !posto.isRiservatoDisabili()) continue;
-            if (!disabile && posto.isRiservatoDisabili()) continue;
-            if (incinta && !posto.isRiservatoIncinta()) continue;
-            if (!incinta && posto.isRiservatoIncinta()) continue;
+            if (posto == null || !posto.isDisponibile() || posto.isDisabilitato() || (disabile && !posto.isRiservatoDisabili()) || (!disabile && posto.isRiservatoDisabili()) || (incinta && !posto.isRiservatoIncinta()) || (!incinta && posto.isRiservatoIncinta())) continue;
 
             int punteggio = 0;
 
