@@ -5,22 +5,30 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Classe di configurazione per la gestione delle regole CORS.
+ *
+ * Permette alle applicazioni frontend eseguite in locale di comunicare
+ * con le API del backend.
+ */
 @Configuration
 public class CorsConfig {
 
+	/**
+     * Definisce la configurazione CORS per gli endpoint API.
+     *
+     * @return configuratore MVC con le regole CORS definite
+     */
     @Bean
     public WebMvcConfigurer corsConfigurer() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        // Manteniamo il tuo pattern per localhost, ma rendiamolo più solido
                         .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
-                        // AGGIUNTO: "PATCH" è vitale per l'emergenza!
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true)
-                        // Cache della risposta preflight (evita che Chrome chieda il permesso a ogni click)
                         .maxAge(3600);
             }
         };

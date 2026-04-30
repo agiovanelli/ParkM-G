@@ -17,13 +17,31 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Implementazione del servizio per la gestione delle funzionalità Maps.
+ *
+ * Utilizza le API di Google Maps per recuperare percorsi
+ * e risultati di geocodifica.
+ */
 @Service
 public class MapsServiceImpl implements MapsService{
 
+  /** Client HTTP utilizzato per effettuare le richieste alle API esterne. */
   private final RestTemplate restTemplate;
+  
+  /** Chiave API utilizzata per il servizio Google Directions. */
   private final String googleDirectionsKey;
+  
+  /** Chiave API utilizzata per il servizio Google Geocoding. */
   private final String googleGeocodingKey;
 
+  /**
+   * Crea una nuova istanza del servizio Maps.
+   *
+   * @param builder builder utilizzato per creare il client HTTP
+   * @param googleDirectionsKey chiave API per Google Directions
+   * @param googleGeocodingKey chiave API per Google Geocoding
+   */
   public MapsServiceImpl(
       RestTemplateBuilder builder,
       @Value("${google.directions.key}") String googleDirectionsKey,
@@ -36,6 +54,15 @@ public class MapsServiceImpl implements MapsService{
         : googleDirectionsKey; // fallback
   }
   
+  /**
+   * Recupera il percorso migliore tra un punto di origine e una destinazione.
+   *
+   * @param oLat latitudine del punto di origine
+   * @param oLng longitudine del punto di origine
+   * @param dLat latitudine del punto di destinazione
+   * @param dLng longitudine del punto di destinazione
+   * @return risposta contenente il percorso selezionato
+   */
   public DirectionsResponseDto getDirections(double oLat, double oLng, double dLat, double dLng) {
     
 	  if (googleDirectionsKey == null || googleDirectionsKey.isBlank()) {
@@ -119,9 +146,9 @@ public class MapsServiceImpl implements MapsService{
           steps.add(new StepDto(
               html,
               sDistText,
-              sDistMeters,      // <-- solo se hai cambiato StepDto
+              sDistMeters,
               sDurText,
-              sDurSeconds,      // <-- solo se hai cambiato StepDto
+              sDurSeconds,
               man,
               sPoly,
               st.path("lat").asDouble(), st.path("lng").asDouble(),
@@ -161,6 +188,12 @@ public class MapsServiceImpl implements MapsService{
     return new DirectionsResponseDto(List.of(best));
   }
 
+  /**
+   * Recupera le coordinate e le informazioni associate a un indirizzo.
+   *
+   * @param address indirizzo da geocodificare
+   * @return risposta contenente i risultati della geocodifica
+   */
   public GeocodeResponseDto geocode(String address) {
 	  if (address == null || address.isBlank()) {
 		  throw new BadRequestException("address mancante");
