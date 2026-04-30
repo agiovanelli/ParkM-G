@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
 
@@ -24,19 +24,15 @@ public class ParcheggioController {
     @GetMapping("/cerca")
     public ResponseEntity<List<ParcheggioResponse>> cerca(@RequestParam String area) {
         LOGGER.info("HTTP GET /api/parcheggi/cerca?area={}", area);
-        List<ParcheggioResponse> risultati = parcheggioService.cercaPerArea(area);
-        return ResponseEntity.ok(risultati);
+        return ResponseEntity.ok(parcheggioService.cercaPerArea(area));
     }
-    
+
     @PostMapping("/prenota")
     public ResponseEntity<PrenotazioneResponse> prenota(@RequestBody PrenotazioneRequest req) {
         LOGGER.info("Ricevuta richiesta di prenotazione via HTTP POST");
-        
-        PrenotazioneResponse response = parcheggioService.effettuaPrenotazione(req);
-        
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(parcheggioService.effettuaPrenotazione(req));
     }
-    
+
     @GetMapping("/nearby")
     public ResponseEntity<List<ParcheggioResponse>> getNearby(
             @RequestParam double lat,
@@ -44,8 +40,39 @@ public class ParcheggioController {
             @RequestParam(defaultValue = "1000") double radius) {
 
         LOGGER.info("HTTP GET /api/parcheggi/nearby?lat={}&lng={}&radius={}", lat, lng, radius);
-        List<ParcheggioResponse> risultati = parcheggioService.cercaVicini(lat, lng, radius);
-        return ResponseEntity.ok(risultati);
+        return ResponseEntity.ok(parcheggioService.cercaVicini(lat, lng, radius));
     }
 
+    @PatchMapping("/{id}/emergenza")
+    public ResponseEntity<Void> toggleEmergenza(
+            @PathVariable String id,
+            @RequestParam boolean attiva,
+            @RequestParam(required = false) String motivo) {
+
+        LOGGER.info("Richiesta cambio stato emergenza per parcheggio {}: {}", id, attiva);
+        parcheggioService.impostaStatoEmergenza(id, attiva, motivo);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ParcheggioResponse> getById(@PathVariable String id) {
+        LOGGER.info("HTTP GET /api/parcheggi/{}", id);
+        return ResponseEntity.ok(parcheggioService.getById(id));
+    }
+
+    @GetMapping("/{id}/posti")
+    public ResponseEntity<List<PostoResponse>> getPosti(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer piano
+    ) {
+        LOGGER.info("HTTP GET /api/parcheggi/{}/posti?piano={}", id, piano);
+        return ResponseEntity.ok(parcheggioService.getPosti(id, piano));
+    }
+    
+    //da chiamare quando un posto cambia stato o quando c'è da syncronizzare o refreshare
+    @PutMapping("/{id}/sync")
+    public ResponseEntity<Void> syncPosti(@PathVariable String id) {
+        parcheggioService.syncPostiStats(id);
+        return ResponseEntity.ok().build();
+    }
 }

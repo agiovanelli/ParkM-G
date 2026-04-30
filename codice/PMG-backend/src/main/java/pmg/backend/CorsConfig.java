@@ -14,11 +14,14 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        // permette qualsiasi porta su localhost (utile per Flutter web dev server)
-                		.allowedOriginPatterns("http://*:*", "https://*:*")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        // Manteniamo il tuo pattern per localhost, ma rendiamolo più solido
+                        .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
+                        // AGGIUNTO: "PATCH" è vitale per l'emergenza!
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                         .allowedHeaders("*")
-                        .allowCredentials(true);
+                        .allowCredentials(true)
+                        // Cache della risposta preflight (evita che Chrome chieda il permesso a ogni click)
+                        .maxAge(3600);
             }
         };
     }

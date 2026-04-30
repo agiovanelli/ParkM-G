@@ -40,4 +40,8 @@ public class Analitiche {
     public String getOperatoreId() {
         return operatoreId;
     }
+    
+    public void setId(String id) {
+    	this.id = id;
+    }
 }

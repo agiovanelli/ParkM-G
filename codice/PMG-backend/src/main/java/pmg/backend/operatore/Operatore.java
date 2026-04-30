@@ -7,18 +7,13 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class Operatore {
 
     @Id
-    private String id; //ObjectId
-
+    private String id;
+    private String parcheggioId;
     private String nomeStruttura;
     private String username;
 
-    // Costruttore vuoto richiesto da Spring Data
+    // Costruttore vuoto (Spring Data)
     public Operatore() {
-    }
-
-    public Operatore(String nomeStruttura, String username) {
-        this.nomeStruttura = nomeStruttura;
-        this.username = username;
     }
 
     // GETTER / SETTER
@@ -45,5 +40,13 @@ public class Operatore {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+    
+    public String getParcheggioId() { 
+    	return parcheggioId; 
+    }
+    
+    public void setParcheggioId(String parcheggioId) { 
+    	this.parcheggioId = parcheggioId; 
     }
 }

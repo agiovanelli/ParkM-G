@@ -1,11 +1,19 @@
 package pmg.backend.prenotazione;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface PrenotazioneRepository extends MongoRepository<Prenotazione, String> {
-
-    // Spring genererà automaticamente la query filtrata per utenteId
     List<Prenotazione> findByUtenteId(String utenteId);
+
+    List<Prenotazione> findByStatoAndDataCreazioneBefore(StatoPrenotazione stato, LocalDateTime scadenzaArrivo);
+
+    Optional<Prenotazione> findByCodiceQr(String codiceQr);
+    
+    Optional<Prenotazione> findByIdAndUtenteId(String id, String utenteId);
+    
+    List<Prenotazione> findByParcheggioId(String parcheggioId);
 }

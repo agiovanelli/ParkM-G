@@ -31,6 +31,7 @@ public class LogServiceImpl implements LogService{
     public Log salvaLog(LogRequest request) {
         Log entity = new Log();
 
+        entity.setAnaliticaId(request.analiticaId());
         entity.setTipo(request.tipo());
         entity.setSeverita(request.severita());
         entity.setTitolo(request.titolo());

@@ -50,6 +50,7 @@ public class AnaliticheController {
         return logService.getLogByAnaliticaId(id).stream()
                 .map(log -> new LogResponse(
                         log.getId(),
+                        log.getAnaliticaId(),
                         log.getTipo().name(),
                         log.getTitolo(),
                         log.getDescrizione(),
@@ -66,6 +67,7 @@ public class AnaliticheController {
         return logService.getLogByAnaliticaIdAndTipo(id, tipo).stream()
                 .map(log -> new LogResponse(
                         log.getId(),
+                        log.getAnaliticaId(),
                         log.getTipo().name(),
                         log.getTitolo(),
                         log.getDescrizione(),
@@ -73,5 +75,10 @@ public class AnaliticheController {
                         log.getSeverita().name()
                 ))
                 .toList();
+    }
+    
+    @GetMapping("/parcheggio/{parcheggioId}")
+    public Analitiche getByParcheggioId(@PathVariable String parcheggioId) {
+        return analiticheService.getByParcheggioId(parcheggioId);
     }
 }

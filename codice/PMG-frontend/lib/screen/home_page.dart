@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:park_mg/utils/theme.dart';
+import 'package:park_mg/utils/ui_feedback.dart';
 import '../api/api_client.dart';
 import 'user_screen.dart';
 import 'operator_screen.dart';
-
-/// Pulsante primario con gradiente (equivalente a .primary-button)
 class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -25,8 +26,8 @@ class PrimaryButton extends StatelessWidget {
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    AppColors.accentCyan2, // #3b82f6
-                    AppColors.accentCyan, // #06b6d4
+                    AppColors.accentCyan2,
+                    AppColors.accentCyan,
                   ],
                 )
               : null,
@@ -35,7 +36,7 @@ class PrimaryButton extends StatelessWidget {
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     blurRadius: 18,
                     offset: const Offset(0, 2),
                   ),
@@ -67,28 +68,18 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  // stato toggle Accedi / Registrati
   bool _isLoginMode = true;
-
   late final TabController _tabController;
-
   bool _obscureLoginPassword = true;
   bool _obscureRegisterPassword = true;
-
-  // controller campi Clienti - login
   final _userLoginEmailController = TextEditingController();
   final _userLoginPasswordController = TextEditingController();
-
-  // controller campi Clienti - registrazione
   final _userRegisterNameController = TextEditingController();
   final _userRegisterSurnameController = TextEditingController();
   final _userRegisterEmailController = TextEditingController();
   final _userRegisterPasswordController = TextEditingController();
-
-  // controller campi Operatori
   final _operatorNomeStrutturaController = TextEditingController();
   final _operatorUsernameController = TextEditingController();
-
   bool _isLoading = false;
 
   @override
@@ -111,8 +102,6 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
-  // ------------------ VALIDAZIONI ------------------
-
   bool _passwordValida(String pwd) {
     if (pwd.isEmpty) return false;
     final hasMinLen = pwd.length >= 6;
@@ -124,82 +113,86 @@ class _HomePageState extends State<HomePage>
     return hasMinLen && hasUpper && hasDigit && hasSpecial;
   }
 
-  void _showError(String msg) {
-    final snackBar = SnackBar(
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      elevation: 10,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      backgroundColor: Colors.white, // card-like
-      content: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              msg,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      duration: const Duration(seconds: 4),
-    );
+  Future<T> retry<T>(
+  Future<T> Function() fn, {
+  int retries = 3,
+  Duration delay = const Duration(seconds: 2),
+}) async {
+  int attempt = 0;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(snackBar);
+  while (true) {
+    try {
+      return await fn();
+    } on TimeoutException catch (_) {
+      attempt++;
+
+      if (attempt >= retries) {
+        throw ApiException('Timeout dopo $retries tentativi');
+      }
+
+      // Aspetta prima di riprovare
+      await Future.delayed(delay);
+    }
   }
-
-  // ------------------ AZIONI CLIENTI ------------------
+}
 
   Future<void> _handleUserLogin() async {
-    final email = _userLoginEmailController.text.trim();
-    final password = _userLoginPasswordController.text;
+  if (_isLoading) return;
 
-    if (email.isEmpty && password.isEmpty) {
-      _showError('Inserisci email e password.');
-      return;
-    }
-    if (email.isEmpty) {
-      _showError('Inserisci email.');
-      return;
-    }
-    if (password.isEmpty) {
-      _showError('Inserisci password.');
-      return;
-    }
-    if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      _showError('Formato email non valido.');
-      return;
-    }
+  final email = _userLoginEmailController.text.trim();
+  final password = _userLoginPasswordController.text;
 
-    setState(() => _isLoading = true);
-    try {
-      final utente = await widget.apiClient.loginUtente(email, password);
-      _userLoginEmailController.clear();
-      _userLoginPasswordController.clear();
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) =>
-              UserScreen(utente: utente, apiClient: widget.apiClient),
-        ),
-      );
-    } catch (e) {
-      _showError(
-        e is ApiException
-            ? e.message
-            : 'Errore di connessione al server utenti',
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  if (email.isEmpty && password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email e password.');
+    return;
   }
+  if (email.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci email.');
+    return;
+  }
+  if (password.isEmpty) {
+    UiFeedback.showError(context, 'Inserisci password.');
+    return;
+  }
+  if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
+    UiFeedback.showError(context, 'Formato email non valido.');
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final utente = await retry(() async {
+      return await widget.apiClient
+          .loginUtente(email, password)
+          .timeout(const Duration(seconds: 12));
+    });
+
+    _userLoginEmailController.clear();
+    _userLoginPasswordController.clear();
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            UserScreen(utente: utente, apiClient: widget.apiClient),
+      ),
+    );
+  } on TimeoutException {
+    if (!mounted) return;
+    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+  } catch (e) {
+    if (!mounted) return;
+    UiFeedback.showError(
+      context,
+      e is ApiException
+          ? e.message
+          : 'Errore di connessione al server utenti',
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
   Future<void> _handleUserRegister() async {
     final nome = _userRegisterNameController.text.trim();
@@ -208,15 +201,16 @@ class _HomePageState extends State<HomePage>
     final pwd = _userRegisterPasswordController.text;
 
     if (nome.isEmpty || cognome.isEmpty || email.isEmpty || pwd.isEmpty) {
-      _showError('Compila tutti i campi.');
+      UiFeedback.showError(context, 'Compila tutti i campi.');
       return;
     }
     if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-      _showError('Email non valida.');
+      UiFeedback.showError(context, 'Email non valida.');
       return;
     }
     if (!_passwordValida(pwd)) {
-      _showError(
+      UiFeedback.showError(
+        context,
         'La password deve contenere almeno:\n'
         '- 6 caratteri\n'
         '- 1 lettera maiuscola\n'
@@ -237,9 +231,13 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _isLoginMode = true;
       });
-      _showError('Registrazione completata. Ora effettua il login.');
+      UiFeedback.showError(
+        context,
+        'Registrazione completata. Ora effettua il login.',
+      );
     } catch (e) {
-      _showError(
+      UiFeedback.showError(
+        context,
         e is ApiException
             ? e.message
             : 'Errore di connessione al server utenti',
@@ -250,25 +248,29 @@ class _HomePageState extends State<HomePage>
   }
 
   void _handleUserForgotPassword() {
-    _showError('Funzionalità "Password dimenticata?" non ancora disponibile.');
+    UiFeedback.showError(
+      context,
+      'Funzionalità "Password dimenticata?" non ancora disponibile.',
+    );
   }
-
-  // ------------------ AZIONI OPERATORI ------------------
 
   Future<void> _handleOperatorLogin() async {
     final nomeStruttura = _operatorNomeStrutturaController.text.trim();
     final username = _operatorUsernameController.text.trim();
 
     if (nomeStruttura.isEmpty && username.isEmpty) {
-      _showError('Inserisci il nome della struttura e l\'username.');
+      UiFeedback.showError(
+        context,
+        'Inserisci il nome della struttura e l\'username.',
+      );
       return;
     }
     if (nomeStruttura.isEmpty) {
-      _showError('Inserisci il nome della struttura.');
+      UiFeedback.showError(context, 'Inserisci il nome della struttura.');
       return;
     }
     if (username.isEmpty) {
-      _showError('Inserisci l\'username.');
+      UiFeedback.showError(context, 'Inserisci l\'username.');
       return;
     }
 
@@ -282,11 +284,12 @@ class _HomePageState extends State<HomePage>
       _operatorUsernameController.clear();
 
       if (!mounted) return;
-      Navigator.of(context).push(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => OperatorScreen(operatore: operatore)),
       );
     } catch (e) {
-      _showError(
+      UiFeedback.showError(
+        context,
         e is ApiException
             ? e.message
             : 'Errore di connessione al server operatori',
@@ -295,8 +298,6 @@ class _HomePageState extends State<HomePage>
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // ------------------ UI ------------------
 
   @override
   Widget build(BuildContext context) {
@@ -307,15 +308,14 @@ class _HomePageState extends State<HomePage>
 
     return Scaffold(
       body: Container(
-        // .root: gradient di sfondo
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.bgDark2, // #020617
-              AppColors.bgDark2, // 40%
-              AppColors.bgDark2, // #0b1120
+              AppColors.bgDark2,
+              AppColors.bgDark2,
+              AppColors.bgDark2,
             ],
           ),
         ),
@@ -353,7 +353,6 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildBrandingPanel() {
-    // .branding-pane
     return Container(
       decoration: const BoxDecoration(
         borderRadius: BorderRadius.only(
@@ -364,8 +363,8 @@ class _HomePageState extends State<HomePage>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.bgDark, // #0f172a
-            AppColors.bgDark, // #020617
+            AppColors.bgDark,
+            AppColors.bgDark,
           ],
         ),
         boxShadow: [
@@ -395,7 +394,7 @@ class _HomePageState extends State<HomePage>
               const Text(
                 'Gestione Utenti e Operatori',
                 style: TextStyle(
-                  color: AppColors.textSecondary, // #e5e7eb
+                  color: AppColors.textSecondary, 
                   fontSize: 14,
                 ),
                 textAlign: TextAlign.center,
@@ -465,7 +464,6 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildClientiTab() {
-    // .card centrale
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -478,7 +476,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),
@@ -487,7 +485,6 @@ class _HomePageState extends State<HomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // “segmented-control” Accedi / Registrati
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -612,9 +609,7 @@ class _HomePageState extends State<HomePage>
         PrimaryButton(text: 'Accedi', onPressed: _handleUserLogin),
         TextButton(
           onPressed: _handleUserForgotPassword,
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF60A5FA),
-          ),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF60A5FA)),
           child: const Text(
             'Password dimenticata?',
             style: TextStyle(fontSize: 12),
@@ -660,10 +655,14 @@ class _HomePageState extends State<HomePage>
             labelText: 'Password',
             suffixIcon: IconButton(
               onPressed: () {
-                setState(() => _obscureRegisterPassword = !_obscureRegisterPassword);
+                setState(
+                  () => _obscureRegisterPassword = !_obscureRegisterPassword,
+                );
               },
               icon: Icon(
-                _obscureRegisterPassword ? Icons.visibility_off : Icons.visibility,
+                _obscureRegisterPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
                 color: AppColors.textMuted,
               ),
             ),
@@ -688,7 +687,7 @@ class _HomePageState extends State<HomePage>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 26,
                   offset: const Offset(0, 4),
                 ),
@@ -716,7 +715,7 @@ class _HomePageState extends State<HomePage>
                 TextField(
                   controller: _operatorUsernameController,
                   decoration: const InputDecoration(labelText: 'Username'),
-                  obscureText: true, 
+                  obscureText: true,
                 ),
                 const SizedBox(height: 16),
                 PrimaryButton(text: 'Accedi', onPressed: _handleOperatorLogin),

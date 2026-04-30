@@ -27,7 +27,6 @@ class LogControllerTest {
     @MockBean
     private LogService service;
 
-    // ---------- POST /api/log ----------
     @Test
     void creaLogTest() throws Exception {
         Log saved = new Log();
@@ -65,7 +64,6 @@ class LogControllerTest {
         verify(service).salvaLog(any(LogRequest.class));
     }
 
-    // ---------- GET /api/log/analitiche/{analiticaId}/log ----------
     @Test
     void getLogByAnaliticaIdTest() throws Exception {
         Log l = new Log();
@@ -92,7 +90,6 @@ class LogControllerTest {
         verify(service).getLogByAnaliticaId("a1");
     }
 
-    // ---------- GET /api/log/analitiche/{analiticaId}/tipo/{tipo} ----------
     @Test
     void getLogByAnaliticaIdAndTipoTest() throws Exception {
         Log l = new Log();
@@ -116,7 +113,6 @@ class LogControllerTest {
         verify(service).getLogByAnaliticaIdAndTipo("a1", "EVENTO");
     }
 
-    // ---------- PUT /api/log/{id}/severity?severity=... ----------
     @Test
     void aggiornaSeverityTest() throws Exception {
         Log l = new Log();
@@ -130,7 +126,7 @@ class LogControllerTest {
         Log savedAfter = new Log();
         ReflectionTestUtils.setField(savedAfter, "id", "log9");
         savedAfter.setTipo(LogCategoria.HISTORY);
-        savedAfter.setSeverita(LogSeverità.CRITICO); // aggiornato
+        savedAfter.setSeverita(LogSeverità.CRITICO);
         savedAfter.setTitolo("T");
         savedAfter.setDescrizione("D");
         savedAfter.setData(LocalDateTime.of(2025, 4, 4, 8, 0));
@@ -149,7 +145,6 @@ class LogControllerTest {
         verify(service).salvaLog1(any(Log.class));
     }
 
-    // ---------- PUT /api/log/{id}/category?category=... ----------
     @Test
     void aggiornaCategoryTest() throws Exception {
         Log l = new Log();

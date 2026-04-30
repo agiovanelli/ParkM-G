@@ -13,7 +13,7 @@ public class LogResponse {
 
     public LogResponse() {}
 
-    public LogResponse(String id, String tipo, String titolo, String descrizione, LocalDateTime data, String severita) {
+    public LogResponse(String id, String analiticaId, String tipo, String titolo, String descrizione, LocalDateTime data, String severita) {
         this.id = id;
         this.tipo = tipo;
         this.titolo= titolo;
