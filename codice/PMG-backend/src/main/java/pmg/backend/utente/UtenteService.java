@@ -2,33 +2,53 @@ package pmg.backend.utente;
 
 import java.util.Map;
 
+/**
+ * Servizio per la gestione degli utenti.
+ *
+ * Definisce le operazioni principali per la registrazione,
+ * autenticazione e gestione delle preferenze degli utenti.
+ */
 public interface UtenteService {
 
     /**
-     * Registrazione di un nuovo utente.
-     * Lancia IllegalStateException se esiste già un utente con la stessa email.
+     * Registra un nuovo utente.
+     *
+     * @param req dati necessari per la registrazione
+     * @return utente registrato
+     * @throws IllegalStateException se esiste già un utente con la stessa email
      */
     UtenteResponse registrazione(UtenteRegisterRequest req);
 
     /**
-     * Login utente.
-     * Lancia IllegalArgumentException se credenziali non valide.
+     * Effettua il login di un utente.
+     *
+     * @param req dati di autenticazione
+     * @return utente autenticato
+     * @throws IllegalArgumentException se le credenziali non sono valide
      */
     UtenteResponse login(UtenteLoginRequest req);
 
     /**
      * Aggiorna le preferenze di un utente.
-     * Lancia IllegalArgumentException se l'utente non esiste.
+     *
+     * @param utenteId identificativo dell'utente
+     * @param preferenze mappa delle preferenze
+     * @throws IllegalArgumentException se l'utente non esiste
      */
     void aggiornaPreferenze(String utenteId, Map<String, String> preferenze);
 
     /**
-     * Restituisce le preferenze dell'utente (anche null se non impostate).
+     * Recupera le preferenze di un utente.
+     *
+     * @param utenteId identificativo dell'utente
+     * @return mappa delle preferenze (può essere null se non impostate)
      */
     Map<String, String> getPreferenze(String utenteId);
 
     /**
-     * Elimina l'utente dal database.
+     * Elimina un utente dal sistema.
+     *
+     * @param utenteId identificativo dell'utente
      */
     void delete(String utenteId);
 }

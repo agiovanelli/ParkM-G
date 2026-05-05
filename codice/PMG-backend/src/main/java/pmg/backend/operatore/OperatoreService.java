@@ -1,5 +1,11 @@
 package pmg.backend.operatore;
 
+/**
+ * Servizio per la gestione degli operatori.
+ *
+ * Definisce le operazioni principali per recuperare e salvare
+ * gli operatori.
+ */
 public interface OperatoreService {
 
     /**

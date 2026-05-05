@@ -28,18 +28,45 @@ import java.time.DayOfWeek;
 
 import java.util.Map;
 
+/**
+ * Implementazione del servizio per la gestione delle prenotazioni.
+ *
+ * Gestisce il ciclo di vita delle prenotazioni, inclusi creazione,
+ * validazione ingresso/uscita, pagamento, annullamento e calcolo importo.
+ */
 @Service
 public class PrenotazioneServiceImpl implements PrenotazioneService {
 
+    /** Repository per l'accesso ai dati delle prenotazioni. */
     private final PrenotazioneRepository prenotazioneRepository;
+
+    /** Repository per l'accesso ai dati dei parcheggi. */
     private final ParcheggioRepository parcheggioRepository;
+
+    /** Repository per l'accesso ai dati degli utenti. */
     private final UtenteRepository utenteRepository;
+
+    /** Servizio per la gestione dei log. */
     private final LogService logService;
+
+    /** Repository per l'accesso alle analitiche. */
     private final AnaliticheRepository analiticheRepository;
+
+    /** Repository per l'accesso ai posti. */
     private final PostoRepository postoRepository;
     
     private String prenotazioneNonTrovata = "Prenotazione non trovata";
 
+    /**
+     * Crea una nuova istanza del servizio prenotazioni.
+     *
+     * @param prenotazioneRepository repository delle prenotazioni
+     * @param parcheggioRepository repository dei parcheggi
+     * @param utenteRepository repository degli utenti
+     * @param logService servizio di logging
+     * @param analiticheRepository repository delle analitiche
+     * @param postoRepository repository dei posti
+     */
     public PrenotazioneServiceImpl(
             PrenotazioneRepository prenotazioneRepository,
             ParcheggioRepository parcheggioRepository,
@@ -55,11 +82,16 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         this.postoRepository = postoRepository;
     }
 
+    /**
+     * Recupera lo storico delle prenotazioni di un utente.
+     *
+     * @param utenteId identificativo dell'utente
+     * @return lista delle prenotazioni dell'utente
+     */
     @Override
     public List<PrenotazioneResponse> getStoricoUtente(String utenteId) {
         List<Prenotazione> lista = prenotazioneRepository.findByUtenteId(utenteId);
 
-        // Convertiamo la lista di Entity in lista di Response (DTO)
         return lista.stream()
                 .map(p -> new PrenotazioneResponse(
                         p.getId(),
@@ -78,6 +110,9 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
                 .toList();
     }
     
+    /**
+     * Controlla periodicamente le prenotazioni scadute e libera i posti associati.
+     */
     @Scheduled(fixedRate = 60000)
     public void controllaPrenotazioniScadute() {
         LocalDateTime limite = LocalDateTime.now().minusMinutes(10);
@@ -117,7 +152,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         }
     }
     
- 
+    /**
+     * Valida l'ingresso di un veicolo tramite QR code.
+     *
+     * @param codiceQr codice QR della prenotazione
+     * @return prenotazione aggiornata
+     */
     @Override
     public PrenotazioneResponse validaIngresso(String codiceQr) {
         Prenotazione prenotazione = prenotazioneRepository.findByCodiceQr(codiceQr)
@@ -145,7 +185,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         return convertiInResponse(salvata);
     }
 
-    // Metodo helper per evitare ripetizioni (usalo anche nel metodo dello storico)
+    /**
+     * Converte una prenotazione in oggetto di risposta.
+     *
+     * @param p prenotazione
+     * @return DTO di risposta
+     */
     private PrenotazioneResponse convertiInResponse(Prenotazione p) {
         return new PrenotazioneResponse(
             p.getId(),
@@ -162,6 +207,17 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         );
     }
     
+    /**
+     * Annulla una prenotazione esistente.
+     *
+     * Libera il posto associato (se occupato), aggiorna il contatore
+     * dei posti disponibili nel parcheggio e imposta lo stato
+     * della prenotazione come annullata.
+     *
+     * @param prenotazioneId identificativo della prenotazione
+     * @param utenteId identificativo dell'utente
+     * @return prenotazione aggiornata
+     */
     @Override
     @Transactional
     public PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId) {
@@ -227,10 +283,28 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
     
     private Clock clock = Clock.systemDefaultZone();
 
+    /**
+     * Imposta un clock personalizzato (utile per test).
+     *
+     * @param clock istanza del clock da utilizzare
+     */
     public void setClock(Clock clock) {
         this.clock = clock;
     }
     
+    /**
+     * Calcola l'importo totale di una prenotazione.
+     *
+     * Il calcolo tiene conto di:
+     * - durata della sosta
+     * - preferenze utente (età, occupazione)
+     * - fascia oraria e giorno (notturno/weekend)
+     * - occupazione del parcheggio
+     * - eventuali penali o sconti
+     *
+     * @param prenotazioneId identificativo della prenotazione
+     * @return importo totale calcolato
+     */
     @Override
     public double calcolaImporto(String prenotazioneId) {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
@@ -313,10 +387,26 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         return Math.round(totale * 100.0) / 100.0;
     }
     
+    /**
+     * Calcola la fee di permanenza oltre il tempo massimo di uscita.
+     *
+     * @param scadenzaUscita orario limite per l'uscita
+     * @return minuti di ritardo
+     */
     public double feePermanenza(LocalDateTime scadenzaUscita) {
     	return Duration.between(scadenzaUscita, LocalDateTime.now()).toMinutes();
     }
 
+    /**
+     * Registra il pagamento di una prenotazione.
+     *
+     * Aggiorna lo stato della prenotazione a "pagato"
+     * e registra un evento nei log.
+     *
+     * @param prenotazioneId identificativo della prenotazione
+     * @param importo importo pagato
+     * @return prenotazione aggiornata
+     */
     @Override
     public PrenotazioneResponse pagaPrenotazione(String prenotazioneId, double importo) {
         Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
@@ -343,6 +433,15 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         return convertiInResponse(salvata);
     }
 
+    /**
+     * Valida l'uscita di un veicolo tramite QR code.
+     *
+     * Controlla che la prenotazione sia pagata, libera il posto
+     * e aggiorna lo stato a conclusa.
+     *
+     * @param codiceQr codice QR della prenotazione
+     * @return prenotazione aggiornata
+     */
     @Override
     @Transactional
     public PrenotazioneResponse validaUscita(String codiceQr) {
@@ -407,6 +506,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
     }
     
     
+    /**
+     * Recupera una prenotazione tramite QR code.
+     *
+     * @param codiceQr codice QR della prenotazione
+     * @return prenotazione trovata
+     */
     @Override
     public PrenotazioneResponse getPrenotazioneByQr(String codiceQr) {
         Prenotazione prenotazione = prenotazioneRepository.findByCodiceQr(codiceQr)
@@ -416,7 +521,10 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
     }
 
     /**
-     * Metodo helper per convertire Prenotazione in PrenotazioneResponse
+     * Converte una prenotazione in oggetto di risposta.
+     *
+     * @param prenotazione entità prenotazione
+     * @return DTO di risposta
      */
     private PrenotazioneResponse mapToResponse(Prenotazione prenotazione) {
         return new PrenotazioneResponse(
@@ -434,6 +542,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
         );
     }
 
+    /**
+     * Recupera tutte le prenotazioni associate a un parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @return lista delle prenotazioni
+     */
 	@Override
 	public List<PrenotazioneResponse> getByParcheggio(String parcheggioId) {
 	    return prenotazioneRepository.findByParcheggioId(parcheggioId)
@@ -442,6 +556,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	            .toList();
 	}
 	
+    /**
+     * Converte una prenotazione in oggetto di risposta.
+     *
+     * @param p prenotazione
+     * @return DTO di risposta
+     */
 	private PrenotazioneResponse toResponse(Prenotazione p) {
 	    return new PrenotazioneResponse(
 	            String.valueOf(p.getId()),
@@ -458,6 +578,12 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	    );
 	}
 	
+    /**
+     * Recupera l'identificativo dell'analitica associata a un parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @return id dell'analitica
+     */
 	private String getAnaliticaIdByParcheggioId(String parcheggioId) {
 	    Analitiche analitica = analiticheRepository.findByParcheggioId(parcheggioId)
 	            .orElseThrow(() -> new RuntimeException(
@@ -466,6 +592,15 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	    return analitica.getId();
 	}
 
+    /**
+     * Salva un evento nei log associato a un parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param categoria categoria del log
+     * @param severita livello di severità
+     * @param titolo titolo del log
+     * @param descrizione descrizione del log
+     */
 	private void salvaLogEvento(
 	        String parcheggioId,
 	        LogCategoria categoria,
@@ -485,6 +620,15 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 	    ));
 	}
 	
+    /**
+     * Conferma che l'utente ha parcheggiato il veicolo.
+     *
+     * Aggiorna lo stato della prenotazione a "parcheggiato"
+     * e registra un evento nei log.
+     *
+     * @param prenotazioneId identificativo della prenotazione
+     * @return prenotazione aggiornata
+     */
 	@Override
 	public PrenotazioneResponse confermaParcheggio(String prenotazioneId) {
 	    Prenotazione p = prenotazioneRepository.findById(prenotazioneId)
@@ -513,4 +657,5 @@ public class PrenotazioneServiceImpl implements PrenotazioneService {
 
 	    return convertiInResponse(salvata);
 	}
+	
 }

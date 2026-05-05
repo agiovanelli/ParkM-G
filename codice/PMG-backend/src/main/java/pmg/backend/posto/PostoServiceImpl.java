@@ -8,23 +8,51 @@ import pmg.backend.parcheggio.ParcheggioRepository;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implementazione del servizio per la gestione dei posti auto.
+ *
+ * Gestisce il recupero, la generazione e l'aggiornamento
+ * dello stato dei posti all'interno dei parcheggi.
+ */
 @Service
 public class PostoServiceImpl implements PostoService {
 
+    /** Repository per l'accesso ai dati dei posti. */
     private final PostoRepository postoRepository;
+
+    /** Repository per l'accesso ai dati dei parcheggi. */
     private final ParcheggioRepository parcheggioRepository;
 
+    /**
+     * Crea una nuova istanza del servizio posti.
+     *
+     * @param postoRepository repository dei posti
+     * @param parcheggioRepository repository dei parcheggi
+     */
     public PostoServiceImpl(PostoRepository postoRepository,
                             ParcheggioRepository parcheggioRepository) {
         this.postoRepository = postoRepository;
         this.parcheggioRepository = parcheggioRepository;
     }
 
+    /**
+     * Recupera tutti i posti di un parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @return lista dei posti
+     */
     @Override
     public List<PostoResponse> getPostiByParcheggio(String parcheggioId) {
         return getPostiByParcheggio(parcheggioId, null);
     }
 
+    /**
+     * Recupera i posti di un parcheggio, opzionalmente filtrati per piano.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param piano piano opzionale
+     * @return lista dei posti
+     */
     @Override
     public List<PostoResponse> getPostiByParcheggio(String parcheggioId, Integer piano) {
         List<Posto> posti = (piano == null)
@@ -36,6 +64,15 @@ public class PostoServiceImpl implements PostoService {
                 .toList();
     }
 
+    /**
+     * Genera i posti per un parcheggio.
+     *
+     * Crea automaticamente i posti suddivisi per piano e numero,
+     * assegnando distanza dall'uscita e vincoli (disabili, gravidanza).
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @throws IllegalStateException se i posti sono già stati generati
+     */
     @Override
     public void generaPosti(String parcheggioId) {
         List<Posto> esistenti = postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(parcheggioId);
@@ -74,6 +111,19 @@ public class PostoServiceImpl implements PostoService {
         postoRepository.saveAll(posti);
     }
 
+    /**
+     * Aggiorna la disponibilità di un posto.
+     *
+     * Aggiorna lo stato del posto e sincronizza il contatore
+     * dei posti disponibili del parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param piano piano del posto
+     * @param numero numero del posto
+     * @param disponibile nuovo stato di disponibilità
+     * @return posto aggiornato
+     * @throws RuntimeException se il posto non viene trovato
+     */
     @Override
     @Transactional
     public PostoResponse aggiornaDisponibilita(String parcheggioId, int piano, int numero, boolean disponibile) {
@@ -92,6 +142,19 @@ public class PostoServiceImpl implements PostoService {
         return new PostoResponse(posto);
     }
 
+    /**
+     * Aggiorna lo stato di disabilitazione di un posto.
+     *
+     * Imposta automaticamente la disponibilità in base allo stato
+     * e aggiorna il contatore dei posti disponibili del parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param piano piano del posto
+     * @param numero numero del posto
+     * @param disabilitato nuovo stato di disabilitazione
+     * @return posto aggiornato
+     * @throws RuntimeException se il posto o il parcheggio non vengono trovati
+     */
     @Override
     @Transactional
     public PostoResponse aggiornaDisabilitato(String parcheggioId, int piano, int numero, boolean disabilitato) {
@@ -126,6 +189,14 @@ public class PostoServiceImpl implements PostoService {
         return new PostoResponse(posto);
     }
 
+    /**
+     * Aggiorna il contatore dei posti disponibili di un parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param oldDisponibile stato precedente
+     * @param newDisponibile nuovo stato
+     * @throws RuntimeException se il parcheggio non viene trovato
+     */
     private void aggiornaContatoreDisponibili(String parcheggioId, boolean oldDisponibile, boolean newDisponibile) {
         Parcheggio parcheggio = parcheggioRepository.findById(parcheggioId)
                 .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
