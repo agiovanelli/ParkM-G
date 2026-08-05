@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:park_mg/indoor/parking_map_definition.dart';
 import 'package:park_mg/models/log.dart';
 import 'package:park_mg/models/posto.dart';
 
@@ -290,26 +291,28 @@ class ApiClient {
     throw ApiException(response.body);
   }
 
-  Future<Map<String, dynamic>> getPrenotazioneByQr(String codiceQr) async {
-    final url = Uri.parse('$_baseUrl/prenotazioni/qr/$codiceQr');
+  Future<PrenotazioneResponse> getPrenotazioneByQr(
+    String codiceQr,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/prenotazioni/qr/$codiceQr');
 
-    try {
-      final response = await _client.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await _client.get(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        final errorMsg = response.body.isNotEmpty
-            ? response.body
-            : 'Prenotazione non trovata';
-        throw Exception(errorMsg);
-      }
-    } catch (e) {
-      throw Exception('Errore di connessione: $e');
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return PrenotazioneResponse.fromJson(json);
     }
+
+    final body = response.body.trim();
+    throw ApiException(
+      body.isNotEmpty
+          ? body
+          : 'Prenotazione non trovata',
+      response.statusCode,
+    );
   }
 
   Future<PrenotazioneResponse?> getPrenotazioneByIdFromStorico(
@@ -350,67 +353,53 @@ class ApiClient {
   }
 
   Future<T> retry<T>(
-  Future<T> Function() fn, {
-  int retries = 3,
-  Duration delay = const Duration(seconds: 2),
-}) async {
-  int attempt = 0;
+    Future<T> Function() fn, {
+    int retries = 3,
+    Duration delay = const Duration(seconds: 2),
+  }) async {
+    int attempt = 0;
 
-  while (true) {
-    try {
-      return await fn();
-    } on TimeoutException catch (_) {
-      attempt++;
+    while (true) {
+      try {
+        return await fn();
+      } on TimeoutException {
+        attempt++;
 
-      if (attempt >= retries) {
-        throw ApiException('Timeout dopo $retries tentativi');
+        if (attempt >= retries) {
+          throw ApiException('Timeout dopo $retries tentativi');
+        }
+
+        await Future.delayed(delay);
       }
-
-      // Aspetta prima di riprovare
-      await Future.delayed(delay);
     }
   }
-}
 
-  Future<PrenotazioneResponse> confermaParcheggio(String prenotazioneId) async {
-  final uri = Uri.parse(
-    '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
-  );
+  Future<PrenotazioneResponse> confermaParcheggio(
+    String prenotazioneId,
+  ) async {
+    final uri = Uri.parse(
+      '$_baseUrl/prenotazioni/$prenotazioneId/parcheggiato',
+    );
 
-  try {
-    return await retry(() async {
-      final response = await http
-          .post(uri, headers: {'Content-Type': 'application/json'})
+    return retry(() async {
+      final response = await _client
+          .post(uri, headers: {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         final body = response.body.trim();
         throw ApiException(
           body.isNotEmpty
-              ? 'Errore conferma parcheggio: $body'
-              : 'Errore conferma parcheggio (${response.statusCode})',
-        );
-      }
-
-      if (response.body.trim().isEmpty) {
-        throw ApiException(
-          'Risposta vuota dal server durante la conferma parcheggio.',
+              ? body
+              : 'Errore conferma parcheggio',
+          response.statusCode,
         );
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return PrenotazioneResponse.fromJson(json);
     });
-  } on TimeoutException {
-    throw ApiException('Timeout dopo più tentativi. Riprova.');
-  } on FormatException {
-    throw ApiException('Risposta non valida dal server.');
-  } on ApiException {
-    rethrow;
-  } catch (e) {
-    throw ApiException('Errore conferma parcheggio: $e');
   }
-}
 
   Future<List<PrenotazioneResponse>> getPrenotazioniByParcheggio(
     String parcheggioId,
@@ -540,6 +529,30 @@ class ApiClient {
     );
   }
 
+
+  Future<IndoorMapDefinition> getIndoorParkingMap(
+    String parcheggioId,
+  ) async {
+    final uri = Uri.parse(
+      '$_baseUrl/parcheggi/$parcheggioId/mappa',
+    );
+
+    final response = await _client.get(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        'Errore recupero mappa parcheggio: HTTP ${response.statusCode}',
+        response.statusCode,
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return IndoorMapDefinition.fromJson(json);
+  }
+
   Future<void> impostaEmergenza(
     String parcheggioId,
     bool attiva,
@@ -631,6 +644,68 @@ class ApiClient {
     throw ApiException(
       'Errore aggiornamento disponibilità posto: HTTP ${resp.statusCode}',
       resp.statusCode,
+    );
+  }
+
+  Future<Posto> updatePostoFuoriServizio({
+    required String parcheggioId,
+    required String slotId,
+    required bool fuoriServizio,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/posti/parcheggio/$parcheggioId/slot/$slotId/fuori-servizio',
+    ).replace(
+      queryParameters: {
+        'fuoriServizio': fuoriServizio.toString(),
+      },
+    );
+
+    final response = await _client.patch(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return Posto.fromJson(json);
+    }
+
+    final body = response.body.trim();
+    throw ApiException(
+      body.isNotEmpty
+          ? body
+          : 'Errore aggiornamento fuori servizio del posto',
+      response.statusCode,
+    );
+  }
+
+  Future<Posto> updatePostoStato({
+    required String parcheggioId,
+    required String slotId,
+    required StatoPosto stato,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/posti/parcheggio/$parcheggioId/slot/$slotId/stato',
+    ).replace(
+      queryParameters: {
+        'stato': stato.name.toUpperCase(),
+      },
+    );
+
+    final response = await _client.patch(
+      uri,
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return Posto.fromJson(json);
+    }
+
+    final body = response.body.trim();
+    throw ApiException(
+      body.isNotEmpty ? body : 'Errore aggiornamento stato del posto',
+      response.statusCode,
     );
   }
 

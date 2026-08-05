@@ -1,104 +1,116 @@
 package pmg.backend.prenotazione;
 
+import java.time.LocalDateTime;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import pmg.backend.posto.PostoResponse;
 
-import java.time.LocalDateTime;
-
 /**
  * Rappresenta un documento della collezione MongoDB delle prenotazioni.
  *
- * Contiene le informazioni principali associate a una prenotazione,
- * come utente, parcheggio, stato e dettagli temporali.
+ * Contiene il ciclo di vita della prenotazione e uno snapshot del posto assegnato,
+ * in modo da preservarne i dati anche dopo successive modifiche alla mappa del parcheggio.
  */
 @Document(collection = "prenotazioni")
 public class Prenotazione {
 
-    /** Identificativo univoco del documento. */
+    /**
+     * Identificativo univoco del documento.
+     */
     @Id
     private String id;
-
-    /** Identificativo dell'utente che ha effettuato la prenotazione. */
-    private String utenteId;
-
-    /** Identificativo del parcheggio associato. */
-    private String parcheggioId;
-
-    /** Data e ora di creazione della prenotazione. */
-    private LocalDateTime dataCreazione;
-
-    /** Codice QR associato alla prenotazione. */
-    private String codiceQr;
-
-    /** Stato corrente della prenotazione. */
-    private StatoPrenotazione stato = StatoPrenotazione.attiva;
-
-    /** Data e ora di ingresso nel parcheggio. */
-    private LocalDateTime dataIngresso;
-
-    /** Data e ora di uscita dal parcheggio. */
-    private LocalDateTime dataUscita;
-
-    /** Importo pagato per la prenotazione. */
-    private Double importoPagato;
-
-    /** Data e ora del pagamento. */
-    private LocalDateTime dataPagamento;
-
-    /** Informazioni del posto assegnato. */
-    private PostoResponse posto;
-
-    /** Scadenza entro cui l'utente deve arrivare. */
-    private LocalDateTime scadenzaArrivo;
-    
     /**
-     * Costruttore vuoto richiesto da Spring Data MongoDB.
+     * Identificativo dell'utente associato.
      */
-    public Prenotazione() {}
+    private String utenteId;
+    /**
+     * Identificativo del parcheggio associato.
+     */
+    private String parcheggioId;
+    /**
+     * Data e ora di creazione.
+     */
+    private LocalDateTime dataCreazione;
+    /**
+     * Codice QR associato.
+     */
+    private String codiceQr;
+    /**
+     * Stato operativo corrente.
+     */
+    private StatoPrenotazione stato = StatoPrenotazione.attiva;
+    /**
+     * Data e ora di ingresso.
+     */
+    private LocalDateTime dataIngresso;
+    /**
+     * Data e ora di uscita.
+     */
+    private LocalDateTime dataUscita;
+    /**
+     * Importo registrato come pagato.
+     */
+    private Double importoPagato;
+    /**
+     * Data e ora del pagamento.
+     */
+    private LocalDateTime dataPagamento;
+    /**
+     * Snapshot del posto assegnato alla prenotazione.
+     */
+    private PostoResponse posto;
+    /**
+     * Data e ora entro cui deve essere validato l'ingresso.
+     */
+    private LocalDateTime scadenzaArrivo;
 
     /**
-     * Crea una nuova prenotazione con i dati principali.
+     * Costruttore vuoto richiesto dal framework di persistenza.
+     */
+    public Prenotazione() {
+    }
+
+    /**
+     * Crea una nuova istanza di Prenotazione con i dati indicati.
      *
      * @param utenteId identificativo dell'utente
      * @param parcheggioId identificativo del parcheggio
-     * @param dataCreazione data e ora di creazione
-     * @param codiceQr codice QR associato
+     * @param dataCreazione data di creazione
+     * @param codiceQr codice QR della prenotazione
      */
-    public Prenotazione(String utenteId, String parcheggioId, LocalDateTime dataCreazione, String codiceQr) {
+    public Prenotazione(
+            String utenteId,
+            String parcheggioId,
+            LocalDateTime dataCreazione,
+            String codiceQr) {
         this.utenteId = utenteId;
         this.parcheggioId = parcheggioId;
         this.dataCreazione = dataCreazione;
         this.codiceQr = codiceQr;
         this.stato = StatoPrenotazione.attiva;
-        this.dataIngresso = null;
-        this.dataUscita = null;
     }
-    
-    // Getter e Setter 
 
     /**
-     * Restituisce l'identificativo del documento.
-     *
-     * @return identificativo del documento
+     * Restituisce identificativo.
+     * @return identificativo
      */
     public String getId() {
         return id;
     }
 
     /**
-     * Imposta l'identificativo del documento.
+     * Imposta identificativo.
      *
-     * @param id nuovo identificativo del documento
+     * @param id identificativo della risorsa
      */
     public void setId(String id) {
         this.id = id;
     }
 
     /**
-     * Restituisce l'identificativo dell'utente.
-     *
+     * Restituisce identificativo dell'utente.
      * @return identificativo dell'utente
      */
     public String getUtenteId() {
@@ -106,17 +118,16 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta l'identificativo dell'utente.
+     * Imposta identificativo dell'utente.
      *
-     * @param utenteId nuovo identificativo dell'utente
+     * @param utenteId identificativo dell'utente
      */
     public void setUtenteId(String utenteId) {
         this.utenteId = utenteId;
     }
 
     /**
-     * Restituisce l'identificativo del parcheggio.
-     *
+     * Restituisce identificativo del parcheggio.
      * @return identificativo del parcheggio
      */
     public String getParcheggioId() {
@@ -124,17 +135,16 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta l'identificativo del parcheggio.
+     * Imposta identificativo del parcheggio.
      *
-     * @param parcheggioId nuovo identificativo del parcheggio
+     * @param parcheggioId identificativo del parcheggio
      */
     public void setParcheggioId(String parcheggioId) {
         this.parcheggioId = parcheggioId;
     }
 
     /**
-     * Restituisce la data di creazione.
-     *
+     * Restituisce data di creazione.
      * @return data di creazione
      */
     public LocalDateTime getDataCreazione() {
@@ -142,17 +152,16 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta la data di creazione.
+     * Imposta data di creazione.
      *
-     * @param dataCreazione nuova data di creazione
+     * @param dataCreazione data di creazione
      */
     public void setDataCreazione(LocalDateTime dataCreazione) {
         this.dataCreazione = dataCreazione;
     }
 
     /**
-     * Restituisce il codice QR.
-     *
+     * Restituisce codice QR.
      * @return codice QR
      */
     public String getCodiceQr() {
@@ -160,35 +169,33 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta il codice QR.
+     * Imposta codice QR.
      *
-     * @param codiceQr nuovo codice QR
+     * @param codiceQr codice QR della prenotazione
      */
     public void setCodiceQr(String codiceQr) {
         this.codiceQr = codiceQr;
     }
 
     /**
-     * Restituisce lo stato della prenotazione.
-     *
-     * @return stato della prenotazione
+     * Restituisce stato operativo.
+     * @return stato operativo
      */
     public StatoPrenotazione getStato() {
         return stato;
     }
 
     /**
-     * Imposta lo stato della prenotazione.
+     * Imposta stato operativo.
      *
-     * @param stato nuovo stato
+     * @param stato nuovo stato operativo
      */
     public void setStato(StatoPrenotazione stato) {
         this.stato = stato;
     }
 
     /**
-     * Restituisce la data di ingresso.
-     *
+     * Restituisce data di ingresso.
      * @return data di ingresso
      */
     public LocalDateTime getDataIngresso() {
@@ -196,17 +203,16 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta la data di ingresso.
+     * Imposta data di ingresso.
      *
-     * @param dataIngresso nuova data di ingresso
+     * @param dataIngresso data di ingresso
      */
     public void setDataIngresso(LocalDateTime dataIngresso) {
         this.dataIngresso = dataIngresso;
     }
 
     /**
-     * Restituisce la data di uscita.
-     *
+     * Restituisce data di uscita.
      * @return data di uscita
      */
     public LocalDateTime getDataUscita() {
@@ -214,59 +220,67 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta la data di uscita.
+     * Imposta data di uscita.
      *
-     * @param dataUscita nuova data di uscita
+     * @param dataUscita data di uscita
      */
     public void setDataUscita(LocalDateTime dataUscita) {
         this.dataUscita = dataUscita;
     }
 
     /**
-     * Restituisce l'importo pagato.
-     *
+     * Restituisce importo pagato.
      * @return importo pagato
      */
-    public Double getImportoPagato() { return importoPagato; }
+    public Double getImportoPagato() {
+        return importoPagato;
+    }
 
     /**
-     * Imposta l'importo pagato.
+     * Imposta importo pagato.
      *
-     * @param importoPagato nuovo importo
+     * @param importoPagato importo pagato
      */
-    public void setImportoPagato(Double importoPagato) { this.importoPagato = importoPagato; }
+    public void setImportoPagato(Double importoPagato) {
+        this.importoPagato = importoPagato;
+    }
 
     /**
-     * Restituisce la data del pagamento.
-     *
+     * Restituisce data del pagamento.
      * @return data del pagamento
      */
-    public LocalDateTime getDataPagamento() { return dataPagamento; }
+    public LocalDateTime getDataPagamento() {
+        return dataPagamento;
+    }
 
     /**
-     * Imposta la data del pagamento.
+     * Imposta data del pagamento.
      *
-     * @param dataPagamento nuova data del pagamento
+     * @param dataPagamento data del pagamento
      */
-    public void setDataPagamento(LocalDateTime dataPagamento) { this.dataPagamento = dataPagamento; }
+    public void setDataPagamento(LocalDateTime dataPagamento) {
+        this.dataPagamento = dataPagamento;
+    }
 
     /**
-     * Restituisce il posto assegnato.
-     *
+     * Restituisce posto assegnato.
      * @return posto assegnato
      */
-    public PostoResponse getPosto() { return posto; }
+    public PostoResponse getPosto() {
+        return posto;
+    }
 
     /**
-     * Imposta il posto assegnato.
+     * Imposta posto assegnato.
      *
-     * @param posto nuovo posto
+     * @param posto posto da convertire o aggiornare
      */
-    public void setPosto(PostoResponse posto) { this.posto = posto; }
-    
+    public void setPosto(PostoResponse posto) {
+        this.posto = posto;
+    }
+
     /**
-     * Restituisce la scadenza di arrivo.
-     *
+     * Restituisce scadenza di arrivo.
      * @return scadenza di arrivo
      */
     public LocalDateTime getScadenzaArrivo() {
@@ -274,23 +288,11 @@ public class Prenotazione {
     }
 
     /**
-     * Imposta la scadenza di arrivo.
+     * Imposta scadenza di arrivo.
      *
-     * @param scadenzaArrivo nuova scadenza
+     * @param scadenzaArrivo scadenza di arrivo
      */
     public void setScadenzaArrivo(LocalDateTime scadenzaArrivo) {
         this.scadenzaArrivo = scadenzaArrivo;
     }
 }
-
-/**
- * Rappresenta un contenitore per le principali date di una prenotazione.
- *
- * Permette di raggruppare le informazioni temporali in un'unica struttura.
- *
- * @param dataCreazione data di creazione
- * @param dataIngresso data di ingresso
- * @param dataUscita data di uscita
- */
-record PrenotazioneDate(LocalDateTime dataCreazione, LocalDateTime dataIngresso,
-                        LocalDateTime dataUscita) {}

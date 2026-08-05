@@ -5,33 +5,34 @@ import java.time.LocalDateTime;
 import pmg.backend.posto.PostoResponse;
 
 /**
- * DTO utilizzato per restituire i dati di una prenotazione.
+ * DTO utilizzato per restituire tutte le informazioni principali di una prenotazione.
  *
- * Include le informazioni principali della prenotazione,
- * come posizione, capacità e stato.
+ * Comprende lo stato, le date del ciclo di vita, il pagamento e lo snapshot del
+ * posto assegnato.
  *
  * @param id identificativo della prenotazione
- * @param utenteId identificativo dell'utente associato alla prenotazione
- * @param parcheggioId identificativo del parcheggio associato alla prenotazione
- * @param dataCreazione data di creazione della prenotazione
- * @param codiceQr codice QR associato della prenotazione
- * @param stato stato della prenotazione
- * @param dataIngresso informazioni temporali dell'ingresso nel parcheggio
- * @param dataUscita informazioni temporali dell'uscita dal parcheggio
- * @param importoPagato importo pagato dall'utente relativo alla permanenza nel parcheggio
- * @param posto informazioni relative al posto bloccato dalla prenotazione
- * @param scadenzaArrivo momento temporale entro il quale deve essere validato l'ingresso nel parcheggio
+ * @param utenteId identificativo dell'utente
+ * @param parcheggioId identificativo del parcheggio
+ * @param dataCreazione data e ora di creazione
+ * @param codiceQr codice QR associato
+ * @param stato stato corrente della prenotazione
+ * @param dataIngresso data e ora di ingresso
+ * @param dataUscita data e ora di uscita
+ * @param importoPagato importo pagato
+ * @param posto snapshot del posto assegnato
+ * @param scadenzaArrivo termine entro il quale validare l'ingresso
  */
 public record PrenotazioneResponse(
-    String id,
-    String utenteId,
-    String parcheggioId,
-    LocalDateTime dataCreazione,
-    String codiceQr,
-    StatoPrenotazione stato,
-    LocalDateTime dataIngresso,
-    LocalDateTime dataUscita,
-    Double importoPagato,
-    PostoResponse posto,
-    LocalDateTime scadenzaArrivo
-) {}
+        String id,
+        String utenteId,
+        String parcheggioId,
+        LocalDateTime dataCreazione,
+        String codiceQr,
+        StatoPrenotazione stato,
+        LocalDateTime dataIngresso,
+        LocalDateTime dataUscita,
+        Double importoPagato,
+        PostoResponse posto,
+        LocalDateTime scadenzaArrivo
+) {
+}

@@ -3,32 +3,29 @@ package pmg.backend.parcheggio;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.stereotype.Service;
-
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoResponse;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
 
 /**
- * Servizio per la gestione dei parcheggi.
+ * Servizio applicativo per la gestione dei parcheggi.
  *
- * Definisce le operazioni principali per la ricerca,
- * prenotazione e gestione dei parcheggi e dei posti.
+ * Definisce le operazioni di ricerca, prenotazione, gestione dell'emergenza,
+ * assegnazione dei posti e recupero della mappa logica.
  */
-@Service
 public interface ParcheggioService {
 
     /**
-     * Cerca parcheggi in base all'area geografica.
+     * Cerca i parcheggi presenti nell'area indicata.
      *
-     * @param area area da cercare
+     * @param area area geografica di ricerca
      * @return lista dei parcheggi trovati
      */
     List<ParcheggioResponse> cercaPerArea(String area);
 
     /**
-     * Effettua una prenotazione di un posto auto.
+     * Assegna un posto idoneo e crea una nuova prenotazione.
      *
      * @param req dati della richiesta di prenotazione
      * @return prenotazione creata
@@ -36,52 +33,65 @@ public interface ParcheggioService {
     PrenotazioneResponse effettuaPrenotazione(PrenotazioneRequest req);
 
     /**
-     * Cerca parcheggi vicini a una posizione geografica.
+     * Cerca e ordina i parcheggi vicini a una posizione geografica.
      *
-     * @param lat latitudine
-     * @param lng longitudine
-     * @param radius raggio di ricerca in metri
-     * @return lista dei parcheggi trovati
+     * @param lat latitudine del punto di ricerca
+     * @param lng longitudine del punto di ricerca
+     * @param radius raggio massimo di ricerca in metri
+     * @return lista dei parcheggi ordinati per distanza
      */
     List<ParcheggioResponse> cercaVicini(double lat, double lng, double radius);
 
     /**
-     * Imposta lo stato di emergenza di un parcheggio.
+     * Aggiorna lo stato di emergenza e registra l'eventuale allarme.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @param stato stato di emergenza (true/false)
-     * @param motivo motivo dell'emergenza
+     * @param stato nuovo stato operativo
+     * @param motivo motivo dell'emergenza, se disponibile
      */
-    void impostaStatoEmergenza(String parcheggioId, boolean stato, String motivo);
+    void impostaStatoEmergenza(
+            String parcheggioId,
+            boolean stato,
+            String motivo);
 
     /**
-     * Assegna il posto ottimale in base alle preferenze utente.
+     * Seleziona e prenota il posto più adatto alle preferenze dell'utente.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @param preferenze preferenze utente
-     * @return posto selezionato o null se non disponibile
+     * @param preferenze preferenze dell'utente
+     * @return posto assegnato oppure {@code null} se non disponibile
      */
-    Posto assegnaPostoOttimale(String parcheggioId, Map<String, String> preferenze);
+    Posto assegnaPostoOttimale(
+            String parcheggioId,
+            Map<String, String> preferenze);
 
     /**
-     * Recupera un parcheggio tramite il suo identificativo.
+     * Recupera un parcheggio tramite il relativo identificativo.
      *
-     * @param id identificativo del parcheggio
-     * @return parcheggio corrispondente all'identificativo indicato
+     * @param id identificativo della risorsa
+     * @return parcheggio richiesto
      */
     ParcheggioResponse getById(String id);
 
     /**
-     * Recupera i posti di un parcheggio.
+     * Recupera la mappa logica completa del parcheggio.
+     *
+     * @param id identificativo della risorsa
+     * @return mappa logica completa
+     */
+    MappaParcheggioResponse getMappa(String id);
+
+    /**
+     * Recupera i posti di un parcheggio, eventualmente filtrati per piano.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @param piano piano opzionale
-     * @return lista dei posti
+     * @param piano piano da filtrare o modificare
+     * @return elenco dei posti
      */
     List<PostoResponse> getPosti(String parcheggioId, Integer piano);
 
     /**
-     * Sincronizza le statistiche dei posti di un parcheggio.
+     * Sincronizza i contatori del parcheggio con lo stato dei posti embedded.
      *
      * @param parcheggioId identificativo del parcheggio
      */

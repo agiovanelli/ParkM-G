@@ -10,6 +10,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:park_mg/indoor/assignment/assignment_provider.dart';
 import 'package:park_mg/indoor/parking_map_definition.dart';
+import 'package:park_mg/indoor/models/indoor_models.dart';
 import 'package:park_mg/indoor/ui/indoor_parking_view.dart';
 import 'package:park_mg/models/prenotazione.dart';
 import 'package:park_mg/screen/home_page.dart';
@@ -98,9 +99,12 @@ class _UserScreenState extends State<UserScreen>
   Timer? _parkedConfirmTimer;
   bool _parkingConfirmVisible = false;
   bool _forceHideIndoorMap = false;
-  late final IndoorMapDefinition _indoorDef = buildDefaultIndoorMapDefinition();
-  final IndoorAssignmentProvider _assignmentProvider =
-      const IndoorAssignmentProvider();
+  IndoorMapDefinition? _indoorDef;
+  IndoorAssignment? _indoorAssignment;
+  bool _isLoadingIndoorMap = false;
+  String? _indoorMapError;
+  String? _loadedIndoorParkingId;
+  String? _loadedIndoorSlotId;
 
   bool get _showIndoorMap {
     final b = _activeBooking;
@@ -199,6 +203,12 @@ class _UserScreenState extends State<UserScreen>
       _returnOverlay = false;
       _arrivalUiDone = false;
       _externalNavOpened = false;
+
+      _indoorDef = null;
+      _indoorAssignment = null;
+      _indoorMapError = null;
+      _loadedIndoorParkingId = null;
+      _loadedIndoorSlotId = null;
 
       _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
     });
@@ -300,24 +310,54 @@ class _UserScreenState extends State<UserScreen>
   Future<Map<String, dynamic>> _enrichParkingWithSpotStats(
     Map<String, dynamic> parking,
   ) async {
-    final parkingId = parking['id']?.toString();
-    if (parkingId == null || parkingId.isEmpty) return parking;
+    final enriched = Map<String, dynamic>.from(parking);
+    final floorConfigs =
+        parking['configurazionePiani'] as List<dynamic>? ?? const [];
 
-    try {
-      final spots = await widget.apiClient.getPostiParcheggio(parkingId);
-      final total = spots.length;
-      final available = spots
-          .where((posto) => posto.disponibile && !posto.disabilitato)
-          .length;
-
-      final enriched = Map<String, dynamic>.from(parking);
-      enriched['postiTotali'] = total;
-      enriched['postiDisponibili'] = available;
+    if (floorConfigs.isEmpty) {
       return enriched;
-    } catch (e) {
-      debugPrint('Errore caricamento stats posti per parcheggio $parkingId: $e');
-      return parking;
     }
+
+    int total = 0;
+    int available = 0;
+    bool hasDetailedSlots = false;
+
+    for (final floorRaw in floorConfigs) {
+      final floor = floorRaw as Map<String, dynamic>;
+      final slotCount = (floor['numeroPosti'] as num?)?.toInt() ?? 0;
+      final slots = floor['posti'] as List<dynamic>? ?? const [];
+
+      total += slotCount;
+
+      if (slots.isNotEmpty) {
+        hasDetailedSlots = true;
+        final generatedFreeSlots = slotCount > slots.length
+            ? slotCount - slots.length
+            : 0;
+
+        available += generatedFreeSlots;
+        available += slots.where((raw) {
+          final slot = raw as Map<String, dynamic>;
+          final outOfService =
+              slot['fuoriServizio'] as bool? ??
+              slot['disabilitato'] as bool? ??
+              false;
+          final status = slot['stato']?.toString().toUpperCase();
+          final isAvailable = slot['disponibile'] as bool?;
+
+          if (outOfService) return false;
+          if (status != null) return status == 'LIBERO';
+          return isAvailable ?? true;
+        }).length;
+      }
+    }
+
+    enriched['postiTotali'] = total;
+    enriched['postiDisponibili'] = hasDetailedSlots
+        ? available
+        : (parking['postiDisponibili'] as num?)?.toInt() ?? total;
+
+    return enriched;
   }
 
   Future<void> _selectParking(Map<String, dynamic> parking) async {
@@ -336,12 +376,136 @@ class _UserScreenState extends State<UserScreen>
 
   // -------------------- utils --------------------
 
+  Future<void> _prepareIndoorMap() async {
+    final booking = _activeBooking;
+    final assignedSlotId = booking?.posto?.slotId;
+
+    if (booking == null || assignedSlotId == null || assignedSlotId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _indoorMapError = 'La prenotazione non contiene uno slot assegnato.';
+        _isLoadingIndoorMap = false;
+      });
+      return;
+    }
+
+    final sameMapAlreadyLoaded =
+        _loadedIndoorParkingId == booking.parcheggioId &&
+        _loadedIndoorSlotId == assignedSlotId &&
+        _indoorDef != null &&
+        _indoorAssignment != null;
+
+    if (sameMapAlreadyLoaded || _isLoadingIndoorMap) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingIndoorMap = true;
+      _indoorMapError = null;
+      _indoorDef = null;
+      _indoorAssignment = null;
+    });
+
+    try {
+      final definition = await widget.apiClient.getIndoorParkingMap(
+        booking.parcheggioId,
+      );
+
+      final assignment = IndoorAssignmentProvider(
+        definition: definition,
+      ).fromSlotId(assignedSlotId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _indoorDef = definition;
+        _indoorAssignment = assignment;
+        _loadedIndoorParkingId = booking.parcheggioId;
+        _loadedIndoorSlotId = assignedSlotId;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _indoorMapError = 'Impossibile generare la mappa indoor: $error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingIndoorMap = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildIndoorMapContent() {
+    if (_isLoadingIndoorMap) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.accentCyan,
+        ),
+      );
+    }
+
+    final error = _indoorMapError;
+    if (error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.orangeAccent,
+                size: 42,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _prepareIndoorMap,
+                child: const Text('Riprova'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final definition = _indoorDef;
+    final assignment = _indoorAssignment;
+
+    if (definition == null || assignment == null) {
+      return const Center(
+        child: Text(
+          'Preparazione della mappa indoor…',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    return IndoorParkingView(
+      key: _indoorKey,
+      def: definition,
+      assignment: assignment,
+      userFloor: 1,
+      showGridDebug: false,
+      onArrivedToSlot: _handleIndoorArrivedToSlot,
+    );
+  }
+
   void _enterIndoorModeIfNeeded() {
     debugPrint('ENTER INDOOR called, showIndoor=$_showIndoorMap');
     if (!mounted) return;
     if (!_showIndoorMap) return;
 
     _stopReturnOverlay();
+    _prepareIndoorMap();
 
     final nav = Navigator.of(context);
     if (nav.canPop()) nav.pop();
@@ -499,7 +663,8 @@ class _UserScreenState extends State<UserScreen>
             (p) =>
                 p.stato == StatoPrenotazione.attiva ||
                 p.stato == StatoPrenotazione.inCorso ||
-                p.stato == StatoPrenotazione.parcheggiato,
+                p.stato == StatoPrenotazione.parcheggiato ||
+                p.stato == StatoPrenotazione.pagato,
           )
           .toList();
 
@@ -519,6 +684,11 @@ class _UserScreenState extends State<UserScreen>
           _externalNavOpened = false;
           _forceHideIndoorMap = false;
           _showGestioneSostaView = false;
+          _indoorDef = null;
+          _indoorAssignment = null;
+          _indoorMapError = null;
+          _loadedIndoorParkingId = null;
+          _loadedIndoorSlotId = null;
         });
         return;
       }
@@ -540,7 +710,9 @@ class _UserScreenState extends State<UserScreen>
 
       if (!mounted) return;
 
-      final bool showGestione = booking.stato == StatoPrenotazione.parcheggiato;
+      final bool showGestione =
+          booking.stato == StatoPrenotazione.parcheggiato ||
+          booking.stato == StatoPrenotazione.pagato;
 
       setState(() {
         _activeBooking = booking;
@@ -553,6 +725,10 @@ class _UserScreenState extends State<UserScreen>
         _forceHideIndoorMap = showGestione;
         _showGestioneSostaView = showGestione;
       });
+
+      if (booking.stato == StatoPrenotazione.inCorso) {
+        await _prepareIndoorMap();
+      }
 
       _enterIndoorModeIfNeeded();
       _showOnlyBookedParking(park);
@@ -767,6 +943,7 @@ class _UserScreenState extends State<UserScreen>
           _arrivalHandled = false;
         });
         _stopBookingStatusPolling();
+        await _prepareIndoorMap();
         _enterIndoorModeIfNeeded();
         return;
       }
@@ -897,6 +1074,12 @@ class _UserScreenState extends State<UserScreen>
 
       _forceHideIndoorMap = false;
       _showGestioneSostaView = false;
+
+      _indoorDef = null;
+      _indoorAssignment = null;
+      _indoorMapError = null;
+      _loadedIndoorParkingId = null;
+      _loadedIndoorSlotId = null;
 
       _markers.removeWhere((m) => m.markerId.value.startsWith('p_'));
     });
@@ -1234,9 +1417,9 @@ Future<void> _bootstrapMyLocation() async {
 
   Future<void> _toggleParkings() async {
     if (_bookedParkingMarkerId != null) {
-      UiFeedback.showError(
+      UiFeedback.showInfo(
         context,
-        'Hai già una prenotazione attiva: mostro solo il parcheggio prenotato.',
+        'Hai già una prenotazione attiva: viene mostrato solo il parcheggio prenotato.',
       );
       return;
     }
@@ -1647,7 +1830,7 @@ Future<void> _effettuaPrenotazione(
       final results = (data['results'] as List).cast<Map<String, dynamic>>();
       if (results.isEmpty) {
         if(!mounted) return;
-        UiFeedback.showError(context, 'Nessun risultato trovato.');
+        UiFeedback.showInfo(context, 'Nessun risultato trovato.');
         return;
       }
 
@@ -1680,6 +1863,7 @@ Future<void> _effettuaPrenotazione(
       if(!mounted) return;
       FocusScope.of(context).unfocus();
     } catch (_) {
+      if (!mounted) return;
       UiFeedback.showError(context, 'Errore durante la ricerca.');
     }
   }
@@ -1858,30 +2042,15 @@ Future<void> _effettuaPrenotazione(
                                 },
                               )
                             else if (_showIndoorMap)
-                              IndoorParkingView(
-                                key: _indoorKey,
-                                def: _indoorDef,
-                                assignment: _assignmentProvider.fromSlotId(
-                                  _activeBooking!.posto!.slotId,
-                                ),
-                                userFloor: 1,
-                                showGridDebug: false,
-                                onArrivedToSlot: _handleIndoorArrivedToSlot,
-                              )
+                              _buildIndoorMapContent()
                             else
                               GoogleMap(
                                 onCameraMove: (pos) =>
                                     _cameraTarget = pos.target,
                                 initialCameraPosition: _initialCamera,
-                                onMapCreated: (c) async {
-                                  _mapController = c;
-                                  GoogleMap(
-                                    initialCameraPosition: _initialCamera,
-                                    style: _mapStyleNoPoi,
-                                    onMapCreated: (controller) {
-                                      _mapController = controller;
-                                    },
-                                  );
+                                style: _mapStyleNoPoi,
+                                onMapCreated: (controller) async {
+                                  _mapController = controller;
                                   if (_pendingCenter != null) {
                                     final me = _pendingCenter!;
                                     _pendingCenter = null;

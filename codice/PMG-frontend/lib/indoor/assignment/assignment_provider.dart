@@ -1,61 +1,41 @@
-import 'package:flutter/foundation.dart';
-import 'package:park_mg/indoor/slot_map.dart';
-
 import '../models/indoor_models.dart';
-import '../graph/lane_grid_mask.dart';
+import '../parking_map_definition.dart';
+import '../slot_map.dart';
 
 class IndoorAssignmentProvider {
-  const IndoorAssignmentProvider();
+  final IndoorMapDefinition definition;
+
+  const IndoorAssignmentProvider({
+    required this.definition,
+  });
 
   IndoorAssignment fromSlotId(String rawSlotId) {
-    late final ParsedSlotId parsed;
+    final parsed = ParsedSlotId.parse(rawSlotId);
+    final layout = definition.layouts[parsed.floor];
 
-    try {
-      parsed = ParsedSlotId.parse(rawSlotId);
-    } catch (e) {
-      debugPrint('Formato slot non valido: $rawSlotId - $e');
-
-      final fallbackPoint = LaneGridMask.cellCenterToNormalized(
-        LaneGridMask.rampCol,
-        LaneGridMask.rampRow,
-      );
-
-      return IndoorAssignment(
-        slot: IndoorSlotRef(
-          floor: 1,
-          slotId: rawSlotId,
-        ),
-        slotPoint: IndoorPoint(fallbackPoint.dx, fallbackPoint.dy),
+    if (layout == null) {
+      throw StateError(
+        'Piano ${parsed.floor} non presente nella mappa '
+        '${definition.data.parkingId}',
       );
     }
 
-    final cell = baseSlotMap[parsed.slotNumber];
+    final generatedSlot = layout.tryGetSlotById(rawSlotId) ??
+        layout.tryGetSlotById(parsed.value) ??
+        layout.tryGetSlotByNumber(parsed.slotNumber);
 
-    if (cell == null) {
-      debugPrint('Slot non mappato graficamente: ${parsed.value}');
-
-      final fallbackPoint = LaneGridMask.cellCenterToNormalized(
-        LaneGridMask.rampCol,
-        LaneGridMask.rampRow,
-      );
-
-      return IndoorAssignment(
-        slot: IndoorSlotRef(
-          floor: parsed.floor,
-          slotId: parsed.value,
-        ),
-        slotPoint: IndoorPoint(fallbackPoint.dx, fallbackPoint.dy),
+    if (generatedSlot == null) {
+      throw StateError(
+        'Posto ${parsed.value} non presente nel piano ${parsed.floor}',
       );
     }
-
-    final point = LaneGridMask.cellCenterToNormalized(cell.c, cell.r);
 
     return IndoorAssignment(
       slot: IndoorSlotRef(
         floor: parsed.floor,
-        slotId: parsed.value,
+        slotId: generatedSlot.data.slotId,
       ),
-      slotPoint: IndoorPoint(point.dx, point.dy),
+      approachCell: generatedSlot.approachCell,
     );
   }
 }

@@ -1,45 +1,46 @@
 package pmg.backend.posto;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import pmg.backend.parcheggio.ConfigurazionePiano;
 import pmg.backend.parcheggio.Parcheggio;
 import pmg.backend.parcheggio.ParcheggioRepository;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Implementazione del servizio per la gestione dei posti auto.
+ * Implementazione del servizio per la gestione dei posti embedded.
  *
- * Gestisce il recupero, la generazione e l'aggiornamento
- * dello stato dei posti all'interno dei parcheggi.
+ * Le modifiche vengono applicate direttamente al documento {@link pmg.backend.parcheggio.Parcheggio},
+ * che viene poi salvato nuovamente tramite il repository dei parcheggi.
  */
 @Service
 public class PostoServiceImpl implements PostoService {
 
-    /** Repository per l'accesso ai dati dei posti. */
-    private final PostoRepository postoRepository;
-
-    /** Repository per l'accesso ai dati dei parcheggi. */
+    /**
+     * Repository per l'accesso ai parcheggi.
+     */
     private final ParcheggioRepository parcheggioRepository;
 
     /**
-     * Crea una nuova istanza del servizio posti.
+     * Crea una nuova istanza di PostoServiceImpl con i dati indicati.
      *
-     * @param postoRepository repository dei posti
-     * @param parcheggioRepository repository dei parcheggi
+     * @param parcheggioRepository parcheggio repository
      */
-    public PostoServiceImpl(PostoRepository postoRepository,
-                            ParcheggioRepository parcheggioRepository) {
-        this.postoRepository = postoRepository;
+    public PostoServiceImpl(ParcheggioRepository parcheggioRepository) {
         this.parcheggioRepository = parcheggioRepository;
     }
 
     /**
-     * Recupera tutti i posti di un parcheggio.
+     * Restituisce posti by parcheggio.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @return lista dei posti
+     * @return posti by parcheggio
      */
     @Override
     public List<PostoResponse> getPostiByParcheggio(String parcheggioId) {
@@ -47,169 +48,450 @@ public class PostoServiceImpl implements PostoService {
     }
 
     /**
-     * Recupera i posti di un parcheggio, opzionalmente filtrati per piano.
+     * Restituisce posti by parcheggio.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @param piano piano opzionale
-     * @return lista dei posti
+     * @param piano piano da filtrare o modificare
+     * @return posti by parcheggio
      */
     @Override
+    @Transactional
     public List<PostoResponse> getPostiByParcheggio(String parcheggioId, Integer piano) {
-        List<Posto> posti = (piano == null)
-                ? postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(parcheggioId)
-                : postoRepository.findByParcheggioIdAndPianoOrderByNumeroAsc(parcheggioId, piano);
+        generaPosti(parcheggioId);
+        Parcheggio parcheggio = getParcheggio(parcheggioId);
 
-        return posti.stream()
-                .map(PostoResponse::new)
+        return parcheggio.getTuttiPosti().stream()
+                .filter(posto -> piano == null || posto.getPiano() == piano)
+                .sorted(Comparator.comparingInt(Posto::getPiano)
+                        .thenComparingInt(Posto::getNumero))
+                .map(posto -> new PostoResponse(posto, parcheggioId))
                 .toList();
     }
 
     /**
-     * Genera i posti per un parcheggio.
-     *
-     * Crea automaticamente i posti suddivisi per piano e numero,
-     * assegnando distanza dall'uscita e vincoli (disabili, gravidanza).
+     * Genera o completa i posti embedded sulla base della configurazione dei piani.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @throws IllegalStateException se i posti sono già stati generati
      */
     @Override
+    @Transactional
     public void generaPosti(String parcheggioId) {
-        List<Posto> esistenti = postoRepository.findByParcheggioIdOrderByPianoAscNumeroAsc(parcheggioId);
-        if (!esistenti.isEmpty()) {
-            throw new IllegalStateException("Posti già generati per il parcheggio " + parcheggioId);
+        Parcheggio parcheggio = getParcheggio(parcheggioId);
+
+        if (parcheggio.getConfigurazionePiani().isEmpty()) {
+            throw new IllegalStateException(
+                    "Configurazione piani assente per il parcheggio " + parcheggioId);
         }
 
-        List<Posto> posti = new ArrayList<>();
+        for (ConfigurazionePiano configurazione : parcheggio.getConfigurazionePiani()) {
+            if (configurazione.getPiano() <= 0) {
+                throw new IllegalStateException("Numero piano non valido");
+            }
+            if (configurazione.getNumeroPosti() < 0) {
+                throw new IllegalStateException(
+                        "Numero posti non valido per il piano " + configurazione.getPiano());
+            }
 
-        for (int piano = 1; piano <= 3; piano++) {
-            for (int numero = 1; numero <= 18; numero++) {
-                Posto p = new Posto();
-                p.setPiano(piano);
-                p.setNumero(numero);
+            Map<Integer, Posto> esistentiPerNumero = new HashMap<>();
+            for (Posto posto : configurazione.getPosti()) {
+                esistentiPerNumero.put(posto.getNumero(), posto);
+            }
 
-                if (numero < 8) {
-                    p.setDistanzaUscita(1);
-                } else if (numero < 15) {
-                    p.setDistanzaUscita(4);
-                } else if (numero < 17) {
-                    p.setDistanzaUscita(2);
+            List<Posto> rigenerati = new ArrayList<>();
+            for (int numero = 1; numero <= configurazione.getNumeroPosti(); numero++) {
+                Posto posto = esistentiPerNumero.get(numero);
+                if (posto == null) {
+                    posto = creaPosto(
+                            configurazione.getPiano(),
+                            numero,
+                            configurazione.getNumeroPosti());
                 } else {
-                    p.setDistanzaUscita(3);
+                    normalizzaPosto(
+                            posto,
+                            configurazione.getPiano(),
+                            numero,
+                            configurazione.getNumeroPosti());
                 }
+                rigenerati.add(posto);
+            }
 
-                p.setDisponibile(true);
-                p.setDisabilitato(false);
-                p.setRiservatoDisabili(numero >= 17);
-                p.setRiservatoIncinta(numero >= 15 && numero <= 16);
-                p.setParcheggioId(parcheggioId);
+            configurazione.setPosti(rigenerati);
+        }
 
-                posti.add(p);
+        parcheggio.ricalcolaStatistiche();
+        parcheggioRepository.save(parcheggio);
+    }
+
+    /**
+     * Aggiorna la disponibilità di un posto embedded.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param piano piano da filtrare o modificare
+     * @param numero numero progressivo del posto
+     * @param disponibile nuovo valore della disponibilità
+     * @return posto aggiornato
+     */
+    @Override
+    @Transactional
+    public PostoResponse aggiornaDisponibilita(
+            String parcheggioId,
+            int piano,
+            int numero,
+            boolean disponibile) {
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        Posto posto = parcheggio.trovaPosto(piano, numero)
+                .orElseThrow(() -> new IllegalArgumentException("Posto non trovato"));
+
+        posto.setStato(disponibile ? StatoPosto.LIBERO : StatoPosto.PRENOTATO);
+        salvaConStatistiche(parcheggio);
+        return new PostoResponse(posto, parcheggioId);
+    }
+
+    /**
+     * Aggiorna il campo legacy di disabilitazione del posto.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param piano piano da filtrare o modificare
+     * @param numero numero progressivo del posto
+     * @param disabilitato nuovo valore legacy di disabilitazione
+     * @return posto aggiornato
+     */
+    @Override
+    @Transactional
+    public PostoResponse aggiornaDisabilitato(
+            String parcheggioId,
+            int piano,
+            int numero,
+            boolean disabilitato) {
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        Posto posto = parcheggio.trovaPosto(piano, numero)
+                .orElseThrow(() -> new IllegalArgumentException("Posto non trovato"));
+
+        validaMessaFuoriServizio(posto, disabilitato);
+        posto.setFuoriServizio(disabilitato);
+        salvaConStatistiche(parcheggio);
+        return new PostoResponse(posto, parcheggioId);
+    }
+
+    /**
+     * Aggiorna la messa fuori servizio del posto.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param slotId identificativo logico del posto
+     * @param fuoriServizio nuovo valore della messa fuori servizio
+     * @return posto aggiornato
+     */
+    @Override
+    @Transactional
+    public PostoResponse aggiornaFuoriServizio(
+            String parcheggioId,
+            String slotId,
+            boolean fuoriServizio) {
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        Posto posto = trovaPosto(parcheggio, slotId);
+
+        validaMessaFuoriServizio(posto, fuoriServizio);
+        posto.setFuoriServizio(fuoriServizio);
+        salvaConStatistiche(parcheggio);
+        return new PostoResponse(posto, parcheggioId);
+    }
+
+    /**
+     * Aggiorna lo stato operativo del posto.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param slotId identificativo logico del posto
+     * @param stato nuovo stato operativo
+     * @return posto aggiornato
+     */
+    @Override
+    @Transactional
+    public PostoResponse aggiornaStato(
+            String parcheggioId,
+            String slotId,
+            StatoPosto stato) {
+        if (stato == null) {
+            throw new IllegalArgumentException("Stato posto obbligatorio");
+        }
+
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        Posto posto = trovaPosto(parcheggio, slotId);
+
+        if (posto.isFuoriServizio() && stato != StatoPosto.LIBERO) {
+            throw new IllegalStateException("Il posto è fuori servizio");
+        }
+
+        posto.setStato(stato);
+        salvaConStatistiche(parcheggio);
+        return new PostoResponse(posto, parcheggioId);
+    }
+
+    /**
+     * Seleziona il posto ottimale, lo marca come prenotato e salva il parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param preferenze preferenze dell'utente
+     * @return posto selezionato e marcato come prenotato
+     */
+    @Override
+    @Transactional
+    public Posto prenotaPostoOttimale(
+            String parcheggioId,
+            Map<String, String> preferenze) {
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        Posto posto = selezionaPostoOttimale(preferenze, parcheggio.getTuttiPosti());
+
+        if (posto == null) {
+            return null;
+        }
+
+        posto.setStato(StatoPosto.PRENOTATO);
+        salvaConStatistiche(parcheggio);
+        return posto;
+    }
+
+    /**
+     * Ricerca un posto all'interno della configurazione embedded del parcheggio.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @param slotId identificativo logico del posto
+     * @return posto trovato, se presente
+     */
+    @Override
+    @Transactional
+    public Posto trovaPosto(String parcheggioId, String slotId) {
+        Parcheggio parcheggio = preparaParcheggio(parcheggioId);
+        return trovaPosto(parcheggio, slotId);
+    }
+
+    /**
+     * Carica il parcheggio e genera gli eventuali posti mancanti.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @return parcheggio pronto all'uso
+     */
+    private Parcheggio preparaParcheggio(String parcheggioId) {
+        generaPosti(parcheggioId);
+        return getParcheggio(parcheggioId);
+    }
+
+    /**
+     * Recupera il parcheggio o solleva un errore se non esiste.
+     *
+     * @param parcheggioId identificativo del parcheggio
+     * @return parcheggio trovato
+     */
+    private Parcheggio getParcheggio(String parcheggioId) {
+        return parcheggioRepository.findById(parcheggioId)
+                .orElseThrow(() -> new IllegalArgumentException("Parcheggio non trovato"));
+    }
+
+    /**
+     * Ricerca un posto all'interno della configurazione embedded del parcheggio.
+     *
+     * @param parcheggio documento del parcheggio da convertire o elaborare
+     * @param slotId identificativo logico del posto
+     * @return posto trovato, se presente
+     */
+    private Posto trovaPosto(Parcheggio parcheggio, String slotId) {
+        return parcheggio.trovaPosto(slotId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Posto non trovato: " + slotId));
+    }
+
+    /**
+     * Ricalcola le statistiche e salva il parcheggio.
+     *
+     * @param parcheggio documento del parcheggio da convertire o elaborare
+     */
+    private void salvaConStatistiche(Parcheggio parcheggio) {
+        parcheggio.ricalcolaStatistiche();
+        parcheggioRepository.save(parcheggio);
+    }
+
+    /**
+     * Verifica che il posto possa essere messo fuori servizio.
+     *
+     * @param posto posto da convertire o aggiornare
+     * @param fuoriServizio nuovo valore della messa fuori servizio
+     */
+    private void validaMessaFuoriServizio(Posto posto, boolean fuoriServizio) {
+        if (fuoriServizio && posto.getStato() != StatoPosto.LIBERO) {
+            throw new IllegalStateException(
+                    "È possibile mettere fuori servizio solo un posto libero");
+        }
+    }
+
+    /**
+     * Crea un nuovo posto con identificativi e proprietà iniziali coerenti.
+     *
+     * @param piano piano da filtrare o modificare
+     * @param numero numero progressivo del posto
+     * @param numeroPostiPiano numero totale di posti del piano
+     * @return nuovo posto generato
+     */
+    private Posto creaPosto(int piano, int numero, int numeroPostiPiano) {
+        String slotId = formatSlotId(piano, numero);
+        return new Posto(
+                slotId,
+                numero,
+                "P" + piano + "-" + String.format("%02d", numero),
+                piano,
+                determinaTipo(numero, numeroPostiPiano),
+                StatoPosto.LIBERO,
+                false,
+                calcolaDistanzaUscita(numero, numeroPostiPiano));
+    }
+
+    /**
+     * Normalizza i dati di un posto già esistente rispetto alla configurazione corrente.
+     *
+     * @param posto posto da convertire o aggiornare
+     * @param piano piano da filtrare o modificare
+     * @param numero numero progressivo del posto
+     * @param numeroPostiPiano numero totale di posti del piano
+     */
+    private void normalizzaPosto(
+            Posto posto,
+            int piano,
+            int numero,
+            int numeroPostiPiano) {
+        posto.setPiano(piano);
+        posto.setNumero(numero);
+        posto.setSlotId(formatSlotId(piano, numero));
+
+        if (posto.getNome() == null || posto.getNome().isBlank()) {
+            posto.setNome("P" + piano + "-" + String.format("%02d", numero));
+        }
+        if (posto.getTipo() == null) {
+            posto.setTipo(determinaTipo(numero, numeroPostiPiano));
+        }
+        if (posto.getStato() == null) {
+            posto.setStato(StatoPosto.LIBERO);
+        }
+        if (posto.getDistanzaUscita() <= 0) {
+            posto.setDistanzaUscita(
+                    calcolaDistanzaUscita(numero, numeroPostiPiano));
+        }
+    }
+
+    /**
+     * Costruisce l'identificativo logico del posto.
+     *
+     * @param piano piano da filtrare o modificare
+     * @param numero numero progressivo del posto
+     * @return identificativo nel formato piano-numero
+     */
+    private String formatSlotId(int piano, int numero) {
+        return piano + "-" + String.format("%02d", numero);
+    }
+
+    /**
+     * Determina la categoria del posto in base alla sua posizione nel piano.
+     *
+     * @param numero numero progressivo del posto
+     * @param numeroPostiPiano numero totale di posti del piano
+     * @return categoria assegnata al posto
+     */
+    private TipoPosto determinaTipo(int numero, int numeroPostiPiano) {
+        if (numeroPostiPiano >= 2 && numero > numeroPostiPiano - 2) {
+            return TipoPosto.DISABILI;
+        }
+        if (numeroPostiPiano >= 4 && numero > numeroPostiPiano - 4) {
+            return TipoPosto.INCINTA;
+        }
+        return TipoPosto.NORMALE;
+    }
+
+    /**
+     * Calcola l'indice logico di distanza del posto dall'uscita.
+     *
+     * @param numero numero progressivo del posto
+     * @param numeroPostiPiano numero totale di posti del piano
+     * @return indice logico di distanza
+     */
+    private int calcolaDistanzaUscita(int numero, int numeroPostiPiano) {
+        if (numeroPostiPiano <= 1) {
+            return 1;
+        }
+        int fascia = 1 + ((numero - 1) * 4 / numeroPostiPiano);
+        return Math.max(1, Math.min(4, fascia));
+    }
+
+    /**
+     * Valuta i posti disponibili e restituisce quello con il punteggio migliore.
+     *
+     * @param preferenzeUtente preferenze utente
+     * @param posti elenco dei posti del piano
+     * @return posto con il punteggio migliore o {@code null}
+     */
+    private Posto selezionaPostoOttimale(
+            Map<String, String> preferenzeUtente,
+            List<Posto> posti) {
+        Map<String, String> preferenze = preferenzeUtente == null
+                ? Map.of()
+                : preferenzeUtente;
+
+        boolean disabile = "Si".equalsIgnoreCase(preferenze.get("disabile"));
+        boolean incinta = "Si".equalsIgnoreCase(preferenze.get("donnaIncinta"));
+        int distanzaPreferita = parseIntOrDefault(preferenze.get("distanza"), 1);
+
+        TipoPosto tipoRichiesto = disabile
+                ? TipoPosto.DISABILI
+                : incinta ? TipoPosto.INCINTA : TipoPosto.NORMALE;
+
+        Posto migliore = null;
+        int punteggioMigliore = Integer.MIN_VALUE;
+
+        for (Posto posto : posti) {
+            if (posto == null || !posto.isDisponibile()) {
+                continue;
+            }
+            if (posto.getTipo() != tipoRichiesto) {
+                continue;
+            }
+
+            int punteggio = -Math.abs(
+                    posto.getDistanzaUscita() - distanzaPreferita);
+
+            if (migliore == null
+                    || punteggio > punteggioMigliore
+                    || (punteggio == punteggioMigliore
+                        && confrontaPosti(posto, migliore) < 0)) {
+                migliore = posto;
+                punteggioMigliore = punteggio;
             }
         }
 
-        postoRepository.saveAll(posti);
+        return migliore;
     }
 
     /**
-     * Aggiorna la disponibilità di un posto.
+     * Confronta due posti per ottenere un ordinamento deterministico.
      *
-     * Aggiorna lo stato del posto e sincronizza il contatore
-     * dei posti disponibili del parcheggio.
-     *
-     * @param parcheggioId identificativo del parcheggio
-     * @param piano piano del posto
-     * @param numero numero del posto
-     * @param disponibile nuovo stato di disponibilità
-     * @return posto aggiornato
-     * @throws RuntimeException se il posto non viene trovato
+     * @param a primo posto da confrontare
+     * @param b secondo posto da confrontare
+     * @return valore negativo, nullo o positivo secondo l'ordinamento
      */
-    @Override
-    @Transactional
-    public PostoResponse aggiornaDisponibilita(String parcheggioId, int piano, int numero, boolean disponibile) {
-        Posto posto = postoRepository.findByParcheggioIdAndPianoAndNumero(parcheggioId, piano, numero)
-                .orElseThrow(() -> new RuntimeException("Posto non trovato"));
-
-        boolean oldDisponibile = posto.isDisponibile();
-
-        posto.setDisponibile(disponibile);
-        postoRepository.save(posto);
-
-        if (oldDisponibile != disponibile && !posto.isDisabilitato()) {
-            aggiornaContatoreDisponibili(parcheggioId, oldDisponibile, disponibile);
-        }
-
-        return new PostoResponse(posto);
+    private int confrontaPosti(Posto a, Posto b) {
+        int perPiano = Integer.compare(a.getPiano(), b.getPiano());
+        return perPiano != 0
+                ? perPiano
+                : Integer.compare(a.getNumero(), b.getNumero());
     }
 
     /**
-     * Aggiorna lo stato di disabilitazione di un posto.
+     * Converte una stringa in intero usando un valore di fallback in caso di errore.
      *
-     * Imposta automaticamente la disponibilità in base allo stato
-     * e aggiorna il contatore dei posti disponibili del parcheggio.
-     *
-     * @param parcheggioId identificativo del parcheggio
-     * @param piano piano del posto
-     * @param numero numero del posto
-     * @param disabilitato nuovo stato di disabilitazione
-     * @return posto aggiornato
-     * @throws RuntimeException se il posto o il parcheggio non vengono trovati
+     * @param value valore testuale da convertire
+     * @param defaultValue valore da usare in caso di conversione non valida
+     * @return intero convertito oppure valore di fallback
      */
-    @Override
-    @Transactional
-    public PostoResponse aggiornaDisabilitato(String parcheggioId, int piano, int numero, boolean disabilitato) {
-        Posto posto = postoRepository.findByParcheggioIdAndPianoAndNumero(parcheggioId, piano, numero)
-                .orElseThrow(() -> new RuntimeException("Posto non trovato"));
-
-        boolean oldDisponibile = posto.isDisponibile();
-        boolean oldDisabilitato = posto.isDisabilitato();
-
-        posto.setDisabilitato(disabilitato);
-
-        posto.setDisponibile(!disabilitato);
-
-        postoRepository.save(posto);
-
-        Parcheggio parcheggio = parcheggioRepository.findById(parcheggioId)
-                .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
-
-        int disponibili = parcheggio.getPostiDisponibili();
-
-        if (!oldDisabilitato && disabilitato && oldDisponibile) {
-            disponibili--;
-        } else if (oldDisabilitato && !disabilitato) {
-            disponibili++;
+    private int parseIntOrDefault(String value, int defaultValue) {
+        try {
+            return value == null ? defaultValue : Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            return defaultValue;
         }
-
-        parcheggio.setPostiDisponibili(
-                Math.clamp(disponibili, 0, parcheggio.getPostiTotali())
-        );
-        parcheggioRepository.save(parcheggio);
-
-        return new PostoResponse(posto);
-    }
-
-    /**
-     * Aggiorna il contatore dei posti disponibili di un parcheggio.
-     *
-     * @param parcheggioId identificativo del parcheggio
-     * @param oldDisponibile stato precedente
-     * @param newDisponibile nuovo stato
-     * @throws RuntimeException se il parcheggio non viene trovato
-     */
-    private void aggiornaContatoreDisponibili(String parcheggioId, boolean oldDisponibile, boolean newDisponibile) {
-        Parcheggio parcheggio = parcheggioRepository.findById(parcheggioId)
-                .orElseThrow(() -> new RuntimeException("Parcheggio non trovato"));
-
-        int disponibili = parcheggio.getPostiDisponibili();
-
-        if (oldDisponibile && !newDisponibile) {
-            disponibili--;
-        } else if (!oldDisponibile && newDisponibile) {
-            disponibili++;
-        }
-
-        parcheggio.setPostiDisponibili(Math.max(0, disponibili));
-        parcheggioRepository.save(parcheggio);
     }
 }

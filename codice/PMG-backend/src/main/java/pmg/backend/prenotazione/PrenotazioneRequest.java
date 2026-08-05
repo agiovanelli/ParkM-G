@@ -3,21 +3,22 @@ package pmg.backend.prenotazione;
 import java.time.LocalDateTime;
 
 /**
- * DTO utilizzato per restituire i dati di una prenotazione.
+ * DTO utilizzato per richiedere la creazione di una prenotazione.
  *
- * Include gli identificativi di utente e parcheggio, la data di creazione
- * e le coordinate geografica.
+ * Include gli identificativi di utente e parcheggio e, quando disponibili, le
+ * coordinate di origine usate per calcolare dinamicamente la scadenza di arrivo.
  *
- * @param utenteId identificativo dell'utente associato alla prenotazione
- * @param parcheggioId identificativo del parcheggio associato alla prenotazione
- * @param dataCreazione data di creazione della prenotazione
- * @param originLat coordinate di latitudine
- * @param originLng coordinate di longitudine
+ * @param utenteId identificativo dell'utente
+ * @param parcheggioId identificativo del parcheggio
+ * @param dataCreazione data indicata dal client per la creazione
+ * @param originLat latitudine di origine, se disponibile
+ * @param originLng longitudine di origine, se disponibile
  */
 public record PrenotazioneRequest(
-    String utenteId,
-    String parcheggioId,
-    LocalDateTime dataCreazione,
-    Double originLat,
-    Double originLng
-) {}
+        String utenteId,
+        String parcheggioId,
+        LocalDateTime dataCreazione,
+        Double originLat,
+        Double originLng
+) {
+}

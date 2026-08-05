@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -24,89 +23,130 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import pmg.backend.posto.Posto;
 import pmg.backend.posto.PostoResponse;
+import pmg.backend.posto.StatoPosto;
+import pmg.backend.posto.TipoPosto;
 import pmg.backend.prenotazione.PrenotazioneRequest;
 import pmg.backend.prenotazione.PrenotazioneResponse;
+import pmg.backend.prenotazione.StatoPrenotazione;
 
+/**
+ * Test MVC del controller dedicato alla gestione dei parcheggi.
+ *
+ * Verifica il contratto HTTP degli endpoint sintetici, della mappa logica,
+ * della prenotazione e delle operazioni di sincronizzazione.
+ */
 @WebMvcTest(ParcheggioController.class)
 class ParcheggioControllerTest {
 
+    /** Mock MVC utilizzato per invocare gli endpoint del controller. */
     @Autowired
     private MockMvc mockMvc;
 
+    /** Servizio applicativo simulato. */
     @MockBean
     private ParcheggioService parcheggioService;
 
+    /**
+     * Verifica la ricerca dei parcheggi per area.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void cercaTest() throws Exception {
-        ParcheggioResponse p1 = new ParcheggioResponse("1", "Parcheggio A", "Centro", 100, 20, 45.5, 9.1, false);
-        ParcheggioResponse p2 = new ParcheggioResponse("2", "Parcheggio B", "Centro", 50, 10, 45.51, 9.11, false);
+        ParcheggioResponse p1 = new ParcheggioResponse(
+                "1", "Parcheggio A", "Centro", 100, 20, 4,
+                45.5, 9.1, false);
+        ParcheggioResponse p2 = new ParcheggioResponse(
+                "2", "Parcheggio B", "Centro", 50, 10, 2,
+                45.51, 9.11, false);
 
-        when(parcheggioService.cercaPerArea("Centro")).thenReturn(List.of(p1, p2));
+        when(parcheggioService.cercaPerArea("Centro"))
+                .thenReturn(List.of(p1, p2));
 
-        mockMvc.perform(get("/api/parcheggi/cerca").param("area", "Centro"))
+        mockMvc.perform(get("/api/parcheggi/cerca")
+                        .param("area", "Centro"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$[0].id").value("1"))
                 .andExpect(jsonPath("$[0].nome").value("Parcheggio A"))
+                .andExpect(jsonPath("$[0].numPiani").value(4))
                 .andExpect(jsonPath("$[1].id").value("2"))
                 .andExpect(jsonPath("$[1].nome").value("Parcheggio B"));
 
         verify(parcheggioService).cercaPerArea("Centro");
     }
 
+    /**
+     * Verifica la creazione di una prenotazione tramite controller.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void prenotaTest() throws Exception {
         LocalDateTime dataCreazione = LocalDateTime.of(2025, 1, 1, 10, 0);
         LocalDateTime scadenza = dataCreazione.plusMinutes(10);
 
-        PrenotazioneResponse resp = new PrenotazioneResponse(
+        PrenotazioneResponse response = new PrenotazioneResponse(
                 "1",
                 "utente1",
                 "parcheggio1",
                 dataCreazione,
                 "QR123",
+                StatoPrenotazione.attiva,
                 null,
                 null,
                 null,
                 null,
-                null,
-                scadenza
-        );
+                scadenza);
 
-        when(parcheggioService.effettuaPrenotazione(any(PrenotazioneRequest.class))).thenReturn(resp);
+        when(parcheggioService.effettuaPrenotazione(
+                any(PrenotazioneRequest.class)))
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/parcheggi/prenota")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                      "utenteId": "utente1",
-                      "parcheggioId": "parcheggio1",
-                      "dataCreazione": "2025-01-01T10:00:00"
-                    }
-                """))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"utenteId\":\"utente1\"," +
+                                "\"parcheggioId\":\"parcheggio1\"," +
+                                "\"dataCreazione\":\"2025-01-01T10:00:00\"" +
+                                "}"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value("1"))
                 .andExpect(jsonPath("$.utenteId").value("utente1"))
                 .andExpect(jsonPath("$.parcheggioId").value("parcheggio1"))
                 .andExpect(jsonPath("$.codiceQr").value("QR123"))
-                .andExpect(jsonPath("$.dataCreazione").value("2025-01-01T10:00:00"));
+                .andExpect(jsonPath("$.stato").value("attiva"))
+                .andExpect(jsonPath("$.dataCreazione")
+                        .value("2025-01-01T10:00:00"));
 
-        verify(parcheggioService).effettuaPrenotazione(any(PrenotazioneRequest.class));
+        verify(parcheggioService).effettuaPrenotazione(
+                any(PrenotazioneRequest.class));
     }
 
+    /**
+     * Verifica il recupero dei parcheggi vicini.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void getNearbyTest() throws Exception {
-        ParcheggioResponse vicino = new ParcheggioResponse("3", "Vicino", "Nord", 10, 2, 45.50, 9.20, false);
+        ParcheggioResponse vicino = new ParcheggioResponse(
+                "3", "Vicino", "Nord", 10, 2, 1,
+                45.50, 9.20, false);
 
-        when(parcheggioService.cercaVicini(45.50, 9.20, 500.0)).thenReturn(List.of(vicino));
+        when(parcheggioService.cercaVicini(45.50, 9.20, 500.0))
+                .thenReturn(List.of(vicino));
 
         mockMvc.perform(get("/api/parcheggi/nearby")
-                .param("lat", "45.50")
-                .param("lng", "9.20")
-                .param("radius", "500"))
+                        .param("lat", "45.50")
+                        .param("lng", "9.20")
+                        .param("radius", "500"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$[0].id").value("3"))
                 .andExpect(jsonPath("$[0].nome").value("Vicino"))
                 .andExpect(jsonPath("$[0].area").value("Nord"));
@@ -114,61 +154,135 @@ class ParcheggioControllerTest {
         verify(parcheggioService).cercaVicini(45.50, 9.20, 500.0);
     }
 
+    /**
+     * Verifica l'attivazione dello stato di emergenza.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void toggleEmergenzaTest() throws Exception {
         mockMvc.perform(patch("/api/parcheggi/p1/emergenza")
-                .param("attiva", "true")
-                .param("motivo", "Incendio"))
+                        .param("attiva", "true")
+                        .param("motivo", "Incendio"))
                 .andExpect(status().isOk());
 
-        verify(parcheggioService).impostaStatoEmergenza("p1", true, "Incendio");
+        verify(parcheggioService)
+                .impostaStatoEmergenza("p1", true, "Incendio");
     }
 
+    /**
+     * Verifica il recupero sintetico di un parcheggio tramite identificativo.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void getByIdTest() throws Exception {
         ParcheggioResponse response = new ParcheggioResponse(
-                "p1", "Parcheggio Centro", "Centro", 100, 45, 45.55, 9.22, false
-        );
+                "p1", "Parcheggio Centro", "Centro",
+                100, 45, 4, 45.55, 9.22, false);
 
         when(parcheggioService.getById("p1")).thenReturn(response);
 
         mockMvc.perform(get("/api/parcheggi/p1"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value("p1"))
                 .andExpect(jsonPath("$.nome").value("Parcheggio Centro"))
                 .andExpect(jsonPath("$.area").value("Centro"))
                 .andExpect(jsonPath("$.postiTotali").value(100))
-                .andExpect(jsonPath("$.postiDisponibili").value(45));
+                .andExpect(jsonPath("$.postiDisponibili").value(45))
+                .andExpect(jsonPath("$.numPiani").value(4));
 
         verify(parcheggioService).getById("p1");
     }
 
+    /**
+     * Verifica il recupero della mappa logica completa del parcheggio.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
+    @Test
+    void getMappaTest() throws Exception {
+        Posto posto = new Posto(
+                "1-01",
+                1,
+                "P1-01",
+                1,
+                TipoPosto.NORMALE,
+                StatoPosto.LIBERO,
+                false,
+                1);
+
+        MappaParcheggioResponse response = new MappaParcheggioResponse(
+                "p1",
+                "Parcheggio Centro",
+                1,
+                1,
+                1,
+                List.of(new MappaParcheggioResponse.PianoResponse(
+                        1,
+                        1,
+                        List.of(new PostoResponse(posto, "p1")))));
+
+        when(parcheggioService.getMappa("p1")).thenReturn(response);
+
+        mockMvc.perform(get("/api/parcheggi/p1/mappa"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value("p1"))
+                .andExpect(jsonPath("$.numPiani").value(1))
+                .andExpect(jsonPath("$.configurazionePiani[0].piano")
+                        .value(1))
+                .andExpect(jsonPath(
+                        "$.configurazionePiani[0].posti[0].slotId")
+                        .value("1-01"))
+                .andExpect(jsonPath(
+                        "$.configurazionePiani[0].posti[0].stato")
+                        .value("LIBERO"));
+
+        verify(parcheggioService).getMappa("p1");
+    }
+
+    /**
+     * Verifica il recupero dei posti filtrati per piano.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void getPostiTest() throws Exception {
-        Posto posto = Mockito.mock(Posto.class);
-        when(posto.getId()).thenReturn("posto-1");
-        when(posto.getNumero()).thenReturn(12);
-        when(posto.getPiano()).thenReturn(1);
-        when(posto.isDisponibile()).thenReturn(true);
-        when(posto.isDisabilitato()).thenReturn(false);
-        when(posto.isRiservatoDisabili()).thenReturn(false);
-        when(posto.isRiservatoIncinta()).thenReturn(false);
-        when(posto.getParcheggioId()).thenReturn("p1");
-        when(posto.getDistanzaUscita()).thenReturn(1);
+        Posto posto = new Posto(
+                "1-12",
+                12,
+                "P1-12",
+                1,
+                TipoPosto.NORMALE,
+                StatoPosto.LIBERO,
+                false,
+                1);
+        PostoResponse response = new PostoResponse(posto, "p1");
 
-        PostoResponse response = new PostoResponse(posto);
-
-        when(parcheggioService.getPosti("p1", 1)).thenReturn(List.of(response));
+        when(parcheggioService.getPosti("p1", 1))
+                .thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/parcheggi/p1/posti")
-                .param("piano", "1"))
+                        .param("piano", "1"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$[0].slotId").value("1-12"))
+                .andExpect(jsonPath("$[0].numero").value(12))
+                .andExpect(jsonPath("$[0].disponibile").value(true));
 
         verify(parcheggioService).getPosti("p1", 1);
     }
 
+    /**
+     * Verifica la sincronizzazione delle statistiche dei posti embedded.
+     *
+     * @throws Exception in caso di errore durante l'esecuzione della richiesta
+     */
     @Test
     void syncPostiTest() throws Exception {
         mockMvc.perform(put("/api/parcheggi/p1/sync"))

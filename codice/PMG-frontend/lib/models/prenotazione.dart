@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'posto.dart';
 
 class PrenotazioneResponse {
@@ -10,10 +11,11 @@ class PrenotazioneResponse {
   final StatoPrenotazione stato;
   final DateTime? dataIngresso;
   final DateTime? dataUscita;
+  final double? importoPagato;
   final Posto? posto;
   final DateTime? scadenzaArrivo;
 
-  PrenotazioneResponse({
+  const PrenotazioneResponse({
     required this.id,
     required this.utenteId,
     required this.parcheggioId,
@@ -22,35 +24,43 @@ class PrenotazioneResponse {
     required this.stato,
     required this.dataIngresso,
     required this.dataUscita,
+    this.importoPagato,
     required this.posto,
     required this.scadenzaArrivo,
   });
 
-  static DateTime? _parseDT(dynamic v) {
-    if (v == null) return null;
-    if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
-    return null;
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
   }
 
   factory PrenotazioneResponse.fromJson(Map<String, dynamic> json) {
+    final rawState = json['stato']?.toString() ?? 'attiva';
+
     return PrenotazioneResponse(
-      id: (json['id'] ?? '') as String,
-      utenteId: (json['utenteId'] ?? '') as String,
-      parcheggioId: (json['parcheggioId'] ?? '') as String,
-      dataCreazione: _parseDT(json['dataCreazione']),
-      codiceQr: json['codiceQr'] as String?,
+      id: (json['id'] ?? '').toString(),
+      utenteId: (json['utenteId'] ?? '').toString(),
+      parcheggioId: (json['parcheggioId'] ?? '').toString(),
+      dataCreazione: _parseDateTime(json['dataCreazione']),
+      codiceQr: json['codiceQr']?.toString(),
       stato: StatoPrenotazione.values.firstWhere(
-        (e) => e.name == (json['stato'] ?? 'attiva'),
+        (state) => state.name == rawState,
         orElse: () => StatoPrenotazione.attiva,
       ),
-      dataIngresso: _parseDT(json['dataIngresso']),
-      dataUscita: _parseDT(json['dataUscita']),
-      posto: json['posto'] != null
+      dataIngresso: _parseDateTime(json['dataIngresso']),
+      dataUscita: _parseDateTime(json['dataUscita']),
+      importoPagato: (json['importoPagato'] as num?)?.toDouble(),
+      posto: json['posto'] is Map<String, dynamic>
           ? Posto.fromJson(json['posto'] as Map<String, dynamic>)
-          : null,
-      scadenzaArrivo: json['scadenzaArrivo'] != null
-          ? DateTime.parse(json['scadenzaArrivo'])
-          : null,
+          : json['posto'] is Map
+              ? Posto.fromJson(
+                  Map<String, dynamic>.from(json['posto'] as Map),
+                )
+              : null,
+      scadenzaArrivo: _parseDateTime(json['scadenzaArrivo']),
     );
   }
 }

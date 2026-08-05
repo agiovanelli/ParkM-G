@@ -5,143 +5,176 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.mongo.AutoConfigureDataMongo;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import pmg.backend.posto.Posto;
-import pmg.backend.posto.PostoRepository;
+import pmg.backend.posto.PostoServiceImpl;
+import pmg.backend.posto.StatoPosto;
+import pmg.backend.posto.TipoPosto;
 
-@SpringBootTest
+/**
+ * Verifica l'algoritmo di assegnazione del posto ottimale senza collegarsi a MongoDB.
+ *
+ * Il repository viene sostituito da un mock Mockito. Di conseguenza i test non
+ * cancellano, inseriscono o modificano documenti presenti nel database reale.
+ * Il nome della classe è mantenuto per consentire la sostituzione diretta del
+ * precedente file di integrazione.
+ */
+@ExtendWith(MockitoExtension.class)
 class PostoOttimaleIntegrationTest {
 
-    @Autowired
-    private ParcheggioService parcheggioService;
+    /** Repository simulato: non esegue operazioni reali su MongoDB. */
+    @Mock
+    private ParcheggioRepository parcheggioRepository;
 
-    @Autowired
-    private PostoRepository postoRepository;
+    /** Servizio sottoposto a test. */
+    private PostoServiceImpl postoService;
 
+    /** Inizializza il servizio utilizzando esclusivamente il repository simulato. */
     @BeforeEach
-    void cleanDb() {
-        postoRepository.deleteAll();
+    void setup() {
+        postoService = new PostoServiceImpl(parcheggioRepository);
+        when(parcheggioRepository.save(any(Parcheggio.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
-	    @Test
-	    void assegnaPostoOttimale_disabile_scegliePostoRiservato() {
-	        String parcheggioId = "P1";
+    /** Verifica che un utente disabile riceva un posto riservato. */
+    @Test
+    void assegnaPostoOttimale_disabile_scegliePostoRiservato() {
+        Parcheggio parcheggio = creaParcheggio(
+                "P1",
+                List.of(
+                        creaPosto("1-01", 1, TipoPosto.NORMALE, 1),
+                        creaPosto("1-02", 2, TipoPosto.DISABILI, 4)));
+        preparaRepository(parcheggio);
 
-	        Posto normale = new Posto();
-	        normale.setParcheggioId(parcheggioId);
-	        normale.setDisponibile(true);
-	        normale.setDisabilitato(false);
-	        normale.setRiservatoDisabili(false);
-	        normale.setRiservatoIncinta(false);
-	        normale.setDistanzaUscita(1);
+        Posto risultato = postoService.prenotaPostoOttimale(
+                "P1",
+                Map.of("disabile", "Si", "distanza", "2"));
 
-	        Posto disabili = new Posto();
-	        disabili.setParcheggioId(parcheggioId);
-	        disabili.setDisponibile(true);
-	        disabili.setDisabilitato(false);
-	        disabili.setRiservatoDisabili(true);
-	        disabili.setRiservatoIncinta(false);
-	        disabili.setDistanzaUscita(5);
+        assertNotNull(risultato);
+        assertTrue(risultato.isRiservatoDisabili());
+        assertEquals("1-02", risultato.getSlotId());
+        assertEquals(StatoPosto.PRENOTATO, risultato.getStato());
+        assertEquals(
+                StatoPosto.PRENOTATO,
+                parcheggio.trovaPosto("1-02").orElseThrow().getStato());
+        verify(parcheggioRepository, atLeastOnce()).save(parcheggio);
+    }
 
-	        postoRepository.saveAll(List.of(normale, disabili));
+    /** Verifica che un utente non disabile non riceva un posto riservato. */
+    @Test
+    void assegnaPostoOttimale_nonDisabile_evitaPostoDisabili() {
+        Parcheggio parcheggio = creaParcheggio(
+                "P2",
+                List.of(
+                        creaPosto("1-01", 1, TipoPosto.DISABILI, 1),
+                        creaPosto("1-02", 2, TipoPosto.NORMALE, 2)));
+        preparaRepository(parcheggio);
 
-	        Map<String, String> preferenze = Map.of(
-	            "disabile", "Si",
-	            "distanza", "2"
-	        );
+        Posto risultato = postoService.prenotaPostoOttimale(
+                "P2",
+                Map.of("disabile", "No"));
 
-	        Posto risultato = parcheggioService.assegnaPostoOttimale(parcheggioId, preferenze);
+        assertNotNull(risultato);
+        assertFalse(risultato.isRiservatoDisabili());
+        assertEquals("1-02", risultato.getSlotId());
+    }
 
-	        assertNotNull(risultato);
-	        assertTrue(risultato.isRiservatoDisabili());
-	    }
-	    
-	    @Test
-	    void assegnaPostoOttimale_nonDisabile_evitaPostoDisabili() {
-	        String parcheggioId = "P1";
+    /** Verifica che una donna incinta riceva un posto dedicato. */
+    @Test
+    void assegnaPostoOttimale_incinta_scegliePostoRiservato() {
+        Parcheggio parcheggio = creaParcheggio(
+                "P3",
+                List.of(
+                        creaPosto("1-01", 1, TipoPosto.NORMALE, 1),
+                        creaPosto("1-02", 2, TipoPosto.INCINTA, 3)));
+        preparaRepository(parcheggio);
 
-	        Posto disabili = new Posto();
-	        disabili.setParcheggioId(parcheggioId);
-	        disabili.setDisponibile(true);
-	        disabili.setRiservatoDisabili(true);
+        Posto risultato = postoService.prenotaPostoOttimale(
+                "P3",
+                Map.of("donnaIncinta", "Si"));
 
-	        Posto normale = new Posto();
-	        normale.setParcheggioId(parcheggioId);
-	        normale.setDisponibile(true);
-	        normale.setRiservatoDisabili(false);
+        assertNotNull(risultato);
+        assertTrue(risultato.isRiservatoIncinta());
+        assertEquals("1-02", risultato.getSlotId());
+    }
 
-	        postoRepository.saveAll(List.of(disabili, normale));
+    /** Verifica la selezione del posto con distanza più vicina alla preferenza. */
+    @Test
+    void assegnaPostoOttimale_sceglieDistanzaMigliore() {
+        Parcheggio parcheggio = creaParcheggio(
+                "P4",
+                List.of(
+                        creaPosto("1-01", 1, TipoPosto.NORMALE, 1),
+                        creaPosto("1-02", 2, TipoPosto.NORMALE, 5)));
+        preparaRepository(parcheggio);
 
-	        Map<String, String> pref = Map.of("disabile", "No");
+        Posto risultato = postoService.prenotaPostoOttimale(
+                "P4",
+                Map.of("distanza", "2"));
 
-	        Posto result = parcheggioService.assegnaPostoOttimale(parcheggioId, pref);
+        assertNotNull(risultato);
+        assertEquals(1, risultato.getDistanzaUscita());
+        assertEquals("1-01", risultato.getSlotId());
+    }
 
-	        assertFalse(result.isRiservatoDisabili());
-	    }
-	    
-	    @Test
-	    void assegnaPostoOttimale_incinta_scegliePostoRiservato() {
-	        String parcheggioId = "P1";
+    /** Verifica il risultato nullo quando il parcheggio non ha posti. */
+    @Test
+    void assegnaPostoOttimale_nessunPosto_returnNull() {
+        Parcheggio parcheggio = creaParcheggio("P5", List.of());
+        preparaRepository(parcheggio);
 
-	        Posto normale = new Posto();
-	        normale.setParcheggioId(parcheggioId);
-	        normale.setDisponibile(true);
+        Posto risultato = postoService.prenotaPostoOttimale("P5", Map.of());
 
-	        Posto incinta = new Posto();
-	        incinta.setParcheggioId(parcheggioId);
-	        incinta.setDisponibile(true);
-	        incinta.setRiservatoIncinta(true);
+        assertNull(risultato);
+    }
 
-	        postoRepository.saveAll(List.of(normale, incinta));
+    /** Configura il mock affinché restituisca il parcheggio indicato. */
+    private void preparaRepository(Parcheggio parcheggio) {
+        when(parcheggioRepository.findById(parcheggio.getId()))
+                .thenReturn(Optional.of(parcheggio));
+    }
 
-	        Map<String, String> pref = Map.of("donnaIncinta", "Si");
+    /** Crea un parcheggio con un singolo piano e i posti specificati. */
+    private Parcheggio creaParcheggio(String id, List<Posto> posti) {
+        Parcheggio parcheggio = new Parcheggio();
+        parcheggio.setId(id);
+        parcheggio.setNome("Parcheggio Test");
+        parcheggio.setArea("Milano");
+        parcheggio.setConfigurazionePiani(List.of(
+                new ConfigurazionePiano(1, posti.size(), posti)));
+        parcheggio.ricalcolaStatistiche();
+        return parcheggio;
+    }
 
-	        Posto result = parcheggioService.assegnaPostoOttimale(parcheggioId, pref);
-
-	        assertTrue(result.isRiservatoIncinta());
-	    }
-	    
-	    @Test
-	    void assegnaPostoOttimale_sceglieDistanzaMigliore() {
-	        String parcheggioId = "P1";
-
-	        Posto p1 = new Posto();
-	        p1.setParcheggioId(parcheggioId);
-	        p1.setDisponibile(true);
-	        p1.setDistanzaUscita(1);
-
-	        Posto p2 = new Posto();
-	        p2.setParcheggioId(parcheggioId);
-	        p2.setDisponibile(true);
-	        p2.setDistanzaUscita(5);
-
-	        postoRepository.saveAll(List.of(p1, p2));
-
-	        Map<String, String> pref = Map.of("distanza", "2");
-
-	        Posto result = parcheggioService.assegnaPostoOttimale(parcheggioId, pref);
-
-	        assertEquals(1, result.getDistanzaUscita());
-	    }
-	    
-	    @Test
-	    void assegnaPostoOttimale_nessunPosto_returnNull() {
-	        String parcheggioId = "P1";
-
-	        Map<String, String> pref = Map.of();
-
-	        Posto result = parcheggioService.assegnaPostoOttimale(parcheggioId, pref);
-
-	        assertNull(result);
-	    }
+    /** Crea un posto embedded libero. */
+    private Posto creaPosto(
+            String slotId,
+            int numero,
+            TipoPosto tipo,
+            int distanzaUscita) {
+        return new Posto(
+                slotId,
+                numero,
+                "P1-" + String.format("%02d", numero),
+                1,
+                tipo,
+                StatoPosto.LIBERO,
+                false,
+                distanzaUscita);
+    }
 }

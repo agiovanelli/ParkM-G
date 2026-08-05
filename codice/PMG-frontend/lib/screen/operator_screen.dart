@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:park_mg/models/posto.dart';
 import 'package:park_mg/screen/home_page.dart';
 import 'package:park_mg/utils/theme.dart';
 import 'package:park_mg/utils/ui_feedback.dart';
 import 'package:park_mg/widgets/operator_parking_image_map.dart';
+import 'package:park_mg/indoor/models/indoor_models.dart';
+import 'package:park_mg/indoor/parking_map_definition.dart';
 import '../models/operatore.dart';
 import 'qr_scanner_screen.dart';
 import 'package:park_mg/api/api_client.dart';
@@ -80,18 +81,25 @@ class ParkingLogItem {
 class ParkingStats {
   final int totalSpots;
   final int availableSpots;
+  final int occupiedSpots;
+  final int reservedSpots;
+  final int outOfServiceSpots;
   final int activeReservations;
   final int inactiveReservations;
 
   const ParkingStats({
     required this.totalSpots,
     required this.availableSpots,
+    required this.occupiedSpots,
+    required this.reservedSpots,
+    required this.outOfServiceSpots,
     required this.activeReservations,
     required this.inactiveReservations,
   });
 
-  int get occupiedSpots => (totalSpots - availableSpots).clamp(0, totalSpots);
-  double get occupancyRatio => totalSpots == 0 ? 0 : occupiedSpots / totalSpots;
+  double get occupancyRatio =>
+      totalSpots == 0 ? 0 : occupiedSpots / totalSpots;
+
   int get occupancyPercent => (occupancyRatio * 100).round();
 }
 
@@ -116,8 +124,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
   final _searchController = TextEditingController();
   bool _isRefreshing = false;
   late List<ParkingLogItem> _items;
-  List<Posto> _realSpots = [];
-  bool _isLoadingSpots = false;
+  IndoorMapDefinition? _indoorDefinition;
+  bool _isLoadingIndoorMap = false;
   late ParkingStats _stats;
   Timer? _autoRefreshTimer;
   DateTime? _lastFetchAt;
@@ -128,16 +136,17 @@ class _OperatorScreenState extends State<OperatorScreen> {
     super.initState();
     _apiClient = ApiClient();
     _items = [];
-    _loadInitialData();
     _stats = const ParkingStats(
       totalSpots: 0,
       availableSpots: 0,
+      occupiedSpots: 0,
+      reservedSpots: 0,
+      outOfServiceSpots: 0,
       activeReservations: 0,
       inactiveReservations: 0,
     );
     _lastFetchAt = DateTime.now();
-    _loadParkingStats();
-    _loadParkingSpots();
+    _loadInitialData();
 
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!mounted) return;
@@ -151,34 +160,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
     _autoRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadParkingSpots() async {
-    if (!mounted) return;
-
-    setState(() => _isLoadingSpots = true);
-
-    try {
-      final spots = await _apiClient.getPostiParcheggio(
-        widget.operatore.parcheggioId,
-        piano: _selectedFloor,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _realSpots = spots;
-      });
-      debugPrint(
-        'spots loaded floor=$_selectedFloor -> ${spots.map((s) => '${s.numero}:${s.disponibile}:${s.disabilitato}').join(', ')}',
-      );
-    } catch (e) {
-      UiFeedback.showError(context, 'Errore caricamento posti: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingSpots = false);
-      }
-    }
   }
 
   Future<void> _resolveAlarm(ParkingLogItem it) async {
@@ -208,7 +189,16 @@ class _OperatorScreenState extends State<OperatorScreen> {
 
   Future<void> _loadInitialData() async {
     await _loadAnaliticaId();
-    await _loadLogs();
+
+    final tasks = <Future<void>>[
+      _loadParkingMapAndStats(),
+    ];
+
+    if (_analiticaId != null && _analiticaId!.isNotEmpty) {
+      tasks.add(_loadLogs());
+    }
+
+    await Future.wait<void>(tasks);
   }
 
   Future<void> _loadAnaliticaId() async {
@@ -224,18 +214,18 @@ class _OperatorScreenState extends State<OperatorScreen> {
       });
     } catch (e) {
       debugPrint('Errore caricamento analiticaId: $e');
-      UiFeedback.showError(
+      UiFeedback.showWarning(
         context,
-        'Errore caricamento analitica del parcheggio',
+        'I log del parcheggio non sono momentaneamente disponibili.',
       );
     }
   }
 
   Future<void> _showCreateLogDialog() async {
     if (_analiticaId == null || _analiticaId!.isEmpty) {
-      UiFeedback.showError(
+      UiFeedback.showWarning(
         context,
-        'Analitica non disponibile per questo parcheggio',
+        'Non è possibile creare un allarme senza l\'analitica del parcheggio.',
       );
       return;
     }
@@ -472,11 +462,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
                               data: DateTime.now(),
                             );
 
-                            if (!context.mounted) return;
+                            if (!mounted || !dialogContext.mounted) return;
 
                             Navigator.of(dialogContext).pop();
                             UiFeedback.showSuccess(
-                              context,
+                              this.context,
                               'Log creato correttamente',
                             );
                             await _refresh();
@@ -549,23 +539,25 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  Future<void> _loadParkingStats() async {
-    try {
-      final parcheggio = await _apiClient.getParcheggioById(
-        widget.operatore.parcheggioId,
-      );
-      debugPrint('parcheggio raw: $parcheggio');
+  Future<void> _loadParkingMapAndStats({bool showLoader = true}) async {
+    if (showLoader && mounted) {
+      setState(() => _isLoadingIndoorMap = true);
+    }
 
-      final prenotazioni = await _apiClient.getPrenotazioniByParcheggio(
+    try {
+      final definition = await _apiClient.getIndoorParkingMap(
         widget.operatore.parcheggioId,
       );
-      debugPrint('prenotazioni count: ${prenotazioni.length}');
+
+      final reservations = await _apiClient.getPrenotazioniByParcheggio(
+        widget.operatore.parcheggioId,
+      );
 
       int activeReservations = 0;
       int inactiveReservations = 0;
 
-      for (final p in prenotazioni) {
-        switch (p.stato) {
+      for (final reservation in reservations) {
+        switch (reservation.stato) {
           case StatoPrenotazione.attiva:
           case StatoPrenotazione.inCorso:
           case StatoPrenotazione.parcheggiato:
@@ -581,36 +573,110 @@ class _OperatorScreenState extends State<OperatorScreen> {
         }
       }
 
-      if (!mounted) return;
-
-      final allSpots = await _apiClient.getPostiParcheggio(
-        widget.operatore.parcheggioId,
+      final stats = _calculateParkingStats(
+        definition,
+        activeReservations: activeReservations,
+        inactiveReservations: inactiveReservations,
       );
-      final totalSpots = allSpots.length;
-      final availableSpots = allSpots
-          .where((posto) => posto.disponibile && !posto.disabilitato)
-          .length;
 
       if (!mounted) return;
+
+      final floorNumbers = definition.floorNumbers;
+      final nextFloor = floorNumbers.contains(_selectedFloor)
+          ? _selectedFloor
+          : (floorNumbers.isEmpty ? 1 : floorNumbers.first);
+
       setState(() {
-        _stats = ParkingStats(
-          totalSpots: totalSpots,
-          availableSpots: availableSpots,
-          activeReservations: activeReservations,
-          inactiveReservations: inactiveReservations,
-        );
+        _indoorDefinition = definition;
+        _selectedFloor = nextFloor;
+        _selectedSpotId = null;
+        _stats = stats;
       });
-
-      debugPrint(
-        'stats loaded -> total: ${_stats.totalSpots}, '
-        'available: ${_stats.availableSpots}, '
-        'active: ${_stats.activeReservations}, '
-        'inactive: ${_stats.inactiveReservations}',
-      );
     } catch (e, st) {
-      debugPrint('errore _loadParkingStats: $e');
+      debugPrint('Errore caricamento mappa dinamica: $e');
       debugPrintStack(stackTrace: st);
-      UiFeedback.showError(context, 'Errore caricamento statistiche: $e');
+
+      if (mounted) {
+        UiFeedback.showError(
+          context,
+          'Errore caricamento configurazione parcheggio: $e',
+        );
+      }
+    } finally {
+      if (showLoader && mounted) {
+        setState(() => _isLoadingIndoorMap = false);
+      }
+    }
+  }
+
+  ParkingStats _calculateParkingStats(
+    IndoorMapDefinition definition, {
+    required int activeReservations,
+    required int inactiveReservations,
+  }) {
+    final slots = definition.data.floors
+        .expand((floor) => floor.slots)
+        .toList(growable: false);
+
+    final outOfService = slots.where((slot) => slot.outOfService).length;
+    final available = slots
+        .where(
+          (slot) =>
+              !slot.outOfService && slot.status == IndoorSlotStatus.free,
+        )
+        .length;
+    final occupied = slots
+        .where(
+          (slot) =>
+              !slot.outOfService && slot.status == IndoorSlotStatus.occupied,
+        )
+        .length;
+    final reserved = slots
+        .where(
+          (slot) =>
+              !slot.outOfService && slot.status == IndoorSlotStatus.reserved,
+        )
+        .length;
+
+    return ParkingStats(
+      totalSpots: slots.length,
+      availableSpots: available,
+      occupiedSpots: occupied,
+      reservedSpots: reserved,
+      outOfServiceSpots: outOfService,
+      activeReservations: activeReservations,
+      inactiveReservations: inactiveReservations,
+    );
+  }
+
+  Future<void> _setSlotOutOfService(
+    String slotId,
+    bool outOfService,
+  ) async {
+    try {
+      await _apiClient.updatePostoFuoriServizio(
+        parcheggioId: widget.operatore.parcheggioId,
+        slotId: slotId,
+        fuoriServizio: outOfService,
+      );
+
+      await _loadParkingMapAndStats(showLoader: false);
+
+      if (!mounted) return;
+
+      UiFeedback.showSuccess(
+        context,
+        outOfService
+            ? 'Posto messo fuori servizio'
+            : 'Posto rimesso in servizio',
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      UiFeedback.showError(
+        context,
+        'Errore aggiornamento posto $slotId: $error',
+      );
     }
   }
 
@@ -623,7 +689,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
     setState(() {
       _isProcessing = false;
       _isRefreshing = false;
-      _isLoadingSpots = false;
+      _isLoadingIndoorMap = false;
+      _indoorDefinition = null;
       _selectedSpotId = null;
       _pageIndex = 0;
     });
@@ -642,8 +709,6 @@ class _OperatorScreenState extends State<OperatorScreen> {
       _selectedFloor = floor;
       _selectedSpotId = null;
     });
-
-    _loadParkingSpots();
   }
 
   Future<void> _confirmLogout() async {
@@ -816,25 +881,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 
   Future<void> _loadLogs() async {
-    setState(() => _isRefreshing = true);
-
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-
-    final data = await _fetchLogItems();
-
-    if (!mounted) return;
-    setState(() {
-      _items = data;
-      _isRefreshing = false;
-    });
-  }
-
-  Future<void> _refresh() async {
-    if (_isRefreshing) return;
-
-    setState(() => _isRefreshing = true);
-
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (mounted) {
+      setState(() => _isRefreshing = true);
+    }
 
     try {
       final data = await _fetchLogItems();
@@ -843,15 +892,45 @@ class _OperatorScreenState extends State<OperatorScreen> {
       setState(() {
         _items = data;
         _lastFetchAt = DateTime.now();
-        _isRefreshing = false;
       });
-
-      await _loadParkingStats();
-      await _loadParkingSpots();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isRefreshing = false);
-      UiFeedback.showError(context, 'Errore refresh: $e');
+      UiFeedback.showError(context, 'Errore caricamento log: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  Future<void> _refresh() async {
+    if (_isRefreshing) return;
+
+    setState(() => _isRefreshing = true);
+
+    try {
+      List<ParkingLogItem>? logItems;
+
+      if (_analiticaId != null && _analiticaId!.isNotEmpty) {
+        logItems = await _fetchLogItems();
+      }
+
+      await _loadParkingMapAndStats(showLoader: false);
+
+      if (!mounted) return;
+      setState(() {
+        if (logItems != null) {
+          _items = logItems;
+        }
+        _lastFetchAt = DateTime.now();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Errore durante l\'aggiornamento: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
     }
   }
 
@@ -1393,6 +1472,65 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
+  Widget _buildOperatorParkingMap() {
+    if (_isLoadingIndoorMap) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.accentCyan),
+        ),
+      );
+    }
+
+    final definition = _indoorDefinition;
+    if (definition == null) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.bgDark2.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderField),
+        ),
+        child: Column(
+          children: [
+            const Text(
+              'Configurazione del parcheggio non disponibile.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _loadParkingMapAndStats(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Riprova'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return OperatorParkingImageMap(
+      definition: definition,
+      selectedFloor: _selectedFloor,
+      onFloorChanged: _changeFloor,
+      selectedSpotId: _selectedSpotId,
+      onSpotTap: (slotId) {
+        setState(() {
+          _selectedSpotId = _selectedSpotId == slotId ? null : slotId;
+        });
+      },
+      onDisableSpot: (slotId) {
+        _setSlotOutOfService(slotId, true);
+      },
+      onEnableSpot: (slotId) {
+        _setSlotOutOfService(slotId, false);
+      },
+    );
+  }
+
   Widget _parkingStatsPage({required bool isWide}) {
     final total = _stats.totalSpots;
     final available = _stats.availableSpots;
@@ -1521,7 +1659,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '$occupied occupati su $total • $available disponibili',
+                  '$occupied occupati • ${_stats.reservedSpots} prenotati • '
+                  '$available disponibili • '
+                  '${_stats.outOfServiceSpots} fuori servizio',
                   style: TextStyle(
                     color: AppColors.textMuted.withValues(alpha: 0.95),
                     fontWeight: FontWeight.w700,
@@ -1572,113 +1712,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 ),
           const SizedBox(height: 24),
 
-          if (_isLoadingSpots)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.accentCyan),
-              ),
-            )
-          else
-            OperatorParkingImageMap(
-              key: ValueKey(
-                '${_selectedFloor}_${_realSpots.map((s) => '${s.id}:${s.disponibile}:${s.disabilitato}').join('|')}',
-              ),
-              selectedFloor: _selectedFloor,
-              floors: const [1, 2, 3],
-              onFloorChanged: _changeFloor,
-              spots: _realSpots,
-              selectedSpotId: _selectedSpotId,
-              onSpotTap: (slotId) {
-                final tapped = _realSpots.firstWhere((s) => s.slotId == slotId);
-
-                if (!tapped.disponibile && !tapped.disabilitato) return;
-
-                setState(() {
-                  _selectedSpotId = (_selectedSpotId == slotId) ? null : slotId;
-                });
-              },
-              onDisableSpot: (slotId) async {
-                try {
-                  final selected = _realSpots.firstWhere(
-                    (s) => s.slotId == slotId,
-                  );
-
-                  await _apiClient.updatePostoDisabilitato(
-                    parcheggioId: widget.operatore.parcheggioId,
-                    piano: selected.piano,
-                    numero: selected.numero,
-                    disabilitato: true,
-                  );
-
-                  final updatedSpots = await _apiClient.getPostiParcheggio(
-                    widget.operatore.parcheggioId,
-                    piano: _selectedFloor,
-                  );
-
-                  if (!mounted) return;
-
-                  setState(() {
-                    _realSpots = updatedSpots;
-                    if (_selectedSpotId == slotId) {
-                      _selectedSpotId = null;
-                    }
-                  });
-
-                  UiFeedback.showSuccess(
-                    context,
-                    'Posto disabilitato correttamente',
-                  );
-                  await _loadParkingStats();
-                } catch (e) {
-                  if (!mounted) return;
-                  UiFeedback.showError(
-                    context,
-                    'Errore disabilitazione posto: $e',
-                  );
-                }
-              },
-              onEnableSpot: (slotId) async {
-                try {
-                  final selected = _realSpots.firstWhere(
-                    (s) => s.slotId == slotId,
-                  );
-
-                  await _apiClient.updatePostoDisabilitato(
-                    parcheggioId: widget.operatore.parcheggioId,
-                    piano: selected.piano,
-                    numero: selected.numero,
-                    disabilitato: false,
-                  );
-
-                  final updatedSpots = await _apiClient.getPostiParcheggio(
-                    widget.operatore.parcheggioId,
-                    piano: _selectedFloor,
-                  );
-
-                  if (!mounted) return;
-
-                  setState(() {
-                    _realSpots = updatedSpots;
-                    if (_selectedSpotId == slotId) {
-                      _selectedSpotId = null;
-                    }
-                  });
-
-                  UiFeedback.showSuccess(
-                    context,
-                    'Posto riabilitato correttamente',
-                  );
-                  await _loadParkingStats();
-                } catch (e) {
-                  if (!mounted) return;
-                  UiFeedback.showError(
-                    context,
-                    'Errore riabilitazione posto: $e',
-                  );
-                }
-              },
-            ),
+          _buildOperatorParkingMap(),
         ],
       ),
     );
@@ -2066,49 +2100,48 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  Future<void> _handleQrScan(String qrCode) async {
-    if (_isProcessing) return;
+  Future<bool> _handleQrScan(String qrCode) async {
+    if (_isProcessing) return false;
 
     setState(() {
       _isProcessing = true;
     });
 
     try {
-      final prenotazioneData = await _apiClient.getPrenotazioneByQr(qrCode);
-      final statoString = prenotazioneData['stato'] as String;
-      final stato = StatoPrenotazione.values.firstWhere(
-        (e) => e.name == statoString,
-      );
-      final prenotazioneId = prenotazioneData['id'] as String;
+      final prenotazione = await _apiClient.getPrenotazioneByQr(qrCode);
 
-      switch (stato) {
+      switch (prenotazione.stato) {
         case StatoPrenotazione.attiva:
-          await _handleIngresso(qrCode);
-          break;
+          return await _handleIngresso(qrCode);
 
         case StatoPrenotazione.inCorso:
+          await _showWarningDialog(
+            'Il veicolo è entrato nel parcheggio, ma il posto non è ancora '
+            'stato confermato come occupato dall’utente.',
+          );
+          return false;
+
         case StatoPrenotazione.parcheggiato:
-          await _handlePagamento(prenotazioneId, qrCode);
-          break;
+          return await _handlePagamento(prenotazione.id);
 
         case StatoPrenotazione.pagato:
-          await _handleUscita(qrCode);
-          break;
+          return await _handleUscita(qrCode);
 
         case StatoPrenotazione.conclusa:
-          _showErrorDialog('Prenotazione già conclusa');
-          break;
+          await _showWarningDialog('Prenotazione già conclusa');
+          return false;
 
         case StatoPrenotazione.scaduta:
-          _showErrorDialog('Prenotazione scaduta');
-          break;
+          await _showWarningDialog('Prenotazione scaduta');
+          return false;
 
         case StatoPrenotazione.annullata:
-          _showErrorDialog('Prenotazione annullata');
-          break;
+          await _showWarningDialog('Prenotazione annullata');
+          return false;
       }
     } catch (e) {
-      _showErrorDialog('Errore: ${e.toString()}');
+      await _showErrorDialog('Errore durante la scansione: $e');
+      return false;
     } finally {
       if (mounted) {
         setState(() {
@@ -2118,7 +2151,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
     }
   }
 
-  Future<void> _handleIngresso(String qrCode) async {
+  Future<bool> _handleIngresso(String qrCode) async {
     try {
       final response = await _apiClient.validaIngresso(qrCode);
 
@@ -2186,31 +2219,39 @@ class _OperatorScreenState extends State<OperatorScreen> {
           ),
         );
 
-        _refresh();
+        await _refresh();
+        return true;
       }
+
+      return false;
     } catch (e) {
-      _showErrorDialog('Errore validazione ingresso: ${e.toString()}');
+      await _showErrorDialog('Errore validazione ingresso: $e');
+      return false;
     }
   }
 
-  Future<void> _handlePagamento(String prenotazioneId, String qrCode) async {
+  Future<bool> _handlePagamento(String prenotazioneId) async {
     try {
       final importo = await _apiClient.calcolaImporto(prenotazioneId);
-
       final conferma = await _showPagamentoDialog(importo, prenotazioneId);
 
-      if (conferma == true && mounted) {
-        _showSuccessDialog(
-          'Pagamento registrato con successo.\n\nScansionare nuovamente il QR per consentire l\'uscita.',
-        );
-        _refresh();
+      if (conferma != true || !mounted) {
+        return false;
       }
+
+      await _showSuccessDialog(
+        'Pagamento registrato con successo.\n\n'
+        'Scansionare nuovamente il QR per consentire l\'uscita.',
+      );
+      await _refresh();
+      return true;
     } catch (e) {
-      _showErrorDialog('Errore durante il pagamento: ${e.toString()}');
+      await _showErrorDialog('Errore durante il pagamento: $e');
+      return false;
     }
   }
 
-  Future<void> _handleUscita(String qrCode) async {
+  Future<bool> _handleUscita(String qrCode) async {
     try {
       final response = await _apiClient.validaUscita(qrCode);
 
@@ -2284,10 +2325,14 @@ class _OperatorScreenState extends State<OperatorScreen> {
           ),
         );
 
-        _refresh();
+        await _refresh();
+        return true;
       }
+
+      return false;
     } catch (e) {
-      _showErrorDialog('Errore validazione uscita: ${e.toString()}');
+      await _showErrorDialog('Errore validazione uscita: $e');
+      return false;
     }
   }
 
@@ -2400,11 +2445,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
                 final importo = double.tryParse(importoController.text);
 
                 if (importo == null || importo <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Importo non valido'),
-                      backgroundColor: Colors.red,
-                    ),
+                  UiFeedback.showError(
+                    this.context,
+                    'Importo non valido.',
                   );
                   return;
                 }
@@ -2414,11 +2457,9 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   if(!context.mounted) return;
                   Navigator.of(context).pop(true);
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Errore: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
+                  UiFeedback.showError(
+                    this.context,
+                    'Errore durante il pagamento: $e',
                   );
                 }
               },
@@ -2437,8 +2478,8 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  void _showSuccessDialog(String message) {
-    showDialog(
+  Future<void> _showSuccessDialog(String message) {
+    return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -2494,10 +2535,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
     );
   }
 
-  void _showErrorDialog(String message) {
-    showDialog(
+  Future<void> _showErrorDialog(String message) {
+    return showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
+      builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: AppColors.bgDark,
           shape: RoundedRectangleBorder(
@@ -2512,7 +2553,7 @@ class _OperatorScreenState extends State<OperatorScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.error,
+                  Icons.error_outline,
                   color: Color(0xFFEF4444),
                   size: 28,
                 ),
@@ -2535,10 +2576,67 @@ class _OperatorScreenState extends State<OperatorScreen> {
           ),
           actions: [
             ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showWarningDialog(String message) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Attenzione',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -2645,7 +2743,10 @@ class _OperatorScreenState extends State<OperatorScreen> {
         );
         _refresh();
         if(!mounted) return;
-        UiFeedback.showSuccess(context, "EMERGENZA ATTIVATA");
+        UiFeedback.showWarning(
+          context,
+          'Emergenza attivata: il parcheggio è stato bloccato.',
+        );
       } catch (e) {
         if(!mounted) return;
         UiFeedback.showError(context, "Errore: $e");

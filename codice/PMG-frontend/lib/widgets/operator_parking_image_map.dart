@@ -1,32 +1,31 @@
-import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:park_mg/indoor/graph/lane_grid_mask.dart';
-import 'package:park_mg/models/posto.dart';
+import 'package:park_mg/indoor/models/indoor_models.dart';
+import 'package:park_mg/indoor/parking_map_definition.dart';
 import 'package:park_mg/indoor/slot_map.dart';
 import 'package:park_mg/utils/theme.dart';
 
 class OperatorParkingImageMap extends StatefulWidget {
+  final IndoorMapDefinition definition;
   final int selectedFloor;
-  final List<int> floors;
   final ValueChanged<int> onFloorChanged;
-  final List<Posto> spots;
   final String? selectedSpotId;
   final ValueChanged<String> onSpotTap;
   final ValueChanged<String> onDisableSpot;
   final ValueChanged<String> onEnableSpot;
-  final String assetPath;
+  final bool showGridDebug;
 
   const OperatorParkingImageMap({
     super.key,
+    required this.definition,
     required this.selectedFloor,
-    required this.floors,
     required this.onFloorChanged,
-    required this.spots,
     required this.selectedSpotId,
     required this.onSpotTap,
     required this.onDisableSpot,
     required this.onEnableSpot,
-    this.assetPath = 'assets/parking/floor.png',
+    this.showGridDebug = false,
   });
 
   @override
@@ -35,154 +34,92 @@ class OperatorParkingImageMap extends StatefulWidget {
 }
 
 class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
-  double? _imgAspect;
+  String? _hoveredSpotId;
 
   @override
-  void initState() {
-    super.initState();
-    _loadAspect();
-  }
+  void didUpdateWidget(covariant OperatorParkingImageMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-  Future<void> _loadAspect() async {
-    try {
-      final img = AssetImage(widget.assetPath);
-      final stream = img.resolve(const ImageConfiguration());
-      final completer = Completer<ImageInfo>();
-      late final ImageStreamListener listener;
-
-      listener = ImageStreamListener(
-        (info, _) {
-          completer.complete(info);
-          stream.removeListener(listener);
-        },
-        onError: (e, _) {
-          stream.removeListener(listener);
-          completer.completeError(e);
-        },
-      );
-
-      stream.addListener(listener);
-      final info = await completer.future;
-      if (!mounted) return;
-      setState(() {
-        _imgAspect = info.image.width / info.image.height;
-      });
-    } catch (_) {}
-  }
-
-  Rect _imageRect(Size size, double imageAspect) {
-    final dstAspect = size.width / size.height;
-
-    double w, h;
-    if (imageAspect > dstAspect) {
-      w = size.width;
-      h = w / imageAspect;
-    } else {
-      h = size.height;
-      w = h * imageAspect;
+    if (oldWidget.selectedFloor != widget.selectedFloor ||
+        oldWidget.definition != widget.definition) {
+      _hoveredSpotId = null;
     }
-
-    final left = (size.width - w) / 2.0;
-    final top = (size.height - h) / 2.0;
-    return Rect.fromLTWH(left, top, w, h);
   }
 
-  Offset _pxFromNormalized(Offset n, Size size) {
-    final r = _imageRect(size, _imgAspect ?? (16 / 9));
-    return Offset(r.left + n.dx * r.width, r.top + n.dy * r.height);
+  GeneratedIndoorSlot? _findSlot(
+    IndoorFloorLayout layout,
+    String? slotId,
+  ) {
+    if (slotId == null) return null;
+    return layout.tryGetSlotById(slotId);
   }
 
-  bool _isDisabled(Posto posto) {
-    return posto.disabilitato;
-  }
-
-  Color _spotColor(Posto posto) {
-    if (_isDisabled(posto)) {
-      return const Color(0xFF9CA3AF);
-    }
-
-    if (widget.selectedSpotId == posto.slotId) {
-      return const Color(0xFFFACC15);
-    }
-
-    if (!posto.disponibile) {
-      return const Color(0xFFEF4444);
-    }
-
-    if (posto.riservatoDisabili) {
-      return AppColors.accentCyan;
-    }
-
-    if (posto.riservatoIncinta) {
-      return const Color(0xFFF9A8D4);
-    }
-
-    return const Color(0xFF22C55E);
-  }
-
-  String _spotLabel(Posto posto) {
-    return posto.slotNumber.toString();
-  }
-
-  List<Offset> _slotPolygonNormalized(int c, int r) {
-    return LaneGridMask.cellBlockPolygonNormalized(
-      c: c,
-      r: r,
-      halfCols: 2,
-      halfRows: 1,
+  GeneratedIndoorSlot? _hitTestSlot({
+    required Offset position,
+    required Size size,
+    required IndoorFloorLayout layout,
+  }) {
+    final projection = _OperatorIsometricProjection(
+      layout: layout,
+      size: size,
     );
+
+    for (final slot in layout.slots.reversed) {
+      if (projection.areaPath(slot.area).contains(position)) {
+        return slot;
+      }
+    }
+
+    return null;
   }
 
-  Rect _slotTapRect(List<Offset> poly, Size size) {
-    final pts = poly.map((e) => _pxFromNormalized(e, size)).toList();
-
-    final minX = pts.map((e) => e.dx).reduce((a, b) => a < b ? a : b);
-    final maxX = pts.map((e) => e.dx).reduce((a, b) => a > b ? a : b);
-    final minY = pts.map((e) => e.dy).reduce((a, b) => a < b ? a : b);
-    final maxY = pts.map((e) => e.dy).reduce((a, b) => a > b ? a : b);
-
-    return Rect.fromLTRB(minX, minY, maxX, maxY);
-  }
-
-  String _spotStatusLabel(Posto posto) {
-    if (_isDisabled(posto)) {
-      return 'Disabilitato';
+  String _slotStatusLabel(IndoorSlotData slot) {
+    if (slot.outOfService) {
+      return 'Fuori servizio';
     }
 
-    if (!posto.disponibile) {
-      return 'Occupato';
-    }
+    final status = switch (slot.status) {
+      IndoorSlotStatus.free => 'Libero',
+      IndoorSlotStatus.reserved => 'Prenotato',
+      IndoorSlotStatus.occupied => 'Occupato',
+    };
 
-    if (posto.riservatoDisabili) {
-      return 'Libero - Disabili';
-    }
+    final type = switch (slot.type) {
+      IndoorSlotType.normal => '',
+      IndoorSlotType.disabled => ' · Disabili',
+      IndoorSlotType.pregnant => ' · Donna incinta',
+    };
 
-    if (posto.riservatoIncinta) {
-      return 'Libero - Donna incinta';
-    }
-
-    return 'Libero';
+    return '$status$type';
   }
 
   @override
   Widget build(BuildContext context) {
-    Posto? selectedSpot;
-    if (widget.selectedSpotId != null) {
-      try {
-        selectedSpot = widget.spots.firstWhere(
-          (s) => s.slotId == widget.selectedSpotId,
-        );
-      } catch (_) {
-        selectedSpot = null;
-      }
+    final floorNumbers = widget.definition.floorNumbers;
+
+    if (floorNumbers.isEmpty) {
+      return const Center(
+        child: Text(
+          'Nessun piano disponibile',
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+      );
     }
 
-    final canDisableSelected =
-        selectedSpot != null &&
-        selectedSpot.disponibile &&
-        !selectedSpot.disabilitato;
+    final effectiveFloor = floorNumbers.contains(widget.selectedFloor)
+        ? widget.selectedFloor
+        : floorNumbers.first;
 
-    final canEnableSelected = selectedSpot != null && selectedSpot.disabilitato;
+    final layout = widget.definition.layoutForFloor(effectiveFloor);
+    final selectedSlot = _findSlot(layout, widget.selectedSpotId);
+
+    final canDisableSelected =
+        selectedSlot != null &&
+        selectedSlot.data.status == IndoorSlotStatus.free &&
+        !selectedSlot.data.outOfService;
+
+    final canEnableSelected =
+        selectedSlot != null && selectedSlot.data.outOfService;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -199,19 +136,29 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
               DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
                   dropdownColor: AppColors.bgDark,
-                  value: widget.selectedFloor,
+                  value: effectiveFloor,
                   style: const TextStyle(color: AppColors.textPrimary),
-                  items: widget.floors
+                  items: floorNumbers
                       .map(
-                        (f) => DropdownMenuItem<int>(
-                          value: f,
-                          child: Text('Piano $f'),
+                        (floor) => DropdownMenuItem<int>(
+                          value: floor,
+                          child: Text('Piano $floor'),
                         ),
                       )
                       .toList(),
-                  onChanged: (v) {
-                    if (v != null) widget.onFloorChanged(v);
+                  onChanged: (value) {
+                    if (value == null || value == effectiveFloor) return;
+                    setState(() => _hoveredSpotId = null);
+                    widget.onFloorChanged(value);
                   },
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${layout.slots.length} posti',
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -219,76 +166,175 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
           const SizedBox(height: 12),
           Center(
             child: FractionallySizedBox(
-              widthFactor: 0.82,
+              widthFactor: 0.92,
               child: AspectRatio(
-                aspectRatio: _imgAspect ?? (16 / 9),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final size = Size(
-                      constraints.maxWidth,
-                      constraints.maxHeight,
-                    );
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    color: const Color(0xFFF3F4F6),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final size = Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
 
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Image.asset(
-                            widget.assetPath,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                        CustomPaint(
-                          painter: _OperatorParkingSlotsPainter(
-                            spots: widget.spots,
-                            selectedSpotId: widget.selectedSpotId,
-                            imageAspect: _imgAspect ?? (16 / 9),
-                            pxFromNormalized: _pxFromNormalized,
-                            spotColor: _spotColor,
-                            spotLabel: _spotLabel,
-                          ),
-                        ),
-                        ...widget.spots.map((posto) {
-                          final cell = baseSlotMap[posto.slotNumber];
-                          if (cell == null) return const SizedBox.shrink();
+                        final hoveredSlot = _findSlot(
+                          layout,
+                          _hoveredSpotId,
+                        );
 
-                          final poly = _slotPolygonNormalized(cell.c, cell.r);
-                          final tapRect = _slotTapRect(poly, size);
+                        return InteractiveViewer(
+                          minScale: 0.8,
+                          maxScale: 4,
+                          boundaryMargin: const EdgeInsets.all(120),
+                          child: SizedBox(
+                            width: size.width,
+                            height: size.height,
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              onExit: (_) {
+                                if (_hoveredSpotId == null) return;
+                                setState(() => _hoveredSpotId = null);
+                              },
+                              onHover: (event) {
+                                final hit = _hitTestSlot(
+                                  position: event.localPosition,
+                                  size: size,
+                                  layout: layout,
+                                );
 
-                          return Positioned(
-                            left: tapRect.left,
-                            top: tapRect.top,
-                            width: tapRect.width,
-                            height: tapRect.height,
-                            child: Tooltip(
-                              message:
-                                  'Posto ${posto.slotNumber} • ${_spotStatusLabel(posto)}',
+                                final nextId = hit?.data.slotId;
+                                if (nextId == _hoveredSpotId) return;
+
+                                setState(() => _hoveredSpotId = nextId);
+                              },
                               child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onTap: () => widget.onSpotTap(posto.slotId),
-                                child: const SizedBox.expand(),
+                                behavior: HitTestBehavior.opaque,
+                                onTapUp: (details) {
+                                  final hit = _hitTestSlot(
+                                    position: details.localPosition,
+                                    size: size,
+                                    layout: layout,
+                                  );
+
+                                  if (hit != null) {
+                                    widget.onSpotTap(hit.data.slotId);
+                                  }
+                                },
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CustomPaint(
+                                      painter: _OperatorDynamicParkingPainter(
+                                        layout: layout,
+                                        selectedSpotId: widget.selectedSpotId,
+                                        hoveredSpotId: _hoveredSpotId,
+                                        showGridDebug: widget.showGridDebug,
+                                      ),
+                                    ),
+                                    if (hoveredSlot != null)
+                                      Positioned(
+                                        left: 12,
+                                        top: 12,
+                                        child: IgnorePointer(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 7,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.78,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '${hoveredSlot.data.name} · '
+                                              '${_slotStatusLabel(hoveredSlot.data)}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          );
-                        }),
-                      ],
-                    );
-                  },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          if (selectedSlot != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.bgDark.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderField),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedSlot.data.name,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _slotStatusLabel(selectedSlot.data),
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    selectedSlot.data.slotId,
+                    style: const TextStyle(
+                      color: AppColors.accentCyan,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (canDisableSelected)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ElevatedButton.icon(
                 onPressed: () {
-                  widget.onDisableSpot(widget.selectedSpotId!);
+                  widget.onDisableSpot(selectedSlot!.data.slotId);
                 },
                 icon: const Icon(Icons.block),
-                label: const Text('Disabilita posto selezionato'),
+                label: const Text('Metti fuori servizio'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6B7280),
                   foregroundColor: Colors.white,
@@ -302,16 +348,15 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
                 ),
               ),
             ),
-
           if (canEnableSelected)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ElevatedButton.icon(
                 onPressed: () {
-                  widget.onEnableSpot(widget.selectedSpotId!);
+                  widget.onEnableSpot(selectedSlot!.data.slotId);
                 },
                 icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Riabilita posto selezionato'),
+                label: const Text('Rimetti in servizio'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
@@ -329,12 +374,13 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
             spacing: 16,
             runSpacing: 8,
             children: [
-              _legendItem(const Color(0xFF22C55E), 'Disponibile'),
+              _legendItem(const Color(0xFF22C55E), 'Libero'),
               _legendItem(AppColors.accentCyan, 'Disabili'),
               _legendItem(const Color(0xFFF9A8D4), 'Donna incinta'),
+              _legendItem(const Color(0xFFF59E0B), 'Prenotato'),
               _legendItem(const Color(0xFFEF4444), 'Occupato'),
               _legendItem(const Color(0xFFFACC15), 'Selezionato'),
-              _legendItem(const Color(0xFF9CA3AF), 'Disabilitato'),
+              _legendItem(const Color(0xFF9CA3AF), 'Fuori servizio'),
             ],
           ),
         ],
@@ -369,116 +415,445 @@ class _OperatorParkingImageMapState extends State<OperatorParkingImageMap> {
   }
 }
 
-class _OperatorParkingSlotsPainter extends CustomPainter {
-  final List<Posto> spots;
+class _OperatorDynamicParkingPainter extends CustomPainter {
+  final IndoorFloorLayout layout;
   final String? selectedSpotId;
-  final double imageAspect;
-  final Offset Function(Offset n, Size size) pxFromNormalized;
-  final Color Function(Posto posto) spotColor;
-  final String Function(Posto posto) spotLabel;
+  final String? hoveredSpotId;
+  final bool showGridDebug;
 
-  _OperatorParkingSlotsPainter({
-    required this.spots,
+  const _OperatorDynamicParkingPainter({
+    required this.layout,
     required this.selectedSpotId,
-    required this.imageAspect,
-    required this.pxFromNormalized,
-    required this.spotColor,
-    required this.spotLabel,
+    required this.hoveredSpotId,
+    required this.showGridDebug,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final posto in spots) {
-      final cell = baseSlotMap[posto.slotNumber];
-      if (cell == null) continue;
+    final projection = _OperatorIsometricProjection(
+      layout: layout,
+      size: size,
+    );
 
-      final polyN = LaneGridMask.cellBlockPolygonNormalized(
-        c: cell.c,
-        r: cell.r,
-        halfCols: 2,
-        halfRows: 1,
+    _drawFloor(canvas, projection);
+    _drawLane(canvas, projection);
+    _drawSlots(canvas, projection);
+    _drawEntryAndRamp(canvas, projection);
+
+    if (showGridDebug) {
+      _drawGrid(canvas, projection);
+    }
+  }
+
+  void _drawFloor(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+  ) {
+    final floorPath = projection.areaPath(layout.floorArea);
+
+    canvas.save();
+    canvas.translate(14, 18);
+    canvas.drawPath(
+      floorPath,
+      Paint()..color = Colors.black.withValues(alpha: 0.22),
+    );
+    canvas.restore();
+
+    canvas.drawPath(
+      floorPath,
+      Paint()..color = const Color(0xFF5D6065),
+    );
+
+    canvas.drawPath(
+      floorPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xFFD7B128),
+    );
+  }
+
+  void _drawLane(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+  ) {
+    final lanePath = projection.areaPath(layout.laneArea);
+
+    canvas.drawPath(
+      lanePath,
+      Paint()..color = const Color(0xFFCC7B48),
+    );
+
+    final laneCenterR = layout.laneArea.r + layout.laneArea.height / 2;
+    final start = projection.point(
+      layout.laneArea.c + 0.8,
+      laneCenterR,
+    );
+    final end = projection.point(
+      layout.laneArea.c + layout.laneArea.width - 0.8,
+      laneCenterR,
+    );
+
+    canvas.drawLine(
+      start,
+      end,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: 0.55),
+    );
+  }
+
+  void _drawSlots(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+  ) {
+    for (final slot in layout.slots) {
+      final selected = slot.data.slotId == selectedSpotId;
+      final hovered = slot.data.slotId == hoveredSpotId;
+      final slotPath = projection.areaPath(slot.area);
+      final baseColor = _slotColor(slot.data);
+
+      canvas.drawPath(
+        slotPath,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = selected
+              ? const Color(0xFFFACC15).withValues(alpha: 0.72)
+              : baseColor.withValues(alpha: 0.78),
       );
 
-      final pts = polyN.map((p) => pxFromNormalized(p, size)).toList();
-      if (pts.length < 4) continue;
+      if (hovered || selected) {
+        canvas.drawPath(
+          slotPath,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = selected ? 9 : 6
+            ..strokeJoin = StrokeJoin.round
+            ..color = (selected ? const Color(0xFFFACC15) : Colors.white)
+                .withValues(alpha: 0.24),
+        );
+      }
 
-      final path = Path()
-        ..moveTo(pts[0].dx, pts[0].dy)
-        ..lineTo(pts[1].dx, pts[1].dy)
-        ..lineTo(pts[2].dx, pts[2].dy)
-        ..lineTo(pts[3].dx, pts[3].dy)
-        ..close();
-
-      final color = spotColor(posto);
-
-      final glow = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 8
-        ..strokeJoin = StrokeJoin.round
-        ..color = color.withValues(alpha: 0.22);
-
-      final fill = Paint()
-        ..style = PaintingStyle.fill
-        ..color = color.withValues(alpha: 0.35);
-
-      final stroke = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeJoin = StrokeJoin.round
-        ..color = color.withValues(alpha: 0.95);
-
-      canvas.drawPath(path, glow);
-      canvas.drawPath(path, fill);
-      canvas.drawPath(path, stroke);
-
-      final center = Offset(
-        (pts[0].dx + pts[1].dx + pts[2].dx + pts[3].dx) / 4,
-        (pts[0].dy + pts[1].dy + pts[2].dy + pts[3].dy) / 4,
+      canvas.drawPath(
+        slotPath,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = selected ? 3.4 : (hovered ? 2.8 : 1.8)
+          ..strokeJoin = StrokeJoin.round
+          ..color = selected
+              ? const Color(0xFFFACC15)
+              : hovered
+              ? Colors.white
+              : baseColor,
       );
 
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: spotLabel(posto),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      if (slot.data.status == IndoorSlotStatus.occupied) {
+        _drawCar(canvas, projection, slot.area);
+      }
 
-      textPainter.paint(
-        canvas,
-        Offset(
-          center.dx - textPainter.width / 2,
-          center.dy - textPainter.height / 2,
+      if (slot.data.outOfService) {
+        _drawOutOfServiceMark(canvas, projection, slot.area);
+      }
+
+      _drawSlotLabel(canvas, projection, slot);
+    }
+  }
+
+  Color _slotColor(IndoorSlotData slot) {
+    if (slot.outOfService) {
+      return const Color(0xFF9CA3AF);
+    }
+
+    if (slot.status == IndoorSlotStatus.occupied) {
+      return const Color(0xFFEF4444);
+    }
+
+    if (slot.status == IndoorSlotStatus.reserved) {
+      return const Color(0xFFF59E0B);
+    }
+
+    return switch (slot.type) {
+      IndoorSlotType.disabled => AppColors.accentCyan,
+      IndoorSlotType.pregnant => const Color(0xFFF9A8D4),
+      IndoorSlotType.normal => const Color(0xFF22C55E),
+    };
+  }
+
+  void _drawCar(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+    GridArea area,
+  ) {
+    final carPath = projection.areaPathDouble(
+      c: area.c + area.width * 0.18,
+      r: area.r + area.height * 0.18,
+      width: area.width * 0.64,
+      height: area.height * 0.64,
+    );
+
+    canvas.drawPath(
+      carPath,
+      Paint()..color = const Color(0xFF263238),
+    );
+
+    canvas.drawPath(
+      carPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = Colors.white.withValues(alpha: 0.75),
+    );
+  }
+
+  void _drawOutOfServiceMark(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+    GridArea area,
+  ) {
+    final a = projection.point(area.c + 0.35, area.r + 0.35);
+    final b = projection.point(
+      area.c + area.width - 0.35,
+      area.r + area.height - 0.35,
+    );
+    final c = projection.point(
+      area.c + area.width - 0.35,
+      area.r + 0.35,
+    );
+    final d = projection.point(
+      area.c + 0.35,
+      area.r + area.height - 0.35,
+    );
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.9);
+
+    canvas.drawLine(a, b, paint);
+    canvas.drawLine(c, d, paint);
+  }
+
+  void _drawSlotLabel(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+    GeneratedIndoorSlot slot,
+  ) {
+    final center = projection.point(
+      slot.area.c + slot.area.width / 2,
+      slot.area.r + slot.area.height / 2,
+    );
+
+    final numberPainter = TextPainter(
+      text: TextSpan(
+        text: slot.data.number.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
         ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    numberPainter.paint(
+      canvas,
+      Offset(
+        center.dx - numberPainter.width / 2,
+        center.dy - numberPainter.height / 2,
+      ),
+    );
+
+    final typeSymbol = switch (slot.data.type) {
+      IndoorSlotType.normal => null,
+      IndoorSlotType.disabled => '♿',
+      IndoorSlotType.pregnant => 'M',
+    };
+
+    if (typeSymbol == null) return;
+
+    final typePainter = TextPainter(
+      text: TextSpan(
+        text: typeSymbol,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    typePainter.paint(
+      canvas,
+      Offset(
+        center.dx - typePainter.width / 2,
+        center.dy + numberPainter.height / 2 - 1,
+      ),
+    );
+  }
+
+  void _drawEntryAndRamp(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+  ) {
+    _drawMarker(
+      canvas,
+      projection.cellCenter(layout.entryCell),
+      'IN',
+      const Color(0xFF66BB6A),
+    );
+
+    _drawMarker(
+      canvas,
+      projection.cellCenter(layout.rampCell),
+      'R',
+      const Color(0xFFFFA726),
+    );
+  }
+
+  void _drawMarker(
+    Canvas canvas,
+    Offset center,
+    String label,
+    Color color,
+  ) {
+    canvas.drawCircle(center, 10, Paint()..color = color);
+    canvas.drawCircle(
+      center,
+      13,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = Colors.white,
+    );
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    textPainter.paint(
+      canvas,
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
+    );
+  }
+
+  void _drawGrid(
+    Canvas canvas,
+    _OperatorIsometricProjection projection,
+  ) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = Colors.black.withValues(alpha: 0.18);
+
+    for (int c = 0; c <= layout.cols; c++) {
+      canvas.drawLine(
+        projection.point(c.toDouble(), 0),
+        projection.point(c.toDouble(), layout.rows.toDouble()),
+        paint,
+      );
+    }
+
+    for (int r = 0; r <= layout.rows; r++) {
+      canvas.drawLine(
+        projection.point(0, r.toDouble()),
+        projection.point(layout.cols.toDouble(), r.toDouble()),
+        paint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _OperatorParkingSlotsPainter oldDelegate) {
-    if (oldDelegate.selectedSpotId != selectedSpotId) return true;
-    if (oldDelegate.imageAspect != imageAspect) return true;
-    if (oldDelegate.spots.length != spots.length) return true;
+  bool shouldRepaint(covariant _OperatorDynamicParkingPainter oldDelegate) {
+    return oldDelegate.layout != layout ||
+        oldDelegate.selectedSpotId != selectedSpotId ||
+        oldDelegate.hoveredSpotId != hoveredSpotId ||
+        oldDelegate.showGridDebug != showGridDebug;
+  }
+}
 
-    for (int i = 0; i < spots.length; i++) {
-      final a = oldDelegate.spots[i];
-      final b = spots[i];
+class _OperatorIsometricProjection {
+  final IndoorFloorLayout layout;
+  final Size size;
 
-      if (a.id != b.id ||
-          a.disponibile != b.disponibile ||
-          a.disabilitato != b.disabilitato ||
-          a.riservatoDisabili != b.riservatoDisabili ||
-          a.riservatoIncinta != b.riservatoIncinta ||
-          a.numero != b.numero ||
-          a.piano != b.piano) {
-        return true;
-      }
-    }
+  late final double tileWidth;
+  late final double tileHeight;
+  late final double originX;
+  late final double originY;
 
-    return false;
+  _OperatorIsometricProjection({
+    required this.layout,
+    required this.size,
+  }) {
+    const padding = 28.0;
+    final sum = (layout.cols + layout.rows).toDouble();
+
+    final widthTile = ((size.width - padding * 2) * 2) / sum;
+    final heightTile = ((size.height - padding * 2) * 4) / sum;
+
+    tileWidth = math.min(widthTile, heightTile).clamp(4.0, 38.0).toDouble();
+    tileHeight = tileWidth / 2;
+
+    final projectedWidth = sum * tileWidth / 2;
+    final projectedHeight = sum * tileHeight / 2;
+
+    final left = (size.width - projectedWidth) / 2;
+    final top = (size.height - projectedHeight) / 2;
+
+    originX = left + layout.rows * tileWidth / 2;
+    originY = top;
+  }
+
+  Offset point(double c, double r) {
+    return Offset(
+      originX + (c - r) * tileWidth / 2,
+      originY + (c + r) * tileHeight / 2,
+    );
+  }
+
+  Offset cellCenter(SlotCell2D cell) {
+    return point(cell.c + 0.5, cell.r + 0.5);
+  }
+
+  Path areaPath(GridArea area) {
+    return areaPathDouble(
+      c: area.c.toDouble(),
+      r: area.r.toDouble(),
+      width: area.width.toDouble(),
+      height: area.height.toDouble(),
+    );
+  }
+
+  Path areaPathDouble({
+    required double c,
+    required double r,
+    required double width,
+    required double height,
+  }) {
+    final topLeft = point(c, r);
+    final topRight = point(c + width, r);
+    final bottomRight = point(c + width, r + height);
+    final bottomLeft = point(c, r + height);
+
+    return Path()
+      ..moveTo(topLeft.dx, topLeft.dy)
+      ..lineTo(topRight.dx, topRight.dy)
+      ..lineTo(bottomRight.dx, bottomRight.dy)
+      ..lineTo(bottomLeft.dx, bottomLeft.dy)
+      ..close();
   }
 }

@@ -4,32 +4,28 @@ import java.time.Clock;
 import java.util.List;
 
 /**
- * Servizio per la gestione delle prenotazioni.
- *
- * Definisce le operazioni principali per la gestione
- * del ciclo di vita di una prenotazione, dalla creazione
- * alla chiusura e pagamento.
+ * Servizio applicativo per la gestione del ciclo di vita delle prenotazioni.
  */
 public interface PrenotazioneService {
 
     /**
-     * Recupera lo storico delle prenotazioni di un utente.
+     * Recupera lo storico delle prenotazioni dell'utente.
      *
      * @param utenteId identificativo dell'utente
-     * @return lista delle prenotazioni dell'utente
+     * @return storico delle prenotazioni
      */
     List<PrenotazioneResponse> getStoricoUtente(String utenteId);
 
     /**
-     * Recupera le prenotazioni associate a un parcheggio.
+     * Recupera gli elementi associati al parcheggio indicato.
      *
      * @param parcheggioId identificativo del parcheggio
-     * @return lista delle prenotazioni
+     * @return lista dei posti del parcheggio
      */
     List<PrenotazioneResponse> getByParcheggio(String parcheggioId);
 
     /**
-     * Valida l'ingresso tramite codice QR.
+     * Valida l'ingresso tramite il codice QR della prenotazione.
      *
      * @param codiceQr codice QR della prenotazione
      * @return prenotazione aggiornata
@@ -37,16 +33,18 @@ public interface PrenotazioneService {
     PrenotazioneResponse validaIngresso(String codiceQr);
 
     /**
-     * Annulla una prenotazione.
+     * Annulla una prenotazione e libera il posto associato.
      *
      * @param prenotazioneId identificativo della prenotazione
      * @param utenteId identificativo dell'utente
-     * @return prenotazione aggiornata
+     * @return prenotazione annullata
      */
-    PrenotazioneResponse annullaPrenotazione(String prenotazioneId, String utenteId);
+    PrenotazioneResponse annullaPrenotazione(
+            String prenotazioneId,
+            String utenteId);
 
     /**
-     * Calcola l'importo da pagare per una prenotazione.
+     * Calcola l'importo dovuto in base a durata, preferenze, fascia oraria e occupazione.
      *
      * @param prenotazioneId identificativo della prenotazione
      * @return importo calcolato
@@ -54,24 +52,26 @@ public interface PrenotazioneService {
     double calcolaImporto(String prenotazioneId);
 
     /**
-     * Effettua il pagamento di una prenotazione.
+     * Registra il pagamento e aggiorna lo stato della prenotazione.
      *
      * @param prenotazioneId identificativo della prenotazione
-     * @param importo importo da pagare
+     * @param importo importo da registrare
      * @return prenotazione aggiornata
      */
-    PrenotazioneResponse pagaPrenotazione(String prenotazioneId, double importo);
+    PrenotazioneResponse pagaPrenotazione(
+            String prenotazioneId,
+            double importo);
 
     /**
-     * Valida l'uscita tramite codice QR.
+     * Valida l'uscita e rende nuovamente libero il posto.
      *
      * @param codiceQr codice QR della prenotazione
-     * @return prenotazione aggiornata
+     * @return prenotazione conclusa
      */
     PrenotazioneResponse validaUscita(String codiceQr);
 
     /**
-     * Recupera una prenotazione tramite codice QR.
+     * Recupera una prenotazione tramite il relativo codice QR.
      *
      * @param codiceQr codice QR della prenotazione
      * @return prenotazione trovata
@@ -79,7 +79,7 @@ public interface PrenotazioneService {
     PrenotazioneResponse getPrenotazioneByQr(String codiceQr);
 
     /**
-     * Conferma che l'utente ha effettivamente parcheggiato.
+     * Conferma che il veicolo ha raggiunto e occupato il posto assegnato.
      *
      * @param prenotazioneId identificativo della prenotazione
      * @return prenotazione aggiornata
@@ -87,7 +87,7 @@ public interface PrenotazioneService {
     PrenotazioneResponse confermaParcheggio(String prenotazioneId);
 
     /**
-     * Imposta un clock personalizzato (utile per test).
+     * Imposta il clock da utilizzare nelle operazioni temporali, principalmente per i test.
      *
      * @param fixedClock clock da utilizzare
      */

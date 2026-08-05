@@ -24,11 +24,19 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<PrenotazioneResponse>> _storicoFuture;
+  bool _errorFeedbackShown = false;
 
   @override
   void initState() {
     super.initState();
     _storicoFuture = _caricaEOrdinaStorico();
+  }
+
+  void _reloadHistory() {
+    setState(() {
+      _errorFeedbackShown = false;
+      _storicoFuture = _caricaEOrdinaStorico();
+    });
   }
 
   Future<List<PrenotazioneResponse>> _caricaEOrdinaStorico() async {
@@ -52,10 +60,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       backgroundColor: AppColors.bgDark,
       appBar: AppBar(
         title: const Text(
-          "Le mie Prenotazioni",
+          "Le mie prenotazioni",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: AppColors.bgDark2,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
       body: FutureBuilder<List<PrenotazioneResponse>>(
@@ -66,14 +75,45 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: CircularProgressIndicator(color: AppColors.accentCyan),
             );
           } else if (snapshot.hasError) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              UiFeedback.showError(context, "Errore: ${snapshot.error}");
-            });
+            if (!_errorFeedbackShown) {
+              _errorFeedbackShown = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                UiFeedback.showError(
+                  context,
+                  'Errore nel caricamento dello storico.',
+                );
+              });
+            }
 
-            return const Center(
-              child: Text(
-                "Errore nel caricamento dello storico.",
-                style: TextStyle(color: AppColors.textMuted),
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Color(0xFFEF4444),
+                      size: 42,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Errore nel caricamento dello storico.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _reloadHistory,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Riprova'),
+                    ),
+                  ],
+                ),
               ),
             );
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -121,30 +161,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       _coloreStato(p.stato),
                     ],
                   ),
-                  subtitle: Text("Data: ${formatDT(p.dataCreazione)}"),
+                  subtitle: Text(
+                    'Data: ${formatDT(p.dataCreazione)}',
+                    style: const TextStyle(color: AppColors.textMuted),
+                  ),
                   trailing: const Icon(
                     Icons.chevron_right,
                     color: AppColors.textMuted,
                   ),
                   onTap: () async {
-                    final updated = await widget.apiClient
-                        .getPrenotazioneByIdFromStorico(widget.utente.id, p.id);
+                    try {
+                      final updated = await widget.apiClient
+                          .getPrenotazioneByIdFromStorico(
+                            widget.utente.id,
+                            p.id,
+                          );
 
-                    if (!context.mounted) return;
+                      if (!context.mounted) return;
 
-                    PrenotazioneDialog.mostra(
-                      context,
-                      prenotazione: updated ?? p,
-                      apiClient: widget.apiClient,
-                      utenteId: widget.utente.id,
-                      onCancelled: () {
-                        setState(() {
-                          _storicoFuture = _caricaEOrdinaStorico();
-                        });
-                        widget.onBookingCancelled();
-                      },
-                      onClosed: () {},
-                    );
+                      await PrenotazioneDialog.mostra(
+                        context,
+                        prenotazione: updated ?? p,
+                        apiClient: widget.apiClient,
+                        utenteId: widget.utente.id,
+                        onCancelled: () {
+                          _reloadHistory();
+                          widget.onBookingCancelled();
+                        },
+                        onClosed: () {},
+                      );
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      UiFeedback.showError(
+                        context,
+                        'Impossibile aprire la prenotazione.',
+                      );
+                    }
                   },
                 ),
               );

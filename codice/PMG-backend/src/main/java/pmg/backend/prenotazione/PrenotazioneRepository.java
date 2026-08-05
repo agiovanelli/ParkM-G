@@ -7,53 +7,24 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 /**
- * Repository per l'accesso ai dati delle prenotazioni.
+ * Repository Spring Data MongoDB per l'accesso alle prenotazioni.
  *
- * Fornisce metodi per recuperare le prenotazioni in base
- * a utente, stato, parcheggio e codice QR.
+ * Fornisce query per utente, parcheggio, codice QR, stato e scadenza di arrivo.
  */
-public interface PrenotazioneRepository extends MongoRepository<Prenotazione, String> {
+public interface PrenotazioneRepository
+        extends MongoRepository<Prenotazione, String> {
 
-    /**
-     * Recupera tutte le prenotazioni associate a un utente.
-     *
-     * @param utenteId identificativo dell'utente
-     * @return lista delle prenotazioni dell'utente
-     */
     List<Prenotazione> findByUtenteId(String utenteId);
 
-    /**
-     * Recupera le prenotazioni con uno specifico stato
-     * create prima di una determinata data.
-     *
-     * @param stato stato della prenotazione
-     * @param scadenzaArrivo data limite di creazione
-     * @return lista delle prenotazioni trovate
-     */
-    List<Prenotazione> findByStatoAndDataCreazioneBefore(StatoPrenotazione stato, LocalDateTime scadenzaArrivo);
+    List<Prenotazione> findByStatoAndScadenzaArrivoBefore(
+            StatoPrenotazione stato,
+            LocalDateTime now);
 
-    /**
-     * Recupera una prenotazione tramite il codice QR.
-     *
-     * @param codiceQr codice QR della prenotazione
-     * @return prenotazione trovata, se presente
-     */
     Optional<Prenotazione> findByCodiceQr(String codiceQr);
-    
-    /**
-     * Recupera una prenotazione tramite id e utente associato.
-     *
-     * @param id identificativo della prenotazione
-     * @param utenteId identificativo dell'utente
-     * @return prenotazione trovata, se presente
-     */
-    Optional<Prenotazione> findByIdAndUtenteId(String id, String utenteId);
-    
-    /**
-     * Recupera tutte le prenotazioni associate a un parcheggio.
-     *
-     * @param parcheggioId identificativo del parcheggio
-     * @return lista delle prenotazioni del parcheggio
-     */
+
+    Optional<Prenotazione> findByIdAndUtenteId(
+            String id,
+            String utenteId);
+
     List<Prenotazione> findByParcheggioId(String parcheggioId);
 }

@@ -1,31 +1,32 @@
 package pmg.backend.prenotazione;
 
 /**
- * Enum che rappresenta le tipologie di stato delle prenotazioni.
- *
- * Permette di classificare una prenotazione in base
- * allo stato in cui si trova.
+ * Enum che rappresenta gli stati possibili del ciclo di vita di una prenotazione.
  */
 public enum StatoPrenotazione {
-	
-	/** Prenotazione attiva, arrivo al parcheggio atteso entro un limite. */
+    /**
+     * Prenotazione creata, in attesa della validazione di ingresso.
+     */
     attiva,
-    
-    /** Utente entrato nel parcheggio, si dirige verso il posto assegnato. */
+    /**
+     * Ingresso validato; l'utente si sta dirigendo verso il posto.
+     */
     inCorso,
-    
-    /** Utente ha parcheggiato e confermato il posto. */
+    /**
+     * Veicolo parcheggiato e presenza confermata.
+     */
     parcheggiato,
-    
-    /** Prenotazione pagata, l'utente ha un limite di tempo entro qui può uscire dal parcheggio. */
+    /**
+     * Pagamento registrato; uscita ancora da validare.
+     */
     pagato,
-    
-    /** Prenotazione conclusa, utente uscito dal parcheggio con successo. */
+    /**
+     * Uscita completata e prenotazione terminata.
+     */
     conclusa,
-    
-    /** Prenotazione scaduta, l'utente ha esaurito il tempo massimo entro il quale poteva effettuare l'accesso. */
+    /**
+     * Tempo massimo di arrivo superato.
+     */
     scaduta,
-    
-    /** Prenotazione annullata, l'utente ha cancellato la prenotazione. */
     annullata
 }

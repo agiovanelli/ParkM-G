@@ -3,7 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:park_mg/utils/theme.dart';
 
 class QrScannerPage extends StatefulWidget {
-  final Function(String) onQrScanned;
+  final Future<bool> Function(String) onQrScanned;
   final bool isActive; 
 
   const QrScannerPage({
@@ -17,11 +17,10 @@ class QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<QrScannerPage> {
-  MobileScannerController cameraController = MobileScannerController();
+  final MobileScannerController cameraController = MobileScannerController();
   bool _isProcessing = false;
   String? _lastScannedCode;
   String? _errorMessage;
-  String? _successMessage;
 
   @override
   void dispose() {
@@ -29,55 +28,52 @@ class _QrScannerPageState extends State<QrScannerPage> {
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) async {
+  Future<void> _onDetect(BarcodeCapture capture) async {
     if (_isProcessing) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
+    final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
 
-    final String? code = barcodes.first.rawValue;
+    final code = barcodes.first.rawValue?.trim();
     if (code == null || code.isEmpty) return;
-
     if (_lastScannedCode == code) return;
 
     setState(() {
       _isProcessing = true;
       _lastScannedCode = code;
       _errorMessage = null;
-      _successMessage = null;
     });
 
     try {
-      await widget.onQrScanned(code);
-      
-      if (mounted) {
-        setState(() {
-          _successMessage = 'Validato con successo!';
-          _isProcessing = false;
-        });
+      final completed = await widget.onQrScanned(code);
 
-        await Future.delayed(const Duration(seconds: 3));
-        if (mounted) {
-          setState(() {
-            _lastScannedCode = null;
-            _successMessage = null;
-          });
-        }
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      await Future.delayed(
+        completed
+            ? const Duration(milliseconds: 500)
+            : const Duration(milliseconds: 800),
+      );
     } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isProcessing = false;
+      });
+
+      await Future.delayed(const Duration(seconds: 4));
+    } finally {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _lastScannedCode = null;
+          _errorMessage = null;
           _isProcessing = false;
         });
-
-        await Future.delayed(const Duration(seconds: 4));
-        if (mounted) {
-          setState(() {
-            _lastScannedCode = null;
-            _errorMessage = null;
-          });
-        }
       }
     }
   }
@@ -166,12 +162,16 @@ class _QrScannerPageState extends State<QrScannerPage> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Text(
-                      'Guida Scansione: scansiona il QR code presente sul dispositivo del cliente per convalidare l\'ingresso, incassare il pagamento o autorizzare l\'uscita.',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                    const Expanded(
+                      child: Text(
+                        'Guida scansione: scansiona il QR code del cliente '
+                        'per convalidare l\'ingresso, registrare il pagamento '
+                        'o autorizzare l\'uscita.',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ],
@@ -185,9 +185,16 @@ class _QrScannerPageState extends State<QrScannerPage> {
                 ),
                 const SizedBox(height: 6),
                 _buildInfoRow(
-                  Icons.euro,
+                  Icons.directions_car_filled_rounded,
                   'inCorso',
-                  'Incassa pagamento | Se il cliente non ha ancora pagato, compare un pop-up con la procedura di pagamento',
+                  'Attende che il cliente confermi di avere occupato il posto',
+                  const Color(0xFF60A5FA),
+                ),
+                const SizedBox(height: 6),
+                _buildInfoRow(
+                  Icons.euro,
+                  'parcheggiato',
+                  'Calcola e registra il pagamento',
                   const Color(0xFFF59E0B),
                 ),
                 const SizedBox(height: 6),
@@ -216,7 +223,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                     child: Container(),
                   ),
 
-                  if (_isProcessing || _errorMessage != null || _successMessage != null)
+                  if (_isProcessing || _errorMessage != null)
                     Container(
                       color: Colors.black.withValues(alpha: 0.7),
                       child: Center(
@@ -244,24 +251,16 @@ class _QrScannerPageState extends State<QrScannerPage> {
                                   color: Color(0xFFEF4444),
                                   size: 48,
                                 ),
-                              if (_successMessage != null)
-                                const Icon(
-                                  Icons.check_circle_outline,
-                                  color: Color(0xFF10B981),
-                                  size: 48,
-                                ),
                               const SizedBox(height: 16),
                               Text(
                                 _isProcessing
-                                    ? 'Validazione in corso...'
-                                    : _errorMessage ?? _successMessage ?? '',
+                                    ? 'Operazione in corso...'
+                                    : _errorMessage ?? '',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _errorMessage != null
                                       ? const Color(0xFFEF4444)
-                                      : _successMessage != null
-                                          ? const Color(0xFF10B981)
-                                          : AppColors.textPrimary,
+                                      : AppColors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -277,25 +276,30 @@ class _QrScannerPageState extends State<QrScannerPage> {
           ),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _controlButton(
-                icon: Icons.flash_off,
-                activeIcon: Icons.flash_on,
-                label: 'Flash',
-                onTap: () => cameraController.toggleTorch(),
+              Expanded(
+                child: _controlButton(
+                  icon: Icons.flash_off,
+                  activeIcon: Icons.flash_on,
+                  label: 'Flash',
+                  onTap: () => cameraController.toggleTorch(),
+                ),
               ),
               const SizedBox(width: 8),
-              _controlButton(
-                icon: Icons.edit_note,
-                label: 'Manuale',
-                onTap: _showManualEntryDialog,
+              Expanded(
+                child: _controlButton(
+                  icon: Icons.edit_note,
+                  label: 'Manuale',
+                  onTap: _showManualEntryDialog,
+                ),
               ),
               const SizedBox(width: 8),
-              _controlButton(
-                icon: Icons.cameraswitch,
-                label: 'Cambia',
-                onTap: () => cameraController.switchCamera(),
+              Expanded(
+                child: _controlButton(
+                  icon: Icons.cameraswitch,
+                  label: 'Cambia',
+                  onTap: () => cameraController.switchCamera(),
+                ),
               ),
             ],
           ),
@@ -353,7 +357,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.bgDark2.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(14),
@@ -378,10 +382,10 @@ class _QrScannerPageState extends State<QrScannerPage> {
     );
   }
 
-  void _showManualEntryDialog() {
-    final TextEditingController manualController = TextEditingController();
+  Future<void> _showManualEntryDialog() async {
+    final manualController = TextEditingController();
 
-    showDialog(
+    await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.bgDark,
@@ -434,8 +438,11 @@ class _QrScannerPageState extends State<QrScannerPage> {
         ],
       ),
     );
+
+    manualController.dispose();
   }
 }
+
 class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

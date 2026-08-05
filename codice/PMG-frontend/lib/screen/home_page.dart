@@ -6,6 +6,7 @@ import 'package:park_mg/utils/ui_feedback.dart';
 import '../api/api_client.dart';
 import 'user_screen.dart';
 import 'operator_screen.dart';
+
 class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -25,10 +26,7 @@ class PrimaryButton extends StatelessWidget {
               ? const LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
-                  colors: [
-                    AppColors.accentCyan2,
-                    AppColors.accentCyan,
-                  ],
+                  colors: [AppColors.accentCyan2, AppColors.accentCyan],
                 )
               : null,
           color: enabled ? null : Colors.grey.shade700,
@@ -114,87 +112,89 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<T> retry<T>(
-  Future<T> Function() fn, {
-  int retries = 3,
-  Duration delay = const Duration(seconds: 2),
-}) async {
-  int attempt = 0;
+    Future<T> Function() fn, {
+    int retries = 3,
+    Duration delay = const Duration(seconds: 2),
+  }) async {
+    int attempt = 0;
 
-  while (true) {
-    try {
-      return await fn();
-    } on TimeoutException catch (_) {
-      attempt++;
+    while (true) {
+      try {
+        return await fn();
+      } on TimeoutException catch (_) {
+        attempt++;
 
-      if (attempt >= retries) {
-        throw ApiException('Timeout dopo $retries tentativi');
+        if (attempt >= retries) {
+          throw ApiException('Timeout dopo $retries tentativi');
+        }
+
+        // Aspetta prima di riprovare
+        await Future.delayed(delay);
       }
-
-      // Aspetta prima di riprovare
-      await Future.delayed(delay);
     }
   }
-}
 
   Future<void> _handleUserLogin() async {
-  if (_isLoading) return;
+    if (_isLoading) return;
 
-  final email = _userLoginEmailController.text.trim();
-  final password = _userLoginPasswordController.text;
+    final email = _userLoginEmailController.text.trim();
+    final password = _userLoginPasswordController.text;
 
-  if (email.isEmpty && password.isEmpty) {
-    UiFeedback.showError(context, 'Inserisci email e password.');
-    return;
+    if (email.isEmpty && password.isEmpty) {
+      UiFeedback.showError(context, 'Inserisci email e password.');
+      return;
+    }
+    if (email.isEmpty) {
+      UiFeedback.showError(context, 'Inserisci email.');
+      return;
+    }
+    if (password.isEmpty) {
+      UiFeedback.showError(context, 'Inserisci password.');
+      return;
+    }
+    if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
+      UiFeedback.showError(context, 'Formato email non valido.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final utente = await retry(() async {
+        return await widget.apiClient
+            .loginUtente(email, password)
+            .timeout(const Duration(seconds: 12));
+      });
+
+      _userLoginEmailController.clear();
+      _userLoginPasswordController.clear();
+      if (!mounted) return;
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              UserScreen(utente: utente, apiClient: widget.apiClient),
+        ),
+      );
+    } on TimeoutException {
+      if (!mounted) return;
+      UiFeedback.showError(context, 'Connessione lenta. Riprova.');
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showError(
+        context,
+        e is ApiException
+            ? e.message
+            : 'Errore di connessione al server utenti',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
-  if (email.isEmpty) {
-    UiFeedback.showError(context, 'Inserisci email.');
-    return;
-  }
-  if (password.isEmpty) {
-    UiFeedback.showError(context, 'Inserisci password.');
-    return;
-  }
-  if (!RegExp(r'^[A-Za-z0-9+_.-]+@(.+)$').hasMatch(email)) {
-    UiFeedback.showError(context, 'Formato email non valido.');
-    return;
-  }
-
-  setState(() => _isLoading = true);
-
-  try {
-    final utente = await retry(() async {
-      return await widget.apiClient
-          .loginUtente(email, password)
-          .timeout(const Duration(seconds: 12));
-    });
-
-    _userLoginEmailController.clear();
-    _userLoginPasswordController.clear();
-    if (!mounted) return;
-
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) =>
-            UserScreen(utente: utente, apiClient: widget.apiClient),
-      ),
-    );
-  } on TimeoutException {
-    if (!mounted) return;
-    UiFeedback.showError(context, 'Connessione lenta. Riprova.');
-  } catch (e) {
-    if (!mounted) return;
-    UiFeedback.showError(
-      context,
-      e is ApiException
-          ? e.message
-          : 'Errore di connessione al server utenti',
-    );
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
-  }
-}
 
   Future<void> _handleUserRegister() async {
+    if (_isLoading) return;
+
     final nome = _userRegisterNameController.text.trim();
     final cognome = _userRegisterSurnameController.text.trim();
     final email = _userRegisterEmailController.text.trim();
@@ -223,6 +223,8 @@ class _HomePageState extends State<HomePage>
     setState(() => _isLoading = true);
     try {
       await widget.apiClient.registraUtente(nome, cognome, email, pwd);
+
+      _userLoginEmailController.text = email;
       _userRegisterNameController.clear();
       _userRegisterSurnameController.clear();
       _userRegisterEmailController.clear();
@@ -231,11 +233,12 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _isLoginMode = true;
       });
-      UiFeedback.showError(
+      UiFeedback.showSuccess(
         context,
         'Registrazione completata. Ora effettua il login.',
       );
     } catch (e) {
+      if (!mounted) return;
       UiFeedback.showError(
         context,
         e is ApiException
@@ -248,13 +251,15 @@ class _HomePageState extends State<HomePage>
   }
 
   void _handleUserForgotPassword() {
-    UiFeedback.showError(
+    UiFeedback.showInfo(
       context,
-      'Funzionalità "Password dimenticata?" non ancora disponibile.',
+      'La funzionalità "Password dimenticata?" non è ancora disponibile.',
     );
   }
 
   Future<void> _handleOperatorLogin() async {
+    if (_isLoading) return;
+
     final nomeStruttura = _operatorNomeStrutturaController.text.trim();
     final username = _operatorUsernameController.text.trim();
 
@@ -288,6 +293,7 @@ class _HomePageState extends State<HomePage>
         MaterialPageRoute(builder: (_) => OperatorScreen(operatore: operatore)),
       );
     } catch (e) {
+      if (!mounted) return;
       UiFeedback.showError(
         context,
         e is ApiException
@@ -312,11 +318,7 @@ class _HomePageState extends State<HomePage>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.bgDark2,
-              AppColors.bgDark2,
-              AppColors.bgDark2,
-            ],
+            colors: [AppColors.bgDark2, AppColors.bgDark2, AppColors.bgDark2],
           ),
         ),
         child: Stack(
@@ -362,10 +364,7 @@ class _HomePageState extends State<HomePage>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            AppColors.bgDark,
-            AppColors.bgDark,
-          ],
+          colors: [AppColors.bgDark, AppColors.bgDark],
         ),
         boxShadow: [
           BoxShadow(
@@ -393,10 +392,7 @@ class _HomePageState extends State<HomePage>
               const SizedBox(height: 16),
               const Text(
                 'Gestione Utenti e Operatori',
-                style: TextStyle(
-                  color: AppColors.textSecondary, 
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -715,7 +711,8 @@ class _HomePageState extends State<HomePage>
                 TextField(
                   controller: _operatorUsernameController,
                   decoration: const InputDecoration(labelText: 'Username'),
-                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _handleOperatorLogin(),
                 ),
                 const SizedBox(height: 16),
                 PrimaryButton(text: 'Accedi', onPressed: _handleOperatorLogin),

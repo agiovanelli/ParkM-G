@@ -1,21 +1,14 @@
 package pmg.backend.parcheggio;
 
-import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
+import org.springframework.data.mongodb.repository.MongoRepository;
+
 /**
- * Repository per l'accesso ai dati del parcheggio.
+ * Repository Spring Data MongoDB per l'accesso ai documenti dei parcheggi.
  *
- * Fornisce metodi per recuperare il parcheggio in base
- * all'area in cui è localizzato.
+ * Fornisce le operazioni CRUD standard e la ricerca testuale per area geografica.
  */
 public interface ParcheggioRepository extends MongoRepository<Parcheggio, String> {
-    
-	/**
-	 * Recupera i parcheggi che all'interno di un'area specifica.
-	 *
-	 * @param area area geografica
-	 * @return lista dei parcheggi trovati
-	 */
     List<Parcheggio> findByAreaContainingIgnoreCase(String area);
 }

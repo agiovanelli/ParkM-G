@@ -1,210 +1,317 @@
 package pmg.backend.posto;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
 /**
- * Rappresenta un documento della collezione MongoDB dei posti auto.
+ * Rappresenta un posto auto embedded nella configurazione di un piano.
  *
- * Contiene le informazioni principali associate a un singolo posto
- * all'interno di un parcheggio, incluse disponibilità e caratteristiche.
+ * La classe non è un documento MongoDB autonomo: viene salvata all'interno di
+ * {@code configurazionePiani[].posti} del relativo {@link pmg.backend.parcheggio.Parcheggio}.
  */
-@Document(collection = "posti")
 public class Posto {
 
-    /** Identificativo univoco del documento. */
-	@Id
-	private String id;
-
-    /** Identificativo del parcheggio associato. */
-	private String parcheggioId;
-
-    /** Numero identificativo del posto. */
-	private int numero;
-
-    /** Piano in cui si trova il posto. */
-	private int piano;
-
-    /** Indica se il posto è disponibile. */
-    private boolean disponibile;
-
-    /** Indica se il posto è disabilitato (non utilizzabile). */
-    private boolean disabilitato;
-
-    /** Indica se il posto è riservato a persone con disabilità. */
-    private boolean riservatoDisabili;
-
-    /** Indica se il posto è riservato a donne in gravidanza. */
-    private boolean riservatoIncinta;
-
-    /** Distanza del posto dall'uscita. */
+    /**
+     * Identificativo logico stabile del posto.
+     */
+    private String slotId;
+    /**
+     * Numero progressivo del posto nel piano.
+     */
+    private int numero;
+    /**
+     * Nome descrittivo.
+     */
+    private String nome;
+    /**
+     * Numero identificativo del piano.
+     */
+    private int piano;
+    /**
+     * Categoria funzionale del posto.
+     */
+    private TipoPosto tipo = TipoPosto.NORMALE;
+    /**
+     * Stato operativo corrente.
+     */
+    private StatoPosto stato = StatoPosto.LIBERO;
+    /**
+     * Indica se il posto è temporaneamente inutilizzabile.
+     */
+    private boolean fuoriServizio;
+    /**
+     * Indice logico della distanza del posto dall'uscita.
+     */
     private int distanzaUscita;
 
     /**
-     * Costruttore vuoto richiesto da Spring Data MongoDB.
+     * Costruttore vuoto richiesto dal framework di persistenza.
      */
-    public Posto() {}
+    public Posto() {
+    }
 
     /**
-     * Crea un nuovo posto auto con le informazioni principali.
+     * Crea una nuova istanza di Posto con i dati indicati.
      *
-     * @param id identificativo del posto
-     * @param parcheggioId identificativo del parcheggio
-     * @param numero numero del posto
-     * @param piano piano del posto
-     * @param postoBoolean oggetto contenente gli stati booleani del posto
+     * @param slotId identificativo logico del posto
+     * @param numero numero progressivo del posto
+     * @param nome nome descrittivo
+     * @param piano piano da filtrare o modificare
+     * @param tipo categoria del posto
+     * @param stato nuovo stato operativo
+     * @param fuoriServizio nuovo valore della messa fuori servizio
      * @param distanzaUscita distanza dall'uscita
      */
-    public Posto(String id, String parcheggioId, int numero, int piano, PostoBoolean postoBoolean, int distanzaUscita) {
-    	this.id = id;
-    	this.parcheggioId = parcheggioId;
-    	this.numero = numero;
-    	this.piano = piano;
-        this.disponibile = postoBoolean.disponibile();
-        this.disabilitato = postoBoolean.disabilitato();
-        this.riservatoDisabili = postoBoolean.riservatoDisabili();
-        this.riservatoIncinta = postoBoolean.riservatoIncinta();
+    public Posto(
+            String slotId,
+            int numero,
+            String nome,
+            int piano,
+            TipoPosto tipo,
+            StatoPosto stato,
+            boolean fuoriServizio,
+            int distanzaUscita) {
+        this.slotId = slotId;
+        this.numero = numero;
+        this.nome = nome;
+        this.piano = piano;
+        this.tipo = tipo == null ? TipoPosto.NORMALE : tipo;
+        this.stato = stato == null ? StatoPosto.LIBERO : stato;
+        this.fuoriServizio = fuoriServizio;
         this.distanzaUscita = distanzaUscita;
     }
 
-    // Getter & Setter
+    /**
+     * Estrae l'identificativo logico del posto dalla prenotazione.
+     * @return identificativo del posto o {@code null}
+     */
+    public String getSlotId() {
+        return slotId;
+    }
 
     /**
-     * Indica se il posto è disponibile.
+     * Imposta identificativo logico del posto.
      *
-     * @return true se disponibile, false altrimenti
+     * @param slotId identificativo logico del posto
      */
-    public boolean isDisponibile() { return disponibile; }
+    public void setSlotId(String slotId) {
+        this.slotId = slotId;
+    }
 
     /**
-     * Imposta la disponibilità del posto.
-     *
-     * @param disponibile nuovo stato di disponibilità
+     * Restituisce identificativo.
+     * @return identificativo
      */
-    public void setDisponibile(boolean disponibile) { this.disponibile = disponibile; }
-    
-    /**
-     * Indica se il posto è disabilitato.
-     *
-     * @return true se disabilitato, false altrimenti
-     */
-    public boolean isDisabilitato() { return disabilitato; }
+    public String getId() {
+        return slotId;
+    }
 
     /**
-     * Imposta lo stato di disabilitazione del posto.
+     * Imposta identificativo.
      *
-     * @param disabilitato nuovo stato di disabilitazione
+     * @param id identificativo della risorsa
      */
-    public void setDisabilitato(boolean disabilitato) { this.disabilitato = disabilitato; }
+    public void setId(String id) {
+        this.slotId = id;
+    }
 
     /**
-     * Indica se il posto è riservato a persone con disabilità.
-     *
-     * @return true se riservato, false altrimenti
-     */
-    public boolean isRiservatoDisabili() { return riservatoDisabili; }
-
-    /**
-     * Imposta lo stato di riserva per disabili.
-     *
-     * @param riservatoDisabili nuovo stato
-     */
-    public void setRiservatoDisabili(boolean riservatoDisabili) { this.riservatoDisabili = riservatoDisabili; }
-
-    /**
-     * Indica se il posto è riservato a donne in gravidanza.
-     *
-     * @return true se riservato, false altrimenti
-     */
-    public boolean isRiservatoIncinta() { return riservatoIncinta; }
-
-    /**
-     * Imposta lo stato di riserva per donne in gravidanza.
-     *
-     * @param riservatoIncinta nuovo stato
-     */
-    public void setRiservatoIncinta(boolean riservatoIncinta) { this.riservatoIncinta = riservatoIncinta; }
-
-    /**
-     * Restituisce la distanza dall'uscita.
-     *
-     * @return distanza dall'uscita
-     */
-    public int getDistanzaUscita() { return distanzaUscita; }
-
-    /**
-     * Imposta la distanza dall'uscita.
-     *
-     * @param distanzaUscita nuova distanza
-     */
-    public void setDistanzaUscita(int distanzaUscita) { this.distanzaUscita = distanzaUscita; }
-    
-    /**
-     * Restituisce l'identificativo del parcheggio associato.
-     *
-     * @return identificativo del parcheggio
-     */
-    public String getParcheggioId() { return parcheggioId; }
-
-    /**
-     * Imposta l'identificativo del parcheggio associato.
-     *
-     * @param parcheggioId nuovo identificativo del parcheggio
-     */
-    public void setParcheggioId(String parcheggioId) { this.parcheggioId = parcheggioId; }
-    
-    /**
-     * Restituisce il numero del posto.
-     *
+     * Restituisce numero del posto.
      * @return numero del posto
      */
-    public int getNumero() { return numero; }
+    public int getNumero() {
+        return numero;
+    }
 
     /**
-     * Imposta il numero del posto.
+     * Imposta numero del posto.
      *
-     * @param numero nuovo numero del posto
+     * @param numero numero progressivo del posto
      */
-    public void setNumero(int numero) { this.numero = numero; }
-    
-    /**
-     * Restituisce il piano del posto.
-     *
-     * @return piano del posto
-     */
-    public int getPiano() { return piano; }
+    public void setNumero(int numero) {
+        this.numero = numero;
+    }
 
     /**
-     * Imposta il piano del posto.
-     *
-     * @param piano nuovo piano del posto
+     * Restituisce nome.
+     * @return nome
      */
-    public void setPiano(int piano) { this.piano = piano; }
-    
-    /**
-     * Restituisce l'identificativo del documento.
-     *
-     * @return identificativo del documento
-     */
-    public String getId() { return id; }
+    public String getNome() {
+        return nome;
+    }
 
     /**
-     * Imposta l'identificativo del documento.
+     * Imposta nome.
      *
-     * @param id nuovo identificativo del documento
+     * @param nome nome descrittivo
      */
-    public void setId(String id) { this.id = id; }
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    /**
+     * Restituisce numero del piano.
+     * @return numero del piano
+     */
+    public int getPiano() {
+        return piano;
+    }
+
+    /**
+     * Imposta numero del piano.
+     *
+     * @param piano piano da filtrare o modificare
+     */
+    public void setPiano(int piano) {
+        this.piano = piano;
+    }
+
+    /**
+     * Restituisce tipo del posto.
+     * @return tipo del posto
+     */
+    public TipoPosto getTipo() {
+        return tipo;
+    }
+
+    /**
+     * Imposta tipo del posto.
+     *
+     * @param tipo categoria del posto
+     */
+    public void setTipo(TipoPosto tipo) {
+        this.tipo = tipo == null ? TipoPosto.NORMALE : tipo;
+    }
+
+    /**
+     * Restituisce stato operativo.
+     * @return stato operativo
+     */
+    public StatoPosto getStato() {
+        return stato;
+    }
+
+    /**
+     * Imposta stato operativo.
+     *
+     * @param stato nuovo stato operativo
+     */
+    public void setStato(StatoPosto stato) {
+        this.stato = stato == null ? StatoPosto.LIBERO : stato;
+    }
+
+    /**
+     * Indica se stato di fuori servizio.
+     * @return {@code true} se la condizione è verificata, {@code false} altrimenti
+     */
+    public boolean isFuoriServizio() {
+        return fuoriServizio;
+    }
+
+    /**
+     * Imposta stato di fuori servizio.
+     *
+     * @param fuoriServizio nuovo valore della messa fuori servizio
+     */
+    public void setFuoriServizio(boolean fuoriServizio) {
+        this.fuoriServizio = fuoriServizio;
+    }
+
+    /**
+     * Restituisce distanza dall'uscita.
+     * @return distanza dall'uscita
+     */
+    public int getDistanzaUscita() {
+        return distanzaUscita;
+    }
+
+    /**
+     * Imposta distanza dall'uscita.
+     *
+     * @param distanzaUscita distanza dall'uscita
+     */
+    public void setDistanzaUscita(int distanzaUscita) {
+        this.distanzaUscita = distanzaUscita;
+    }
+
+    // ---------------------------------------------------------------------
+    // Alias compatibili con il vecchio dominio Posto
+    // ---------------------------------------------------------------------
+
+    /**
+     * Indica se disponibilità.
+     * @return {@code true} se la condizione è verificata, {@code false} altrimenti
+     */
+    public boolean isDisponibile() {
+        return stato == StatoPosto.LIBERO && !fuoriServizio;
+    }
+
+    /**
+     * Imposta disponibilità.
+     *
+     * @param disponibile nuovo valore della disponibilità
+     */
+    public void setDisponibile(boolean disponibile) {
+        if (disponibile) {
+            this.stato = StatoPosto.LIBERO;
+        } else if (this.stato == StatoPosto.LIBERO) {
+            this.stato = StatoPosto.PRENOTATO;
+        }
+    }
+
+    /**
+     * Indica se stato di disabilitazione.
+     * @return {@code true} se la condizione è verificata, {@code false} altrimenti
+     */
+    public boolean isDisabilitato() {
+        return fuoriServizio;
+    }
+
+    /**
+     * Imposta stato di disabilitazione.
+     *
+     * @param disabilitato nuovo valore legacy di disabilitazione
+     */
+    public void setDisabilitato(boolean disabilitato) {
+        this.fuoriServizio = disabilitato;
+    }
+
+    /**
+     * Indica se riserva per disabili.
+     * @return {@code true} se la condizione è verificata, {@code false} altrimenti
+     */
+    public boolean isRiservatoDisabili() {
+        return tipo == TipoPosto.DISABILI;
+    }
+
+    /**
+     * Imposta riserva per disabili.
+     *
+     * @param riservatoDisabili riserva per disabili
+     */
+    public void setRiservatoDisabili(boolean riservatoDisabili) {
+        if (riservatoDisabili) {
+            this.tipo = TipoPosto.DISABILI;
+        } else if (this.tipo == TipoPosto.DISABILI) {
+            this.tipo = TipoPosto.NORMALE;
+        }
+    }
+
+    /**
+     * Indica se riserva per donne in gravidanza.
+     * @return {@code true} se la condizione è verificata, {@code false} altrimenti
+     */
+    public boolean isRiservatoIncinta() {
+        return tipo == TipoPosto.INCINTA;
+    }
+
+    /**
+     * Imposta riserva per donne in gravidanza.
+     *
+     * @param riservatoIncinta riserva per donne in gravidanza
+     */
+    public void setRiservatoIncinta(boolean riservatoIncinta) {
+        if (riservatoIncinta) {
+            this.tipo = TipoPosto.INCINTA;
+        } else if (this.tipo == TipoPosto.INCINTA) {
+            this.tipo = TipoPosto.NORMALE;
+        }
+    }
 }
-
-/**
- * Rappresenta un contenitore per gli stati booleani di un posto auto.
- *
- * Permette di raggruppare le caratteristiche principali del posto
- * in un'unica struttura immutabile.
- *
- * @param disponibile indica se il posto è disponibile
- * @param disabilitato indica se il posto è disabilitato
- * @param riservatoDisabili indica se il posto è riservato a disabili
- * @param riservatoIncinta indica se il posto è riservato a donne in gravidanza
- */
-record PostoBoolean(boolean disponibile, boolean disabilitato, boolean riservatoDisabili, boolean riservatoIncinta) {}

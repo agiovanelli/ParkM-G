@@ -1,18 +1,19 @@
 package pmg.backend.parcheggio;
 
 /**
- * DTO utilizzato per restituire i dati di un parcheggio.
+ * DTO sintetico utilizzato per restituire le informazioni principali di un parcheggio.
  *
- * Include le informazioni principali del parcheggio,
- * come posizione, capacità e stato.
+ * Non contiene l'elenco completo dei posti e può quindi essere usato nelle
+ * ricerche geografiche e nella visualizzazione dei marker senza appesantire la risposta.
  *
- * @param id identificativo del parcheggio
+ * @param id identificativo univoco del parcheggio
  * @param nome nome del parcheggio
  * @param area area geografica del parcheggio
- * @param postiTotali numero totale di posti
- * @param postiDisponibili numero di posti disponibili
- * @param latitudine latitudine della posizione
- * @param longitudine longitudine della posizione
+ * @param postiTotali numero totale di posti configurati
+ * @param postiDisponibili numero di posti attualmente disponibili
+ * @param numPiani numero di piani del parcheggio
+ * @param latitudine latitudine del parcheggio
+ * @param longitudine longitudine del parcheggio
  * @param inEmergenza indica se il parcheggio è in stato di emergenza
  */
 public record ParcheggioResponse(
@@ -21,7 +22,9 @@ public record ParcheggioResponse(
         String area,
         int postiTotali,
         int postiDisponibili,
+        int numPiani,
         double latitudine,
         double longitudine,
         boolean inEmergenza
-) {}
+) {
+}
